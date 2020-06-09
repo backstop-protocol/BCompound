@@ -1,0 +1,33 @@
+{
+  "name": "tezosExample",
+  "version": "1.0.0",
+  "description": "Tezos Example Box =================",
+  "dependencies": {
+    "@taquito/taquito": "^6.0.3-beta.0",
+    "promise-retry": "^1.1.1",
+    "truffle": "^5.1.27",
+    "web3": "^1.2.8"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "wait-for-sandbox": "node ./scripts/sandbox/waitForNetwork.js",
+    "start-sandbox": "bash ./scripts/sandbox/start_sandbox.sh && npm run wait-for-sandbox",
+    "kill-sandbox": "bash ./scripts/sandbox/kill_sandbox.sh",
+    "restart-sandbox": "npm run kill-sandbox && npm run start-sandbox"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/truffle-box/tezos-example-box.git"
+  },
+  "keywords": [
+    "tezos",
+    "blockchain",
+    "truffle"
+  ],
+  "author": "Cruz Molina <cruz@trufflesuite.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/truffle-box/tezos-example-box/issues"
+  },
+  "homepage": "https://github.com/truffle-box/tezos-example-box#readme"
+}
