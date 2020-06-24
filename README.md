@@ -10,4 +10,4 @@ Ensure that `yarn` has been executed before in the folder `compound-protocol`.
 Compile
 
     truffle compile
-    truffle compile --contracts_directory compound-protocol/contracts
+    truffle compile --contracts_directory compound-protocol/tests

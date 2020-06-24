@@ -10,6 +10,8 @@
     "web3": "^1.2.8"
   },
   "devDependencies": {
+    "chai": "^4.2.0",
+    "chai-bn": "^0.2.1",
     "typechain": "^2.0.0"
   },
   "scripts": {
