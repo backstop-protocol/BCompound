@@ -16,6 +16,7 @@
   },
   "scripts": {
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' script/scen/scriptFlywheel.scen",
+    "postinstall": "cd compound-protocol && yarn",
     "wait-for-sandbox": "node ./scripts/sandbox/waitForNetwork.js",
     "start-sandbox": "bash ./scripts/sandbox/start_sandbox.sh && npm run wait-for-sandbox",
     "kill-sandbox": "bash ./scripts/sandbox/kill_sandbox.sh",
