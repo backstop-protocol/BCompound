@@ -55,12 +55,28 @@ contract("Validate Compound Deployment", (accounts) => {
   });
 
   it("should mint cBAT", async () => {
+    const minter = accounts[3];
     const TEN_TOKENS_18 = new BN(10).mul(ONE_TOKEN_18);
     const BAT_addr = compoundJSON.Contracts.BAT;
     const BAT = await ERC20.at(BAT_addr);
     const cBAT_addr = compoundJSON.Contracts.cBAT;
     const cBAT = await CErc20.at(cBAT_addr);
-    await BAT.approve(cBAT_addr, TEN_TOKENS_18, { from: accounts[3] });
-    await cBAT.mint(TEN_TOKENS_18, { from: accounts[3] });
+    await BAT.approve(cBAT_addr, TEN_TOKENS_18, { from: minter });
+    await cBAT.mint(TEN_TOKENS_18, { from: minter });
+  });
+
+  it("should borrow ZRX", async () => {
+    const borrower = accounts[3];
+    const ZRX_addr = compoundJSON.Contracts.ZRX;
+    const ZRX = await ERC20.at(ZRX_addr);
+    const cZRX_addr = compoundJSON.Contracts.cZRX;
+    const cZRX = await CErc20.at(cZRX_addr);
+
+    const beforeBalance = await ZRX.balanceOf(borrower);
+    console.log(beforeBalance.toString());
+    await cZRX.borrow(ONE_TOKEN_18, { from: borrower });
+
+    const afterBalance = await ZRX.balanceOf(borrower);
+    console.log(afterBalance.toString());
   });
 });
