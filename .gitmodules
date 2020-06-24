@@ -1,0 +1,3 @@
+[submodule "compound-protocol"]
+	path = compound-protocol
+	url = https://github.com/backstop-protocol/compound-protocol.git

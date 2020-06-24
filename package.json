@@ -4,12 +4,16 @@
   "description": "Tezos Example Box =================",
   "dependencies": {
     "@taquito/taquito": "^6.0.3-beta.0",
+    "@types/node": "^14.0.13",
     "promise-retry": "^1.1.1",
     "truffle": "^5.1.27",
     "web3": "^1.2.8"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "typechain": "^2.0.0"
+  },
   "scripts": {
+    "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' script/scen/scriptFlywheel.scen",
     "wait-for-sandbox": "node ./scripts/sandbox/waitForNetwork.js",
     "start-sandbox": "bash ./scripts/sandbox/start_sandbox.sh && npm run wait-for-sandbox",
     "kill-sandbox": "bash ./scripts/sandbox/kill_sandbox.sh",
