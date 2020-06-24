@@ -1,13 +1,23 @@
-Run Ganache
+If the submodule `compound-protocol` is not updated, run this command to get the updated submodule code.
 
-    ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true
+    git submodule update --init
 
-Deploy Compound Contracts
-Ensure that `yarn` has been executed before in the folder `compound-protocol`.
+Install the dependencies required for `compound-demo` and `compound-protocol`
+
+    npm install
+
+Command to compile the `compound-demo` and `compound-protocol` contracts
+
+    npm run compile
+
+Run Ganache with the defined configs. These configs are required by `compound-protocol`
+
+    npm run ganache
+
+Deploy Compound Contracts on ganache. This command will not stop automatically. You need to kill this with [Ctrl+C] once deployment is done.
 
     npm run deploy-compound
 
-Compile
+Execute tests
 
-    truffle compile
-    truffle compile --contracts_directory compound-protocol/tests
+    truffle test
