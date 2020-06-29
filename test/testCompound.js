@@ -2,6 +2,7 @@ const COMP = artifacts.require("COMP");
 const CErc20 = artifacts.require("CErc20");
 const CEther = artifacts.require("CEther");
 const ERC20 = artifacts.require("ERC20");
+const Comptroller = artifacts.require("Comptroller");
 
 var chai = require("chai");
 var assert = require("chai").assert;
@@ -127,16 +128,37 @@ contract("Validate Compound Deployment", (accounts) => {
   });
 
   it("should borrow ETH", async () => {
-    const borrower = accounts[3];
+    // depositing ZRX
+    const minter = accounts[0];
+    const THOUSAND_TOKENS_18 = new BN(1000).mul(ONE_TOKEN_18);
+    const ZRX_addr = compoundJSON.Contracts.ZRX;
+    const ZRX = await ERC20.at(ZRX_addr);
+    const cZRX_addr = compoundJSON.Contracts.cZRX;
+    const cZRX = await CErc20.at(cZRX_addr);
+    await ZRX.approve(cZRX_addr, THOUSAND_TOKENS_18, { from: minter });
+    let beforeBalance = await cZRX.balanceOf(minter);
+    await cZRX.mint(THOUSAND_TOKENS_18, { from: minter });
+    let afterBalance = await cZRX.balanceOf(minter);
+    expect(afterBalance).to.bignumber.gt(beforeBalance);
+
+    // enter market
+    const comptrollerAddr = await cZRX.comptroller();
+    const comptroller = await Comptroller.at(comptrollerAddr);
+    await comptroller.enterMarkets([cZRX_addr], { from: minter });
+
+    // Borrowing ETH
+    const borrower = accounts[0];
     const cETH_addr = compoundJSON.Contracts.cETH;
     const cETH = await CEther.at(cETH_addr);
+    // console.log(await cETH.comptroller());
 
     const cethBal = await cETH.balanceOf(borrower);
     console.log(cethBal.toString());
 
-    const beforeBalance = await web3.eth.getBalance(borrower);
-    await cETH.borrow(web3.utils.toWei("1", "wei"), { from: borrower });
-    const afterBalance = await web3.eth.getBalance(borrower);
+    beforeBalance = await web3.eth.getBalance(borrower);
+    await cETH.accrueInterest();
+    await cETH.borrow(web3.utils.toWei("0.5", "ether"), { from: borrower });
+    afterBalance = await web3.eth.getBalance(borrower);
     expect(afterBalance).to.bignumber.gt(beforeBalance);
   });
 });
