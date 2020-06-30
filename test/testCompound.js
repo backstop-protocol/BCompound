@@ -1,4 +1,4 @@
-const COMP = artifacts.require("COMP");
+const Comp = artifacts.require("Comp");
 const CErc20 = artifacts.require("CErc20");
 const CEther = artifacts.require("CEther");
 const ERC20 = artifacts.require("ERC20");
@@ -21,7 +21,7 @@ contract("Validate Compound Deployment", (accounts) => {
   it("should get COMP token balance", async () => {
     const FIVE_MILLION_TOKENS_18 = ONE_MILLION_TOKENS_18.mul(new BN(5));
     const COMP_addr = compoundJSON.Contracts.COMP;
-    const instance = await COMP.at(COMP_addr);
+    const instance = await Comp.at(COMP_addr);
     const totalSupply = await instance.totalSupply();
 
     expect(FIVE_MILLION_TOKENS_18).to.bignumber.equal(totalSupply);
