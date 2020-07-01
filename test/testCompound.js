@@ -2,7 +2,7 @@ const Comp = artifacts.require("Comp");
 const CErc20 = artifacts.require("CErc20");
 const CEther = artifacts.require("CEther");
 const ERC20 = artifacts.require("ERC20");
-const Comptroller = artifacts.require("Comptroller");
+const Comptroller = artifacts.require("ComptrollerScenarioG1");
 
 var chai = require("chai");
 var assert = require("chai").assert;
@@ -141,11 +141,13 @@ contract("Validate Compound Deployment", (accounts) => {
     let afterBalance = await cZRX.balanceOf(minter);
     expect(afterBalance).to.bignumber.gt(beforeBalance);
 
+    const beforeBalOfUnderlaying = await cZRX.balanceOfUnderlying.call(minter);
+    // console.log("cZRX balanceOfUnderlaying" + beforeBalOfUnderlaying);
+
     // enter market
     const comptrollerAddr = await cZRX.comptroller();
     const comptroller = await Comptroller.at(comptrollerAddr);
     await comptroller.enterMarkets([cZRX_addr], { from: minter });
-
 
     // Borrowing ETH
     const borrower = accounts[0];
@@ -155,47 +157,66 @@ contract("Validate Compound Deployment", (accounts) => {
 
     await comptroller.enterMarkets([cETH.address], { from: borrower });
 
-
-    console.log("factor", await comptroller.markets(cETH.address))
+    console.log("factor", await comptroller.markets(cETH.address));
 
     const cethBal = await cETH.balanceOf(borrower);
     console.log(cethBal.toString());
 
     beforeBalance = await web3.eth.getBalance(borrower);
     await cETH.accrueInterest();
-    console.log("cETH balance", await web3.eth.getBalance(cETH.address))
-    await cETH.mint({ from: borrower, value: web3.utils.toWei("10000000", "ether") });
-    console.log("cETH balance", await web3.eth.getBalance(cETH.address))
-    const borVal = web3.utils.toWei("1000000", "ether")
-    console.log("borrow ret val", await cETH.borrow.call(borVal, { from: borrower }))
+    console.log("cETH balance", await web3.eth.getBalance(cETH.address));
+    await cETH.mint({
+      from: borrower,
+      value: web3.utils.toWei("10000000", "ether"),
+    });
+    console.log("cETH balance", await web3.eth.getBalance(cETH.address));
+    const borVal = web3.utils.toWei("1000000", "ether");
+    console.log(
+      "borrow ret val",
+      await cETH.borrow.call(borVal, { from: borrower })
+    );
     await cETH.borrow(borVal, { from: borrower });
     afterBalance = await web3.eth.getBalance(borrower);
-    const totalBorrow = await cETH.totalBorrowsCurrent.call()
+    const totalBorrow = await cETH.totalBorrowsCurrent.call();
     expect(totalBorrow).to.bignumber.gte(borVal);
 
     console.log(await cETH.totalReserves());
     console.log(await cETH.reserveFactorMantissa());
     console.log(await cZRX.reserveFactorMantissa());
 
-    let retVal = await cETH.accrueInterest.call()
-    console.log(retVal)
+    let retVal = await cETH.accrueInterest.call();
+    console.log(retVal);
     await cETH.accrueInterest();
-    console.log("borrow rate", await cETH.borrowRatePerBlock())
-    console.log(await web3.eth.getBlockNumber(), await cETH.totalReserves(), await cETH.exchangeRateCurrent.call(),await cETH.totalBorrowsCurrent.call());
+    console.log("borrow rate", await cETH.borrowRatePerBlock());
+    console.log(
+      await web3.eth.getBlockNumber(),
+      await cETH.totalReserves(),
+      await cETH.exchangeRateCurrent.call(),
+      await cETH.totalBorrowsCurrent.call()
+    );
 
+    const beforeTotalBorrowCurrent = await cETH.totalBorrowsCurrent.call();
 
-    for(let i = 0 ; i < 5000 ; i++) {
-      if(i%1000 == 0)
-      console.log(i)
-      await cETH.exchangeRateCurrent()
-}
-      //await mineBlock()
-       retVal = await cETH.accrueInterest.call()
-      console.log(retVal)
-      await cETH.accrueInterest();
-      console.log("borrow rate", await cETH.borrowRatePerBlock())
-      console.log(await web3.eth.getBlockNumber(), await cETH.totalReserves(), await cETH.exchangeRateCurrent.call(),await cETH.totalBorrowsCurrent.call());
+    await comptroller.fastForward(1000);
 
+    //await mineBlock()
+    retVal = await cETH.accrueInterest.call();
+    console.log(retVal);
+    await cETH.accrueInterest();
+    console.log("borrow rate", await cETH.borrowRatePerBlock());
+    console.log(
+      await web3.eth.getBlockNumber(),
+      await cETH.totalReserves(),
+      await cETH.exchangeRateCurrent.call(),
+      await cETH.totalBorrowsCurrent.call()
+    );
 
+    const afterTotalBorrowCurrent = await cETH.totalBorrowsCurrent.call();
+
+    expect(afterTotalBorrowCurrent).to.bignumber.gt(beforeTotalBorrowCurrent);
+
+    const afterBalOfUnderlaying = await cZRX.balanceOfUnderlying.call(minter);
+    expect(afterBalOfUnderlaying).to.bignumber.gt(beforeBalOfUnderlaying);
+    // console.log("cZRX balanceOfUnderlaying" + afterBalOfUnderlaying);
   });
 });
