@@ -4,12 +4,21 @@
   "description": "Tezos Example Box =================",
   "dependencies": {
     "@taquito/taquito": "^6.0.3-beta.0",
+    "@types/node": "^14.0.13",
     "promise-retry": "^1.1.1",
     "truffle": "^5.1.27",
     "web3": "^1.2.8"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "chai-bn": "^0.2.1",
+    "typechain": "^2.0.0"
+  },
   "scripts": {
+    "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
+    "postinstall": "cd compound-protocol && yarn",
+    "compile": "truffle compile && truffle compile --contracts_directory compound-protocol/tests",
+    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
     "wait-for-sandbox": "node ./scripts/sandbox/waitForNetwork.js",
     "start-sandbox": "bash ./scripts/sandbox/start_sandbox.sh && npm run wait-for-sandbox",
     "kill-sandbox": "bash ./scripts/sandbox/kill_sandbox.sh",

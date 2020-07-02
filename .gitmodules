@@ -1,0 +1,5 @@
+[submodule "compound-protocol"]
+	path = compound-protocol
+	url = https://github.com/backstop-protocol/compound-protocol.git
+    branch = bprotocol
+    ignore=dirty
