@@ -1,7 +1,7 @@
 {
-  "name": "tezosExample",
+  "name": "BProtocol",
   "version": "1.0.0",
-  "description": "Tezos Example Box =================",
+  "description": "Backstop Liquidity Protocol",
   "dependencies": {
     "@taquito/taquito": "^6.0.3-beta.0",
     "@types/node": "^14.0.13",
@@ -18,25 +18,14 @@
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
     "postinstall": "cd compound-protocol && yarn",
     "compile": "truffle compile && truffle compile --contracts_directory compound-protocol/tests",
-    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
-    "wait-for-sandbox": "node ./scripts/sandbox/waitForNetwork.js",
-    "start-sandbox": "bash ./scripts/sandbox/start_sandbox.sh && npm run wait-for-sandbox",
-    "kill-sandbox": "bash ./scripts/sandbox/kill_sandbox.sh",
-    "restart-sandbox": "npm run kill-sandbox && npm run start-sandbox"
+    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/truffle-box/tezos-example-box.git"
+    "url": "git+https://github.com/backstop-protocol/compound-demo.git"
   },
   "keywords": [
-    "tezos",
     "blockchain",
     "truffle"
-  ],
-  "author": "Cruz Molina <cruz@trufflesuite.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/truffle-box/tezos-example-box/issues"
-  },
-  "homepage": "https://github.com/truffle-box/tezos-example-box#readme"
+  ]
 }
