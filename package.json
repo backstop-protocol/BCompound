@@ -13,6 +13,7 @@
     "@nomiclabs/buidler": "^1.3.8",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",
+    "@openzeppelin/contracts": "^2.5.1",
     "chai": "^4.2.0",
     "chai-bn": "^0.2.1",
     "ethereum-waffle": "^3.0.0",

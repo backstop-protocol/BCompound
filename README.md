@@ -21,3 +21,8 @@ Deploy Compound Contracts on ganache. This command will not stop automatically. 
 Execute tests
 
     truffle test
+
+# NEW COMMANDS
+
+    npm install
+    npx buidler compile
