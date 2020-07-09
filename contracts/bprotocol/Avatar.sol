@@ -157,7 +157,7 @@ contract Avatar is CarefulMath {
      * @notice Only Pool contract allowed to call the topup.
      * @param cToken CToken address to use to RepayBorrows
      * @param topupAmount Amount of tokens to Topup
-     * @return `true` if success, otherwise `false`
+     * @return `true` if success, `false` otherwise.
      */
     function topup(ICToken cToken, uint256 topupAmount) external onlyPool returns (bool) {
         // when already topped
@@ -190,7 +190,7 @@ contract Avatar is CarefulMath {
      * @dev Untop the borrowed position of this Avatar by borrowing from Compound and transferring
      *      it to the pool.
      * @notice Only Pool contract allowed to call the untop.
-     * @return `true` if success, otherwise `false`
+     * @return `true` if success, `false` otherwise.
      */
     function untop() external onlyPool returns (bool) {
         // when already untopped
@@ -218,6 +218,7 @@ contract Avatar is CarefulMath {
     // ================
     function getUserDebtAndCollateralNormalized() public returns(uint256 debtValue, uint256 maxBorrowPowerValue) {
         MathError mErr;
+        uint256 borrowBalanceValue;
         PriceOracle priceOracle = PriceOracle(comptroller.oracle());
         address[] memory assets = comptroller.getAssetsIn(address(this));
         debtValue = 0;
@@ -225,7 +226,11 @@ contract Avatar is CarefulMath {
             ICToken cToken = ICToken(assets[i]);
             uint256 price = priceOracle.getUnderlyingPrice(cToken);
             require(price > 0, "Invalid price");
-            debtValue += cToken.borrowBalanceCurrent(address(this)) * price;
+            uint256 borrowBalanceCurrent = cToken.borrowBalanceCurrent(address(this));
+            (mErr, borrowBalanceValue) = mulUInt(borrowBalanceCurrent, price);
+            require(mErr == MathError.NO_ERROR, "Mul error");
+            (mErr, debtValue) = addUInt(debtValue, borrowBalanceValue);
+            require(mErr == MathError.NO_ERROR, "Add error");
         }
 
         (uint256 err, uint256 liquidity,uint256 shortfall) = comptroller.getAccountLiquidity(address(this));
