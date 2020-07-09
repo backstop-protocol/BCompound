@@ -11,5 +11,7 @@ interface IComptroller {
     function getAssetsIn(address account) external view returns (address[] memory);
 
     function getAccountLiquidity(address account) external view returns (uint, uint, uint);
+
+    function mintAllowed(address cToken, address minter, uint mintAmount) external returns (uint);
     function borrowAllowed(address cToken, address borrower, uint borrowAmount) external returns (uint);
 }
