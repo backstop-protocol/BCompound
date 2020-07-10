@@ -2,7 +2,7 @@ pragma solidity 0.5.16;
 
 import { ICToken } from "./interfaces/CTokenInterfaces.sol";
 import { ICEther } from "./interfaces/CTokenInterfaces.sol";
-import { PriceOracle } from "./interfaces/CTokenInterfaces.sol";
+import { IPriceOracle } from "./interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "./interfaces/IComptroller.sol";
 import { IRegistry } from "./interfaces/IRegistry.sol";
 
@@ -216,12 +216,12 @@ contract Avatar is CarefulMath {
 
     // Helper Functions
     // ================
-    function getUserDebtAndCollateralNormalized() public returns(uint256 debtValue, uint256 maxBorrowPowerValue) {
+    function getUserDebtAndCollateralNormalized() public returns(uint256 debtInETH, uint256 maxBorrowPowerInETH) {
         MathError mErr;
         uint256 borrowBalanceValue;
-        PriceOracle priceOracle = PriceOracle(comptroller.oracle());
+        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
         address[] memory assets = comptroller.getAssetsIn(address(this));
-        debtValue = 0;
+        debtInETH = 0;
         for(uint256 i = 0; i < assets.length; i++) {
             ICToken cToken = ICToken(assets[i]);
             uint256 price = priceOracle.getUnderlyingPrice(cToken);
@@ -229,19 +229,44 @@ contract Avatar is CarefulMath {
             uint256 borrowBalanceCurrent = cToken.borrowBalanceCurrent(address(this));
             (mErr, borrowBalanceValue) = mulUInt(borrowBalanceCurrent, price);
             require(mErr == MathError.NO_ERROR, "Mul error");
-            (mErr, debtValue) = addUInt(debtValue, borrowBalanceValue);
+            (mErr, debtInETH) = addUInt(debtInETH, borrowBalanceValue);
             require(mErr == MathError.NO_ERROR, "Add error");
         }
 
         (uint256 err, uint256 liquidity,uint256 shortfall) = comptroller.getAccountLiquidity(address(this));
         require(err == 0, "comp.getAccountLiquidity failed");
         if(liquidity > 0) {
-            (mErr, maxBorrowPowerValue) = addUInt(debtValue, liquidity);
+            (mErr, maxBorrowPowerInETH) = addUInt(debtInETH, liquidity);
             require(mErr == MathError.NO_ERROR, "Add error");
         }
         else {
-            (mErr, maxBorrowPowerValue) = subUInt(debtValue, shortfall);
+            (mErr, maxBorrowPowerInETH) = subUInt(debtInETH, shortfall);
             require(mErr == MathError.NO_ERROR, "Sub error");
+        }
+    }
+
+    function canLiquidate() public returns (bool) {
+        MathError mErr;
+        uint256 toppedUpInETH = 0;
+
+        (uint debtInETH, uint maxBorrowPowerInETH) = getUserDebtAndCollateralNormalized();
+
+        if (topped) {
+            IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
+            uint256 price = priceOracle.getUnderlyingPrice(toppedUpCToken);
+
+            // toppedUpInETH = toppedUpAmount * price
+            (mErr, toppedUpInETH) = mulUInt(toppedUpAmount, price);
+            require(mErr == MathError.NO_ERROR, "Mul error");
+
+            // totalDebtInETH = debtInETH + toppedUpInETH
+            uint256 totalDebtInETH;
+            (mErr, totalDebtInETH) = addUInt(debtInETH, toppedUpInETH);
+            require(mErr == MathError.NO_ERROR, "Add error");
+
+            return totalDebtInETH >= maxBorrowPowerInETH;
+        } else {
+            return debtInETH >= maxBorrowPowerInETH;
         }
     }
 

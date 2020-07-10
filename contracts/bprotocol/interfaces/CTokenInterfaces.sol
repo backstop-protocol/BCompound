@@ -45,7 +45,7 @@ contract ICEther is CErc20Interface {
     function mint() external payable;
 }
 
-contract PriceOracle {
+contract IPriceOracle {
     /**
       * @notice Get the underlying price of a cToken asset
       * @param cToken The cToken to get the underlying price of
