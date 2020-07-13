@@ -22,7 +22,6 @@ Execute tests
 
     truffle test
 
-# NEW COMMANDS
+Deploy Contracts
 
-    npm install
-    npx buidler compile
+    npx buidler run scripts/deploy.js

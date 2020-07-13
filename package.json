@@ -6,25 +6,28 @@
     "@taquito/taquito": "^6.0.3-beta.0",
     "@types/node": "^14.0.13",
     "promise-retry": "^1.1.1",
-    "truffle": "^5.1.27",
-    "web3": "^1.2.8"
+    "truffle": "^5.1.27"
   },
   "devDependencies": {
     "@nomiclabs/buidler": "^1.3.8",
     "@nomiclabs/buidler-ethers": "^2.0.0",
+    "@nomiclabs/buidler-truffle5": "^1.3.4",
     "@nomiclabs/buidler-waffle": "^2.0.0",
+    "@nomiclabs/buidler-web3": "^1.3.4",
     "@openzeppelin/contracts": "^2.5.1",
     "chai": "^4.2.0",
     "chai-bn": "^0.2.1",
     "ethereum-waffle": "^3.0.0",
     "ethers": "^5.0.3",
     "solc": "^0.5.16",
-    "typechain": "^2.0.0"
+    "typechain": "^2.0.0",
+    "web3": "^1.2.9",
+    "web3-utils": "^1.2.9"
   },
   "scripts": {
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
     "postinstall": "cd compound-protocol && yarn",
-    "compile": "truffle compile && truffle compile --contracts_directory compound-protocol/tests",
+    "compile": "rimraf build && rimraf cache && truffle compile --contracts_directory compound-protocol/tests && npx buidler compile",
     "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true"
   },
   "repository": {

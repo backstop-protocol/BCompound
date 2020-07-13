@@ -44,6 +44,11 @@ contract Avatar is CarefulMath {
         _;
     }
 
+    modifier onlyLiquidators() {
+        require(isLiquidator(msg.sender), "Only Liquidators are authorized");
+        _;
+    }
+
     constructor(
         address _pool,
         address _bToken,
@@ -56,6 +61,12 @@ contract Avatar is CarefulMath {
         bToken = _bToken;
         bComptroller = _bComptroller;
         comptroller = IComptroller(_comptroller);
+    }
+
+    function isLiquidator(address liquidator) internal view returns (bool) {
+        liquidator; //shhh!
+        // TODO Check for a valid liquidator
+        return true;
     }
 
     // OPEN FUNCTIONS
@@ -245,6 +256,12 @@ contract Avatar is CarefulMath {
         }
     }
 
+    // LIQUIDATION
+    // ============
+    /**
+     * @dev Returns the status if this Avatar's debt can be liquidated
+     * @return `true` when this Avatar can be liquidated, `false` otherwise
+     */
     function canLiquidate() public returns (bool) {
         MathError mErr;
         uint256 toppedUpInETH = 0;
@@ -268,6 +285,24 @@ contract Avatar is CarefulMath {
         } else {
             return debtInETH >= maxBorrowPowerInETH;
         }
+    }
+
+    function liquidateBorrow(ICToken cToken, uint256 underlyingAmtToLiquidate) external onlyLiquidators {
+        // 1. Can liquidate?
+        require(canLiquidate(), "Cannot liquidate");
+
+        // 2. Is cToken == toppedUpCToken: then only perform liquidation considering `toppedUpAmount`
+        /*
+        if(cToken == toppedUpCToken) {
+            IERC20 underlying = IERC20(toppedUpCToken.underlying());
+            address avatar = address(this);
+            uint256 debt = cToken.borrowBalanceCurrent(avatar);
+
+        } else {
+            // 3. Otherwise let user perform normal liquidation
+        }
+        */
+        
     }
 
 }
