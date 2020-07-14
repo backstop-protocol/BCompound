@@ -35,17 +35,12 @@ contract Avatar is CarefulMath {
     }
 
     modifier onlyBToken() {
-        require(msg.sender == bToken, "Only BToken is authorized");
+        require(isValidBToken(msg.sender), "Only BToken is authorized");
         _;
     }
 
     modifier onlyBComptroller() {
         require(msg.sender == bComptroller, "Only BComptroller is authorized");
-        _;
-    }
-
-    modifier onlyLiquidators() {
-        require(isLiquidator(msg.sender), "Only Liquidators are authorized");
         _;
     }
 
@@ -63,9 +58,8 @@ contract Avatar is CarefulMath {
         comptroller = IComptroller(_comptroller);
     }
 
-    function isLiquidator(address liquidator) internal view returns (bool) {
-        liquidator; //shhh!
-        // TODO Check for a valid liquidator
+    function isValidBToken(address bToken) internal view returns (bool) {
+        // TODO Write the implementation
         return true;
     }
 
@@ -75,15 +69,23 @@ contract Avatar is CarefulMath {
      * @dev Anyone allowed to enable a CToken on Avatar
      * @param cToken CToken address to enable
      */
-    function enableCToken(ICToken cToken) external {
+    function enableCToken(ICToken cToken) public {
         // 1. Validate cToken supported on the Compound
-        require(comptroller.mintAllowed(address(cToken), address(this), 0) == 0, "CToken not supported");
+        (bool isListed,) = comptroller.markets(address(cToken));
+        require(isListed, "CToken not supported");
+
         // 2. Initiate inifinite approval
         IERC20 underlying = IERC20(cToken.underlying());
         // 2.1 De-approve any previous approvals, before approving again
         underlying.safeApprove(address(cToken), 0);
         // 2.3 Initiate inifinite approval
         underlying.safeApprove(address(cToken), uint256(-1));
+    }
+
+    // TODO Need to add modifier to protect the function call
+    function disableCToken(ICToken cToken) public {
+        IERC20 underlying = IERC20(cToken.underlying());
+        underlying.safeApprove(address(cToken), 0);
     }
 
     // CEther
@@ -94,51 +96,51 @@ contract Avatar is CarefulMath {
 
     // CToken
     // ======
-    function mint(ICToken cToken, address user, uint256 mintAmount) external onlyBToken returns (uint256) {
+    function mint(ICToken cToken, uint256 mintAmount) external onlyBToken returns (uint256) {
         IERC20 underlying = IERC20(cToken.underlying());
-        underlying.safeTransferFrom(user, address(this), mintAmount);
+        underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
         return cToken.mint(mintAmount);
     }
 
-    function redeem(ICToken cToken, address user, uint256 redeemTokens) external onlyBToken returns (uint256) {
+    function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
         IERC20 underlying = IERC20(cToken.underlying());
         uint256 redeemedAmount = underlying.balanceOf(address(this));
-        underlying.safeTransfer(user, redeemedAmount);
+        underlying.safeTransfer(msg.sender, redeemedAmount);
         require(canUntop(), "Cannot untop");
         return result;
     }
 
-    function redeemUnderlying(ICToken cToken, address user, uint256 redeemAmount) external onlyBToken returns (uint256) {
+    function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
         IERC20 underlying = IERC20(cToken.underlying());
         uint256 redeemedAmount = underlying.balanceOf(address(this));
-        underlying.safeTransfer(user, redeemedAmount);
+        underlying.safeTransfer(msg.sender, redeemedAmount);
         require(canUntop(), "Cannot untop");
         return result;
     }
 
-    function borrow(ICToken cToken, address user, uint256 borrowAmount) external onlyBToken returns (uint256) {
-        require(cToken.borrow(borrowAmount) == 0, "Borrow failed");
+    function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken returns (uint256) {
+        uint256 result = cToken.borrow(borrowAmount);
         IERC20 underlying = IERC20(cToken.underlying());
         uint256 borrowedAmount = underlying.balanceOf(address(this));
-        underlying.safeTransfer(user, borrowedAmount);
+        underlying.safeTransfer(msg.sender, borrowedAmount);
         require(canUntop(), "Cannot untop");
-        return 0;
+        return result;
     }
 
-    function repayBorrow(ICToken cToken, address user, uint256 repayAmount) external onlyBToken returns (uint256) {
+    function repayBorrow(ICToken cToken, uint256 repayAmount) external onlyBToken returns (uint256) {
         uint256 amountToRepay = repayAmount;
         if(repayAmount == uint(-1)) {
             amountToRepay = cToken.borrowBalanceCurrent(address(this));
         }
 
         IERC20 underlying = IERC20(cToken.underlying());
-        underlying.safeTransferFrom(user, address(this), amountToRepay);
+        underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
         return cToken.repayBorrow(amountToRepay);
     }
 
-    function repayBorrowBehalf(ICToken cToken, address user, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
+    function repayBorrowBehalf(ICToken cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
         require(borrower != address(this), "Borrower and Avatar cannot be same");
         uint256 amountToRepay = repayAmount;
         if(repayAmount == uint(-1)) {
@@ -146,19 +148,23 @@ contract Avatar is CarefulMath {
         }
 
         IERC20 underlying = IERC20(cToken.underlying());
-        underlying.safeTransferFrom(user, address(this), amountToRepay);
+        underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
         return cToken.repayBorrowBehalf(borrower, amountToRepay);
     }
 
     // Comptroller
     // ===========
     function enterMarkets(address[] calldata cTokens) external onlyBComptroller returns (uint256[] memory) {
+        for(uint256 i = 0; i < cTokens.length; i++) {
+            enableCToken(ICToken(cTokens[i]));
+        }
         return comptroller.enterMarkets(cTokens);
     }
 
-    function exitMarket(address cToken) external onlyBComptroller returns (uint256) {
-        comptroller.exitMarket(cToken);
+    function exitMarket(ICToken cToken) external onlyBComptroller returns (uint256) {
+        comptroller.exitMarket(address(cToken));
         require(canUntop(), "Cannot untop");
+        disableCToken(cToken);
     }
 
     // Topup / Untop
@@ -194,6 +200,8 @@ contract Avatar is CarefulMath {
      * @return `true` if allowed to borrow, `false` otherwise.
      */
     function canUntop() internal returns (bool) {
+        // When not topped up, just return true
+        if(!topped) return true;
         return comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
     }
 
@@ -207,17 +215,14 @@ contract Avatar is CarefulMath {
         // when already untopped
         if(!topped) return false;
 
-        // 1. Check if untop allowed
-        require(canUntop(), "Cannot untop");
-
-        // 2. Borrow from Compound and send tokens to Pool
+        // 1. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "Borrow failed");
 
-        // 3. Transfer borrowed amount to Pool contract
+        // 2. Transfer borrowed amount to Pool contract
         IERC20 underlying = IERC20(toppedUpCToken.underlying());
         underlying.safeTransfer(pool, underlying.balanceOf(address(this)));
 
-        // 4. Udpdate storage for toppedUp details
+        // 3. Udpdate storage for toppedUp details
         toppedUpCToken = ICToken(0); // FIXME Might not need to reset (avoid gas consumption)
         toppedUpAmount = 0; // FIXME Might not need to reset (avoid gas consumption)
         topped = false;
@@ -287,22 +292,36 @@ contract Avatar is CarefulMath {
         }
     }
 
-    function liquidateBorrow(ICToken cToken, uint256 underlyingAmtToLiquidate) external onlyLiquidators {
+    function liquidateBorrow(ICToken cToken, uint256 underlyingAmtToLiquidate, address collateralToken) external onlyPool {
         // 1. Can liquidate?
         require(canLiquidate(), "Cannot liquidate");
 
         // 2. Is cToken == toppedUpCToken: then only perform liquidation considering `toppedUpAmount`
-        /*
-        if(cToken == toppedUpCToken) {
-            IERC20 underlying = IERC20(toppedUpCToken.underlying());
-            address avatar = address(this);
-            uint256 debt = cToken.borrowBalanceCurrent(avatar);
+        require(cToken == toppedUpCToken, "Not allowed to liquidate with given cToken debt");
+    
+        IERC20 underlying = IERC20(toppedUpCToken.underlying());
+        address avatar = address(this);
+        uint256 debt = cToken.borrowBalanceCurrent(avatar);
 
-        } else {
-            // 3. Otherwise let user perform normal liquidation
-        }
-        */
         
+    }
+
+    // ERC20
+    // ======
+    function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken returns (bool) {
+        bool result = cToken.transfer(dst, amount);
+        require(canUntop(), "Cannot untop");
+        return result;
+    }
+
+    function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken returns (bool) {
+        bool result = cToken.transferFrom(src, dst, amount);
+        require(canUntop(), "Cannot untop");
+        return result;
+    }
+
+    function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
+        return cToken.approve(spender, amount);
     }
 
 }
