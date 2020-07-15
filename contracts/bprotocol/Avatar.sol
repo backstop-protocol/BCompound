@@ -24,10 +24,17 @@ contract Avatar is Exponential {
     IComptroller public comptroller;
     IERC20 public comp;
 
-    // Storage for topup details
-    uint256 public toppedUpAmount;
-    ICToken public toppedUpCToken;
+    /** Storage for topup details */
+    // Is Avatar topped up?
     bool public topped = false;
+    // Topped up cToken
+    ICToken public toppedUpCToken;
+    // Topped up amount of tokens
+    uint256 public toppedUpAmount;
+    // If partially liquidated, store the amount of tokens partially liquidated
+    uint256 amountLiquidated;
+    // Maximum liquidation amount of tokens
+    uint256 maxLiquidationAmount;
 
     modifier onlyPool() {
         require(msg.sender == pool, "Only pool is authorized");
@@ -241,9 +248,11 @@ contract Avatar is Exponential {
     }
 
     function _resetTopupStorage() internal {
+        topped = false;
         toppedUpCToken = ICToken(0); // FIXME Might not need to reset (avoid gas consumption)
         toppedUpAmount = 0; // FIXME Might not need to reset (avoid gas consumption)
-        topped = false;
+        amountLiquidated = 0;
+        maxLiquidationAmount = 0;
     }
 
     // Helper Functions
@@ -294,8 +303,15 @@ contract Avatar is Exponential {
         // `toppedUpAmount` is also called poolDebt;
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
 
-        // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
-        uint maxLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+        if(amountLiquidated > 0) {
+            // If partially liquidated before
+            // maxLiquidationAmount = maxLiquidationAmount - amountLiquidated
+            maxLiquidationAmount = sub_(maxLiquidationAmount, amountLiquidated);
+        } else {
+            // First time liquidation is performed after topup
+            // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+            maxLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+        }
 
         // 3. `underlayingAmtToLiquidate` is under limit
         require(underlyingAmtToLiquidate <= maxLiquidationAmount, "liquidateBorrow: underlyingAmtToLiquidate is too big");
@@ -308,7 +324,9 @@ contract Avatar is Exponential {
             toppedUpAmount = 0;
         }
         else {
+            // Partially liqudated
             toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
+            amountLiquidated = add_(amountLiquidated, underlyingAmtToLiquidate);
         }
 
         // 5. Calculate premium and transfer to Liquidator
