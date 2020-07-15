@@ -1,8 +1,10 @@
 pragma solidity 0.5.16;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 contract CTokenInterface {
     /*** User Interface ***/
-    function underlying() external returns (address);
+    function underlying() external returns (IERC20);
     function transfer(address dst, uint amount) external returns (bool);
     function transferFrom(address src, address dst, uint amount) external returns (bool);
     function approve(address spender, uint amount) external returns (bool);

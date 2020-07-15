@@ -9,22 +9,22 @@ import { Avatar } from "./Avatar.sol";
 contract AvatarFactory {
 
     address public pool;
-    address public bToken;
     address public bComptroller;
     address public comptroller;
+    address public comp;
 
     constructor(
         address _pool,
-        address _bToken,
         address _bComptroller,
-        address _comptroller
+        address _comptroller,
+        address _comp
     )
         public
     {
         require(_pool != address(0), "Pool address is zero");
-        require(_bToken != address(0), "BToken address is zero");
         require(_bComptroller != address(0), "BComptroller address is zero");
         require(_comptroller != address(0), "Comptroller address is zero");
+        require(_comp != address(0), "Comp address is zero");
 
         pool = _pool;
         comptroller = _comptroller;
@@ -34,7 +34,7 @@ contract AvatarFactory {
      * @dev Deploys a new instance of Avatar contract
      */
     function newAvatar() external returns (address) {
-        return address(new Avatar(pool, bToken, bComptroller, comptroller));
+        return address(new Avatar(pool, bComptroller, comptroller, comp));
         // TODO Accounting in Registry to maintain that the Avatar is created by the BProtocol
     }
 }
