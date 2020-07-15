@@ -23,6 +23,7 @@ contract Avatar is Exponential {
     address public bComptroller;
     IComptroller public comptroller;
     IERC20 public comp;
+    ICEther public cETH;
 
     /** Storage for topup details */
     // Is Avatar topped up?
@@ -57,12 +58,14 @@ contract Avatar is Exponential {
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
      * @param _comp Compound finance COMP token contract address
+     * @param _cETH cETH contract address
      */
     constructor(
         address _pool,
         address _bComptroller,
         address _comptroller,
-        address _comp
+        address _comp,
+        address _cETH
     )
         public
     {
@@ -70,6 +73,7 @@ contract Avatar is Exponential {
         bComptroller = _bComptroller;
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
+        cETH = ICEther(_cETH);
     }
 
     function isValidBToken(address bToken) internal view returns (bool) {
@@ -106,6 +110,15 @@ contract Avatar is Exponential {
     // ======
     function mint(ICEther cEther) external payable onlyBToken {
         cEther.mint.value(msg.value)();
+    }
+
+    function repayBorrow() external payable onlyBToken {
+        cETH.repayBorrow.value(msg.value)();
+    }
+
+    function repayBorrowBehalf(address borrower) external payable onlyBToken {
+        require(borrower != address(this), "Borrower and Avatar cannot be same");
+        cETH.repayBorrowBehalf.value(msg.value)(borrower);
     }
 
     // CToken
@@ -179,6 +192,11 @@ contract Avatar is Exponential {
         comptroller.exitMarket(address(cToken));
         require(_canUntop(), "Cannot untop");
         disableCToken(cToken);
+    }
+
+    // TODO
+    function getAccountLiquidity(address account) external view returns (uint, uint, uint) {
+
     }
 
     function claimComp() external onlyBComptroller {
@@ -290,6 +308,13 @@ contract Avatar is Exponential {
         return !_canUntop();
     }
 
+    // CEther
+    // TODO
+    function liquidateBorrow(address borrower, address cTokenCollateral) external payable onlyPool {
+
+    }
+
+    // CToken
     function liquidateBorrow(ICToken cTokenDebt, uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyPool {
         // 1. Can liquidate?
         require(canLiquidate(), "Cannot liquidate");

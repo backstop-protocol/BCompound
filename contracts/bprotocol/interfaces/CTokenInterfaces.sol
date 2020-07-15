@@ -32,8 +32,6 @@ contract CErc20Interface is CTokenInterface {
     function redeem(uint redeemTokens) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function borrow(uint borrowAmount) external returns (uint);
-    function repayBorrow(uint repayAmount) external returns (uint);
-    function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint);
     function liquidateBorrow(address borrower, uint repayAmount, CTokenInterface cTokenCollateral) external returns (uint);
 }
 
@@ -41,10 +39,14 @@ contract CErc20Interface is CTokenInterface {
 // Defined separate contract as `mint()` override with `.value()` has issues
 contract ICToken is CErc20Interface{
     function mint(uint mintAmount) external returns (uint);
+    function repayBorrow(uint repayAmount) external returns (uint);
+    function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint);
 }
 
 contract ICEther is CErc20Interface {
     function mint() external payable;
+    function repayBorrow() external payable;
+    function repayBorrowBehalf(address borrower) external payable;
 }
 
 contract IPriceOracle {

@@ -12,12 +12,14 @@ contract AvatarFactory {
     address public bComptroller;
     address public comptroller;
     address public comp;
+    address public cETH;
 
     constructor(
         address _pool,
         address _bComptroller,
         address _comptroller,
-        address _comp
+        address _comp,
+        address _cETH
     )
         public
     {
@@ -27,14 +29,17 @@ contract AvatarFactory {
         require(_comp != address(0), "Comp address is zero");
 
         pool = _pool;
+        bComptroller = _bComptroller;
         comptroller = _comptroller;
+        comp = _comp;
+        cETH = _cETH;
     }
 
     /**
      * @dev Deploys a new instance of Avatar contract
      */
     function newAvatar() external returns (address) {
-        return address(new Avatar(pool, bComptroller, comptroller, comp));
+        return address(new Avatar(pool, bComptroller, comptroller, comp, cETH));
         // TODO Accounting in Registry to maintain that the Avatar is created by the BProtocol
     }
 }
