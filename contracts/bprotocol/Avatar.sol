@@ -1,6 +1,7 @@
 pragma solidity 0.5.16;
 
 import { ICToken } from "./interfaces/CTokenInterfaces.sol";
+import { ICErc20 } from "./interfaces/CTokenInterfaces.sol";
 import { ICEther } from "./interfaces/CTokenInterfaces.sol";
 import { IPriceOracle } from "./interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "./interfaces/IComptroller.sol";
@@ -123,7 +124,7 @@ contract Avatar is Exponential {
 
     // CToken
     // ======
-    function mint(ICToken cToken, uint256 mintAmount) external onlyBToken returns (uint256) {
+    function mint(ICErc20 cToken, uint256 mintAmount) external onlyBToken returns (uint256) {
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
         return cToken.mint(mintAmount);
@@ -156,7 +157,7 @@ contract Avatar is Exponential {
         return result;
     }
 
-    function repayBorrow(ICToken cToken, uint256 repayAmount) external onlyBToken returns (uint256) {
+    function repayBorrow(ICErc20 cToken, uint256 repayAmount) external onlyBToken returns (uint256) {
         uint256 amountToRepay = repayAmount;
         if(repayAmount == uint(-1)) {
             amountToRepay = cToken.borrowBalanceCurrent(address(this));
@@ -167,7 +168,7 @@ contract Avatar is Exponential {
         return cToken.repayBorrow(amountToRepay);
     }
 
-    function repayBorrowBehalf(ICToken cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
+    function repayBorrowBehalf(ICErc20 cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
         require(borrower != address(this), "Borrower and Avatar cannot be same");
         uint256 amountToRepay = repayAmount;
         if(repayAmount == uint(-1)) {
@@ -195,18 +196,24 @@ contract Avatar is Exponential {
     }
 
     // TODO
-    function getAccountLiquidity() external view returns (uint, uint, uint) {
+    function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
         // If not topped up, get the account liquidity from Comptroller
+        (err, liquidity, shortFall) = comptroller.getAccountLiquidity(address(this));
         if(!topped) {
-            return comptroller.getAccountLiquidity(address(this));
+            return (err, liquidity, shortFall);
         }
+        require(err == 0, "Error in getting account liquidity");
+
+        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
+        uint256 price = priceOracle.getUnderlyingPrice(cETH);
+        uint256 toppedUpAmtInETH = mul_(toppedUpAmount, price);
 
         // If topped up
         // when shortFall = 0
-        // liquidity = liquidity - toppedUpAmtInETH
+        if(shortFall == 0) liquidity = sub_(liquidity, toppedUpAmtInETH);
 
         // when liquidity = 0
-        // shortFall = shortFall + toppedUpAmtInETH
+        if(liquidity == 0) shortFall = add_(shortFall, toppedUpAmtInETH);
     }
 
     function claimComp() external onlyBComptroller {
@@ -222,12 +229,26 @@ contract Avatar is Exponential {
     // Topup / Untop
     // =============
     /**
+     * @dev Topup this avatar by repaying borrowings with ETH
+     */
+    function topup() external payable onlyPool {
+        // when already topped
+        if(topped) return;
+
+        // 2. Repay borrows from Pool to topup
+        cETH.repayBorrow.value(msg.value)();
+
+        // 3. Store Topped-up details
+        _topupAndStoreDetails(cETH, msg.value);
+    }
+
+    /**
      * @dev Topup the borrowed position of this Avatar by repaying borrows from the pool
      * @notice Only Pool contract allowed to call the topup.
      * @param cToken CToken address to use to RepayBorrows
      * @param topupAmount Amount of tokens to Topup
      */
-    function topup(ICToken cToken, uint256 topupAmount) external onlyPool {
+    function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
         // when already topped
         if(topped) return;
 
@@ -239,6 +260,10 @@ contract Avatar is Exponential {
         require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow failed");
 
         // 3. Store Topped-up details
+        _topupAndStoreDetails(cToken, topupAmount);
+    }
+
+    function _topupAndStoreDetails(ICToken cToken, uint256 topupAmount) internal {
         toppedUpCToken = cToken;
         toppedUpAmount = topupAmount;
         topped = true;
@@ -267,9 +292,15 @@ contract Avatar is Exponential {
         // 1. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "Borrow failed");
 
-        // 2. Transfer borrowed amount to Pool contract
-        IERC20 underlying = toppedUpCToken.underlying();
-        underlying.safeTransfer(pool, underlying.balanceOf(address(this)));
+        if(address(toppedUpCToken) == address(cETH)) {
+            // 2. Send borrowed ETH to Pool contract
+            // FIXME Use OpenZeppelin `Address.sendValue`
+            msg.sender.transfer(address(this).balance);
+        } else {
+            // 2. Transfer borrowed amount to Pool contract
+            IERC20 underlying = toppedUpCToken.underlying();
+            underlying.safeTransfer(pool, underlying.balanceOf(address(this)));
+        }
 
         // 3. Udpdate storage for toppedUp details
         _resetTopupStorage();
@@ -382,7 +413,7 @@ contract Avatar is Exponential {
     }
 
     // CToken
-    function liquidateBorrow(ICToken cTokenDebt, uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyPool {
+    function liquidateBorrow(ICErc20 cTokenDebt, uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyPool {
         // 1. Can liquidate?
         require(canLiquidate(), "Cannot liquidate");
 

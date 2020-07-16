@@ -26,7 +26,7 @@ contract CTokenInterface {
 }
 
 
-contract CErc20Interface is CTokenInterface {
+contract ICToken is CTokenInterface {
 
     /*** User Interface ***/
     function redeem(uint redeemTokens) external returns (uint);
@@ -37,13 +37,13 @@ contract CErc20Interface is CTokenInterface {
 
 // Workaround for issue https://github.com/ethereum/solidity/issues/526
 // Defined separate contract as `mint()` override with `.value()` has issues
-contract ICToken is CErc20Interface{
+contract ICErc20 is ICToken {
     function mint(uint mintAmount) external returns (uint);
     function repayBorrow(uint repayAmount) external returns (uint);
     function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint);
 }
 
-contract ICEther is CErc20Interface {
+contract ICEther is ICToken {
     function mint() external payable;
     function repayBorrow() external payable;
     function repayBorrowBehalf(address borrower) external payable;
