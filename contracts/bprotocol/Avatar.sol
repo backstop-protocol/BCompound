@@ -195,8 +195,18 @@ contract Avatar is Exponential {
     }
 
     // TODO
-    function getAccountLiquidity(address account) external view returns (uint, uint, uint) {
+    function getAccountLiquidity() external view returns (uint, uint, uint) {
+        // If not topped up, get the account liquidity from Comptroller
+        if(!topped) {
+            return comptroller.getAccountLiquidity(address(this));
+        }
 
+        // If topped up
+        // when shortFall = 0
+        // liquidity = liquidity - toppedUpAmtInETH
+
+        // when liquidity = 0
+        // shortFall = shortFall + toppedUpAmtInETH
     }
 
     function claimComp() external onlyBComptroller {
@@ -310,8 +320,65 @@ contract Avatar is Exponential {
 
     // CEther
     // TODO
-    function liquidateBorrow(address borrower, address cTokenCollateral) external payable onlyPool {
+    function liquidateBorrow(ICToken cTokenCollateral) external payable onlyPool {
+        // 1. Can liquidate?
+        require(canLiquidate(), "Cannot liquidate");
 
+        // Debt is in cETH token
+
+        // 2. Is cToken == toppedUpCToken: then only perform liquidation considering `toppedUpAmount`
+        require(topped && address(cETH) == address(toppedUpCToken), "Not allowed to liquidate with cETH debt");
+
+        address avatar = address(this);
+        uint256 avatarDebt = cETH.borrowBalanceCurrent(avatar);
+        uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
+
+        if(amountLiquidated > 0) {
+            // If partially liquidated before
+            // maxLiquidationAmount = maxLiquidationAmount - amountLiquidated
+            maxLiquidationAmount = sub_(maxLiquidationAmount, amountLiquidated);
+        } else {
+            // First time liquidation is performed after topup
+            // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+            maxLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+        }
+
+        // 3. `underlayingAmtToLiquidate` is under limit
+        uint256 underlyingAmtToLiquidate = msg.value;
+        require(underlyingAmtToLiquidate <= maxLiquidationAmount, "liquidateBorrow: underlyingAmtToLiquidate is too big");
+
+        // 4. Liquidator perform repayBorrow
+        if(toppedUpAmount < underlyingAmtToLiquidate) {
+            uint256 repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
+            cETH.repayBorrow.value(repayAmount)();
+            toppedUpAmount = 0;
+        }
+        else {
+            // Partially liqudated
+            toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
+            amountLiquidated = add_(amountLiquidated, underlyingAmtToLiquidate);
+        }
+
+        // TODO Steps 5,6,7 are common, move it into a function
+        // 5. Calculate premium and transfer to Liquidator
+        // underlyingValue = underlyingAmtToLiquidate * cTokenDebtPrice
+        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
+        uint underlyingValue = mul_(underlyingAmtToLiquidate, priceOracle.getUnderlyingPrice(cETH));
+        // collateralAmount = (underlyingValue * 1e18) / (cTokenCollPrice * cTokenExchangeRate)
+        uint collateralAmount = mul_(underlyingValue, 1e18) /
+            mul_(priceOracle.getUnderlyingPrice(cTokenCollateral), cTokenCollateral.exchangeRateCurrent());
+        // permiumAmount = collateralAmount * liquidationIncentive / 1e18
+        uint permiumAmount = mulTrucate(collateralAmount, comptroller.liquidationIncentiveMantissa());
+
+        // 6. Transfer permiumAmount to liquidator
+        require(cTokenCollateral.transfer(msg.sender, permiumAmount), "Collateral cToken transfer failed");
+
+        // 7. Reset topped up storage
+        if(toppedUpAmount == 0) _resetTopupStorage();
+
+        // 8. Send rest of the ETH back to sender
+        // FIXME Need to use OpenZeppelin `Address.sendValue()`
+        msg.sender.transfer(address(this).balance);
     }
 
     // CToken
