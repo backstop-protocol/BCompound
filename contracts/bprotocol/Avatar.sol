@@ -169,7 +169,6 @@ contract Avatar is Exponential {
     }
 
     function repayBorrowBehalf(ICErc20 cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
-        require(borrower != address(this), "Borrower and Avatar cannot be same");
         uint256 amountToRepay = repayAmount;
         if(repayAmount == uint(-1)) {
             amountToRepay = cToken.borrowBalanceCurrent(borrower);
@@ -195,7 +194,6 @@ contract Avatar is Exponential {
         disableCToken(cToken);
     }
 
-    // TODO
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
         // If not topped up, get the account liquidity from Comptroller
         (err, liquidity, shortFall) = comptroller.getAccountLiquidity(address(this));
@@ -206,11 +204,15 @@ contract Avatar is Exponential {
 
         IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
         uint256 price = priceOracle.getUnderlyingPrice(cETH);
-        uint256 toppedUpAmtInETH = mul_(toppedUpAmount, price);
+        uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
 
         // If topped up
         // when shortFall = 0
-        if(shortFall == 0) liquidity = sub_(liquidity, toppedUpAmtInETH);
+        if(shortFall == 0) {
+            liquidity = (liquidity > toppedUpAmtInETH)
+                ? sub_(liquidity, toppedUpAmtInETH)
+                : toppedUpAmtInETH;
+        }
 
         // when liquidity = 0
         if(liquidity == 0) shortFall = add_(shortFall, toppedUpAmtInETH);
@@ -295,11 +297,11 @@ contract Avatar is Exponential {
         if(address(toppedUpCToken) == address(cETH)) {
             // 2. Send borrowed ETH to Pool contract
             // FIXME Use OpenZeppelin `Address.sendValue`
-            msg.sender.transfer(address(this).balance);
+            msg.sender.transfer(toppedUpAmount);
         } else {
             // 2. Transfer borrowed amount to Pool contract
             IERC20 underlying = toppedUpCToken.underlying();
-            underlying.safeTransfer(pool, underlying.balanceOf(address(this)));
+            underlying.safeTransfer(pool, toppedUpAmount);
         }
 
         // 3. Udpdate storage for toppedUp details
@@ -312,31 +314,6 @@ contract Avatar is Exponential {
         toppedUpAmount = 0; // FIXME Might not need to reset (avoid gas consumption)
         amountLiquidated = 0;
         maxLiquidationAmount = 0;
-    }
-
-    // Helper Functions
-    // ================
-    function getUserDebtAndCollateralNormalized() public returns(uint256 debtInETH, uint256 maxBorrowPowerInETH) {
-        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
-        address[] memory assets = comptroller.getAssetsIn(address(this));
-        debtInETH = 0;
-        for(uint256 i = 0; i < assets.length; i++) {
-            ICToken cToken = ICToken(assets[i]);
-            uint256 price = priceOracle.getUnderlyingPrice(cToken);
-            require(price > 0, "Invalid price");
-            uint256 borrowBalanceCurrent = cToken.borrowBalanceCurrent(address(this));
-            uint256 borrowBalanceValue = mul_(borrowBalanceCurrent, price);
-            debtInETH = add_(debtInETH, borrowBalanceValue);
-        }
-
-        (uint256 err, uint256 liquidity,uint256 shortfall) = comptroller.getAccountLiquidity(address(this));
-        require(err == 0, "comp.getAccountLiquidity failed");
-        if(liquidity > 0) {
-            maxBorrowPowerInETH = add_(debtInETH, liquidity);
-        }
-        else {
-            maxBorrowPowerInETH = sub_(debtInETH, shortfall);
-        }
     }
 
     // LIQUIDATION
@@ -390,19 +367,16 @@ contract Avatar is Exponential {
             amountLiquidated = add_(amountLiquidated, underlyingAmtToLiquidate);
         }
 
-        // TODO Steps 5,6,7 are common, move it into a function
         // 5. Calculate premium and transfer to Liquidator
-        // underlyingValue = underlyingAmtToLiquidate * cTokenDebtPrice
-        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
-        uint underlyingValue = mul_(underlyingAmtToLiquidate, priceOracle.getUnderlyingPrice(cETH));
-        // collateralAmount = (underlyingValue * 1e18) / (cTokenCollPrice * cTokenExchangeRate)
-        uint collateralAmount = mul_(underlyingValue, 1e18) /
-            mul_(priceOracle.getUnderlyingPrice(cTokenCollateral), cTokenCollateral.exchangeRateCurrent());
-        // permiumAmount = collateralAmount * liquidationIncentive / 1e18
-        uint permiumAmount = mulTrucate(collateralAmount, comptroller.liquidationIncentiveMantissa());
+        (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
+            address(cETH),
+            address(cTokenCollateral),
+            underlyingAmtToLiquidate
+        );
+        require(err == 0, "Error in liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
-        require(cTokenCollateral.transfer(msg.sender, permiumAmount), "Collateral cToken transfer failed");
+        require(cTokenCollateral.transfer(msg.sender, seizeTokens), "Collateral cToken transfer failed");
 
         // 7. Reset topped up storage
         if(toppedUpAmount == 0) _resetTopupStorage();
@@ -453,17 +427,15 @@ contract Avatar is Exponential {
         }
 
         // 5. Calculate premium and transfer to Liquidator
-        // underlyingValue = underlyingAmtToLiquidate * cTokenDebtPrice
-        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
-        uint underlyingValue = mul_(underlyingAmtToLiquidate, priceOracle.getUnderlyingPrice(cTokenDebt));
-        // collateralAmount = (underlyingValue * 1e18) / (cTokenCollPrice * cTokenExchangeRate)
-        uint collateralAmount = mul_(underlyingValue, 1e18) /
-            mul_(priceOracle.getUnderlyingPrice(cTokenCollateral), cTokenCollateral.exchangeRateCurrent());
-        // permiumAmount = collateralAmount * liquidationIncentive / 1e18
-        uint permiumAmount = mulTrucate(collateralAmount, comptroller.liquidationIncentiveMantissa());
+        (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
+            address(cTokenDebt),
+            address(cTokenCollateral),
+            underlyingAmtToLiquidate
+        );
+        require(err == 0, "Error in liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
-        require(cTokenCollateral.transfer(msg.sender, permiumAmount), "Collateral cToken transfer failed");
+        require(cTokenCollateral.transfer(msg.sender, seizeTokens), "Collateral cToken transfer failed");
 
         // 7. Reset topped up storage
         if(toppedUpAmount == 0) _resetTopupStorage();
@@ -485,6 +457,15 @@ contract Avatar is Exponential {
 
     function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
         return cToken.approve(spender, amount);
+    }
+
+    /**
+     * @dev Fallback to receieve ETH from CEther.borrow()
+     */
+    // TODO Can add a modifier to allow only cTokens. However, don't see a need for
+    // the modifier
+    function () external payable {
+        // Receive ETH
     }
 
 }
