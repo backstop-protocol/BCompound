@@ -101,8 +101,7 @@ contract Avatar is Exponential {
         underlying.safeApprove(address(cToken), uint256(-1));
     }
 
-    // FIXME Need to add modifier to protect the function call
-    function disableCToken(ICToken cToken) public {
+    function _disableCToken(ICToken cToken) internal {
         IERC20 underlying = cToken.underlying();
         underlying.safeApprove(address(cToken), 0);
     }
@@ -201,7 +200,7 @@ contract Avatar is Exponential {
     function exitMarket(ICToken cToken) external onlyBComptroller returns (uint256) {
         comptroller.exitMarket(address(cToken));
         require(_canUntop(), "Cannot untop");
-        disableCToken(cToken);
+        _disableCToken(cToken);
         _resetMaxLiquidationSize();
     }
 
