@@ -27,14 +27,12 @@ contract Avatar is Exponential {
     ICEther public cETH;
 
     /** Storage for topup details */
-    // Is Avatar topped up?
-    bool public topped = false;
     // Topped up cToken
     ICToken public toppedUpCToken;
     // Topped up amount of tokens
     uint256 public toppedUpAmount;
     // If partially liquidated, store the amount of tokens partially liquidated
-    uint256 amountLiquidated;
+    uint256 partiallyLiquidatedAmount;
     // Maximum liquidation amount of tokens
     uint256 maxLiquidationAmount;
 
@@ -137,8 +135,7 @@ contract Avatar is Exponential {
         IERC20 underlying = cToken.underlying();
         uint256 redeemedAmount = underlying.balanceOf(address(this));
         underlying.safeTransfer(msg.sender, redeemedAmount);
-        require(_canUntop(), "Cannot untop");
-        _resetMaxLiquidationSize();
+        _untopAllowedAndResetMaxLiquidationSize();
         return result;
     }
 
@@ -147,8 +144,7 @@ contract Avatar is Exponential {
         IERC20 underlying = cToken.underlying();
         uint256 redeemedAmount = underlying.balanceOf(address(this));
         underlying.safeTransfer(msg.sender, redeemedAmount);
-        require(_canUntop(), "Cannot untop");
-        _resetMaxLiquidationSize();
+        _untopAllowedAndResetMaxLiquidationSize();
         return result;
     }
 
@@ -157,8 +153,7 @@ contract Avatar is Exponential {
         IERC20 underlying = cToken.underlying();
         uint256 borrowedAmount = underlying.balanceOf(address(this));
         underlying.safeTransfer(msg.sender, borrowedAmount);
-        require(_canUntop(), "Cannot untop");
-        _resetMaxLiquidationSize();
+        _untopAllowedAndResetMaxLiquidationSize();
         return result;
     }
 
@@ -199,15 +194,14 @@ contract Avatar is Exponential {
 
     function exitMarket(ICToken cToken) external onlyBComptroller returns (uint256) {
         comptroller.exitMarket(address(cToken));
-        require(_canUntop(), "Cannot untop");
         _disableCToken(cToken);
-        _resetMaxLiquidationSize();
+        _untopAllowedAndResetMaxLiquidationSize();
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
         // If not topped up, get the account liquidity from Comptroller
         (err, liquidity, shortFall) = comptroller.getAccountLiquidity(address(this));
-        if(!topped) {
+        if(!_isToppedUp()) {
             return (err, liquidity, shortFall);
         }
         require(err == 0, "Error in getting account liquidity");
@@ -245,7 +239,7 @@ contract Avatar is Exponential {
      */
     function topup() external payable onlyPool {
         // when already topped
-        if(topped) return;
+        if(_isToppedUp()) return;
 
         // 2. Repay borrows from Pool to topup
         cETH.repayBorrow.value(msg.value)();
@@ -262,7 +256,7 @@ contract Avatar is Exponential {
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
         // when already topped
-        if(topped) return;
+        if(_isToppedUp()) return;
 
         // 1. Transfer funds from the Pool contract
         IERC20 underlying = cToken.underlying();
@@ -278,7 +272,6 @@ contract Avatar is Exponential {
     function _topupAndStoreDetails(ICToken cToken, uint256 topupAmount) internal {
         toppedUpCToken = cToken;
         toppedUpAmount = topupAmount;
-        topped = true;
     }
 
     /**
@@ -287,7 +280,7 @@ contract Avatar is Exponential {
      */
     function _canUntop() internal returns (bool) {
         // When not topped up, just return true
-        if(!topped) return true;
+        if(!_isToppedUp()) return true;
         return comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
     }
 
@@ -299,7 +292,7 @@ contract Avatar is Exponential {
      */
     function untop() external onlyPool {
         // when already untopped
-        if(!topped) return;
+        if(!_isToppedUp()) return;
 
         // 1. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "Borrow failed");
@@ -319,10 +312,9 @@ contract Avatar is Exponential {
     }
 
     function _resetTopupStorage() internal {
-        topped = false;
         toppedUpCToken = ICToken(0); // FIXME Might not need to reset (avoid gas consumption)
         toppedUpAmount = 0; // FIXME Might not need to reset (avoid gas consumption)
-        amountLiquidated = 0;
+        partiallyLiquidatedAmount = 0;
         maxLiquidationAmount = 0;
     }
 
@@ -337,7 +329,6 @@ contract Avatar is Exponential {
     }
 
     // CEther
-    // TODO
     function liquidateBorrow(ICToken cTokenCollateral) external payable onlyPool {
         // 1. Can liquidate?
         require(canLiquidate(), "Cannot liquidate");
@@ -345,16 +336,16 @@ contract Avatar is Exponential {
         // Debt is in cETH token
 
         // 2. Is cToken == toppedUpCToken: then only perform liquidation considering `toppedUpAmount`
-        require(topped && address(cETH) == address(toppedUpCToken), "Not allowed to liquidate with cETH debt");
+        require(_isToppedUp() && address(cETH) == address(toppedUpCToken), "Only allowed to liquidate with cETH debt");
 
         address avatar = address(this);
         uint256 avatarDebt = cETH.borrowBalanceCurrent(avatar);
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
 
-        if(amountLiquidated > 0) {
+        if(_isPartiallyLiquidated()) {
             // If partially liquidated before
-            // maxLiquidationAmount = maxLiquidationAmount - amountLiquidated
-            maxLiquidationAmount = sub_(maxLiquidationAmount, amountLiquidated);
+            // maxLiquidationAmount = maxLiquidationAmount - partiallyLiquidatedAmount
+            maxLiquidationAmount = sub_(maxLiquidationAmount, partiallyLiquidatedAmount);
         } else {
             // First time liquidation is performed after topup
             // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
@@ -374,7 +365,7 @@ contract Avatar is Exponential {
         else {
             // Partially liqudated
             toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
-            amountLiquidated = add_(amountLiquidated, underlyingAmtToLiquidate);
+            partiallyLiquidatedAmount = add_(partiallyLiquidatedAmount, underlyingAmtToLiquidate);
         }
 
         // 5. Calculate premium and transfer to Liquidator
@@ -402,7 +393,7 @@ contract Avatar is Exponential {
         require(canLiquidate(), "Cannot liquidate");
 
         // 2. Is cToken == toppedUpCToken: then only perform liquidation considering `toppedUpAmount`
-        require(topped && cTokenDebt == toppedUpCToken, "Not allowed to liquidate with given cToken debt");
+        require(_isToppedUp() && cTokenDebt == toppedUpCToken, "Not allowed to liquidate with given cToken debt");
 
         IERC20 underlying = toppedUpCToken.underlying();
         address avatar = address(this);
@@ -410,10 +401,10 @@ contract Avatar is Exponential {
         // `toppedUpAmount` is also called poolDebt;
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
 
-        if(amountLiquidated > 0) {
+        if(_isPartiallyLiquidated()) {
             // If partially liquidated before
-            // maxLiquidationAmount = maxLiquidationAmount - amountLiquidated
-            maxLiquidationAmount = sub_(maxLiquidationAmount, amountLiquidated);
+            // maxLiquidationAmount = maxLiquidationAmount - partiallyLiquidatedAmount
+            maxLiquidationAmount = sub_(maxLiquidationAmount, partiallyLiquidatedAmount);
         } else {
             // First time liquidation is performed after topup
             // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
@@ -433,7 +424,7 @@ contract Avatar is Exponential {
         else {
             // Partially liqudated
             toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
-            amountLiquidated = add_(amountLiquidated, underlyingAmtToLiquidate);
+            partiallyLiquidatedAmount = add_(partiallyLiquidatedAmount, underlyingAmtToLiquidate);
         }
 
         // 5. Calculate premium and transfer to Liquidator
@@ -455,15 +446,13 @@ contract Avatar is Exponential {
     // ======
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken returns (bool) {
         bool result = cToken.transfer(dst, amount);
-        require(_canUntop(), "Cannot untop");
-        _resetMaxLiquidationSize();
+        _untopAllowedAndResetMaxLiquidationSize();
         return result;
     }
 
     function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken returns (bool) {
         bool result = cToken.transferFrom(src, dst, amount);
-        require(_canUntop(), "Cannot untop");
-        _resetMaxLiquidationSize();
+        _untopAllowedAndResetMaxLiquidationSize();
         return result;
     }
 
@@ -480,20 +469,34 @@ contract Avatar is Exponential {
         // Receive ETH
     }
 
+    function _untopAllowedAndResetMaxLiquidationSize() internal {
+        require(_canUntop(), "Cannot untop");
+        if(_isPartiallyLiquidated()) {
+            maxLiquidationAmount = 0;
+            partiallyLiquidatedAmount = 0;
+        }
+    }
+
     function _resetMaxLiquidationSize() internal {
         // 1. Pre-condition checks
-        // Execute only when already topped up
-        if(!topped) return;
         // Execute only when partially liquidated
-        if(amountLiquidated == 0) return;
+        if(!_isPartiallyLiquidated()) return;
 
         // 2. Reset MaxLiquidationSize when can untop
         if(_canUntop()) {
-            // This would enfore the MaxLiquidationSize calaulation again
+            // This would enforce the MaxLiquidationSize calaulation again
             maxLiquidationAmount = 0;
-            amountLiquidated = 0;
+            partiallyLiquidatedAmount = 0;
         } else {
             revert("Cannot untop");
         }
+    }
+
+    function _isToppedUp() internal view returns (bool) {
+        return toppedUpAmount > 0;
+    }
+
+    function _isPartiallyLiquidated() internal view returns (bool) {
+        return partiallyLiquidatedAmount > 0;
     }
 }
