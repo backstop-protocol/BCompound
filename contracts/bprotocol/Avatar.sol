@@ -111,14 +111,15 @@ contract Avatar is Exponential {
     // ======
     function mint(ICEther cEther) external payable onlyBToken {
         cEther.mint.value(msg.value)();
+        _resetMaxLiquidationSize();
     }
 
     function repayBorrow() external payable onlyBToken {
         cETH.repayBorrow.value(msg.value)();
+        _resetMaxLiquidationSize();
     }
 
     function repayBorrowBehalf(address borrower) external payable onlyBToken {
-        require(borrower != address(this), "Borrower and Avatar cannot be same");
         cETH.repayBorrowBehalf.value(msg.value)(borrower);
     }
 
@@ -127,7 +128,9 @@ contract Avatar is Exponential {
     function mint(ICErc20 cToken, uint256 mintAmount) external onlyBToken returns (uint256) {
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
-        return cToken.mint(mintAmount);
+        uint256 result = cToken.mint(mintAmount);
+        _resetMaxLiquidationSize();
+        return result;
     }
 
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken returns (uint256) {
@@ -136,6 +139,7 @@ contract Avatar is Exponential {
         uint256 redeemedAmount = underlying.balanceOf(address(this));
         underlying.safeTransfer(msg.sender, redeemedAmount);
         require(_canUntop(), "Cannot untop");
+        _resetMaxLiquidationSize();
         return result;
     }
 
@@ -145,6 +149,7 @@ contract Avatar is Exponential {
         uint256 redeemedAmount = underlying.balanceOf(address(this));
         underlying.safeTransfer(msg.sender, redeemedAmount);
         require(_canUntop(), "Cannot untop");
+        _resetMaxLiquidationSize();
         return result;
     }
 
@@ -154,6 +159,7 @@ contract Avatar is Exponential {
         uint256 borrowedAmount = underlying.balanceOf(address(this));
         underlying.safeTransfer(msg.sender, borrowedAmount);
         require(_canUntop(), "Cannot untop");
+        _resetMaxLiquidationSize();
         return result;
     }
 
@@ -165,7 +171,9 @@ contract Avatar is Exponential {
 
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
-        return cToken.repayBorrow(amountToRepay);
+        uint256 result = cToken.repayBorrow(amountToRepay);
+        _resetMaxLiquidationSize();
+        return result;
     }
 
     function repayBorrowBehalf(ICErc20 cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
@@ -185,13 +193,16 @@ contract Avatar is Exponential {
         for(uint256 i = 0; i < cTokens.length; i++) {
             enableCToken(ICToken(cTokens[i]));
         }
-        return comptroller.enterMarkets(cTokens);
+        uint256[] memory result = comptroller.enterMarkets(cTokens);
+        _resetMaxLiquidationSize();
+        return result;
     }
 
     function exitMarket(ICToken cToken) external onlyBComptroller returns (uint256) {
         comptroller.exitMarket(address(cToken));
         require(_canUntop(), "Cannot untop");
         disableCToken(cToken);
+        _resetMaxLiquidationSize();
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
@@ -446,12 +457,14 @@ contract Avatar is Exponential {
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken returns (bool) {
         bool result = cToken.transfer(dst, amount);
         require(_canUntop(), "Cannot untop");
+        _resetMaxLiquidationSize();
         return result;
     }
 
     function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken returns (bool) {
         bool result = cToken.transferFrom(src, dst, amount);
         require(_canUntop(), "Cannot untop");
+        _resetMaxLiquidationSize();
         return result;
     }
 
@@ -468,4 +481,20 @@ contract Avatar is Exponential {
         // Receive ETH
     }
 
+    function _resetMaxLiquidationSize() internal {
+        // 1. Pre-condition checks
+        // Execute only when already topped up
+        if(!topped) return;
+        // Execute only when partially liquidated
+        if(amountLiquidated == 0) return;
+
+        // 2. Reset MaxLiquidationSize when can untop
+        if(_canUntop()) {
+            // This would enfore the MaxLiquidationSize calaulation again
+            maxLiquidationAmount = 0;
+            amountLiquidated = 0;
+        } else {
+            revert("Cannot untop");
+        }
+    }
 }
