@@ -49,6 +49,11 @@ contract Avatar is Exponential {
         _;
     }
 
+    modifier poolPostOp(bool debtIncrease) {
+        _;
+        _reevaluate(debtIncrease);
+    }
+
     /**
      * @dev Constructor
      * @param _pool Pool contract address
@@ -104,14 +109,12 @@ contract Avatar is Exponential {
 
     // CEther
     // ======
-    function mint(ICEther cEther) external payable onlyBToken {
+    function mint(ICEther cEther) external payable onlyBToken poolPostOp(false) {
         cEther.mint.value(msg.value)();
-        _softReevaluate();
     }
 
-    function repayBorrow() external payable onlyBToken {
+    function repayBorrow() external payable onlyBToken poolPostOp(false) {
         cETH.repayBorrow.value(msg.value)();
-        _softReevaluate();
     }
 
     function repayBorrowBehalf(address borrower) external payable onlyBToken {
@@ -120,11 +123,10 @@ contract Avatar is Exponential {
 
     // CToken
     // ======
-    function mint(ICErc20 cToken, uint256 mintAmount) external onlyBToken returns (uint256) {
+    function mint(ICErc20 cToken, uint256 mintAmount) external onlyBToken poolPostOp(false) returns (uint256) {
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
         uint256 result = cToken.mint(mintAmount);
-        _softReevaluate();
         return result;
     }
 
@@ -170,7 +172,7 @@ contract Avatar is Exponential {
         return result;
     }
 
-    function repayBorrow(ICErc20 cToken, uint256 repayAmount) external onlyBToken returns (uint256) {
+    function repayBorrow(ICErc20 cToken, uint256 repayAmount) external onlyBToken poolPostOp(false) returns (uint256) {
         uint256 amountToRepay = repayAmount;
         if(repayAmount == uint(-1)) {
             amountToRepay = cToken.borrowBalanceCurrent(address(this));
@@ -179,7 +181,6 @@ contract Avatar is Exponential {
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
         uint256 result = cToken.repayBorrow(amountToRepay);
-        _softReevaluate();
         return result;
     }
 
@@ -196,19 +197,17 @@ contract Avatar is Exponential {
 
     // Comptroller
     // ===========
-    function enterMarkets(address[] calldata cTokens) external onlyBComptroller returns (uint256[] memory) {
+    function enterMarkets(address[] calldata cTokens) external onlyBComptroller poolPostOp(false) returns (uint256[] memory) {
         for(uint256 i = 0; i < cTokens.length; i++) {
             enableCToken(ICToken(cTokens[i]));
         }
         uint256[] memory result = comptroller.enterMarkets(cTokens);
-        _softReevaluate();
         return result;
     }
 
-    function exitMarket(ICToken cToken) external onlyBComptroller returns (uint256) {
+    function exitMarket(ICToken cToken) external onlyBComptroller poolPostOp(true) returns (uint256) {
         comptroller.exitMarket(address(cToken));
         _disableCToken(cToken);
-        _hardReevaluate();
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
@@ -329,12 +328,7 @@ contract Avatar is Exponential {
         }
 
         // 3. Udpdate storage for toppedUp details
-        _resetTopupStorage();
-    }
-
-    function _resetTopupStorage() internal {
-        toppedUpCToken = ICToken(0); // FIXME Might not need to reset (avoid gas consumption)
-        toppedUpAmount = 0; // FIXME Might not need to reset (avoid gas consumption)
+        toppedUpAmount = 0;
     }
 
     // LIQUIDATION
@@ -372,13 +366,12 @@ contract Avatar is Exponential {
 
         bool isCEtherDebt = _isCEther(cTokenDebt);
         // 3. `underlayingAmtToLiquidate` is under limit
-        uint256 amountToLiquidate = isCEtherDebt ? msg.value : underlyingAmtToLiquidate;
-        require(amountToLiquidate <= remainingLiquidationAmount, "liquidateBorrow: amountToLiquidate is too big");
+        require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow: amountToLiquidate is too big");
 
         // 4. Liquidator perform repayBorrow
         uint256 repayAmount = 0;
-        if(toppedUpAmount < amountToLiquidate) {
-            repayAmount = sub_(amountToLiquidate, toppedUpAmount);
+        if(toppedUpAmount < underlyingAmtToLiquidate) {
+            repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
 
             if(isCEtherDebt) {
                 // CEther
@@ -392,8 +385,8 @@ contract Avatar is Exponential {
             toppedUpAmount = 0;
         }
         else {
-            toppedUpAmount = sub_(toppedUpAmount, amountToLiquidate);
-            repayAmount = amountToLiquidate;
+            toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
+            repayAmount = underlyingAmtToLiquidate;
         }
 
         // 4.2 Update remaining liquidation amount
@@ -403,28 +396,23 @@ contract Avatar is Exponential {
         (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
             address(cTokenDebt),
             address(cTokenCollateral),
-            amountToLiquidate
+            underlyingAmtToLiquidate
         );
         require(err == 0, "Error in liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
         require(cTokenCollateral.transfer(msg.sender, seizeTokens), "Collateral cToken transfer failed");
-
-        // 7. Reset topped up storage
-        if(toppedUpAmount == 0) _resetTopupStorage();
     }
 
     // ERC20
     // ======
-    function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken returns (bool) {
+    function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken poolPostOp(true) returns (bool) {
         bool result = cToken.transfer(dst, amount);
-        _hardReevaluate();
         return result;
     }
 
-    function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken returns (bool) {
+    function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken poolPostOp(true) returns (bool) {
         bool result = cToken.transferFrom(src, dst, amount);
-        _hardReevaluate();
         return result;
     }
 
@@ -455,14 +443,17 @@ contract Avatar is Exponential {
      * @dev Soft check and reset remaining liquidation amount
      */
     function _softReevaluate() internal {
-        // 1. Pre-condition checks
-        // Execute only when partially liquidated, otherwise just return
-        if(!_isPartiallyLiquidated()) return;
+        if(_isPartiallyLiquidated()) {
+            _hardReevaluate();
+        }
+    }
 
-        // 2. Reset MaxLiquidationSize when can untop
-        require(_canUntop(), "Cannot untop");
-        // This would enforce the MaxLiquidationSize calaulation again
-        remainingLiquidationAmount = 0;
+    function _reevaluate(bool debtIncrease) internal {
+        if(debtIncrease) {
+            _hardReevaluate();
+        } else {
+            _softReevaluate();
+        }
     }
 
     function _isToppedUp() internal view returns (bool) {
@@ -476,8 +467,4 @@ contract Avatar is Exponential {
     function _isCEther(ICToken cToken) internal view returns (bool) {
         return address(cToken) == address(cETH);
     }
-
-
-    // 4 getAccountLiquidity calculation
-
 }
