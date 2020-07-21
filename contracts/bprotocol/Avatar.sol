@@ -31,10 +31,6 @@ contract Avatar is Exponential {
     ICToken public toppedUpCToken;
     // Topped up amount of tokens
     uint256 public toppedUpAmount;
-    // If partially liquidated, store the amount of tokens partially liquidated
-    uint256 partiallyLiquidatedAmount;
-    // Maximum liquidation amount of tokens
-    uint256 maxLiquidationAmount;
     // Remaining max amount available for liquidation
     uint256 remainingLiquidationAmount;
 
@@ -317,8 +313,6 @@ contract Avatar is Exponential {
     function _resetTopupStorage() internal {
         toppedUpCToken = ICToken(0); // FIXME Might not need to reset (avoid gas consumption)
         toppedUpAmount = 0; // FIXME Might not need to reset (avoid gas consumption)
-        partiallyLiquidatedAmount = 0;
-        maxLiquidationAmount = 0;
     }
 
     // LIQUIDATION
@@ -342,35 +336,31 @@ contract Avatar is Exponential {
         // 1. Can liquidate?
         require(canLiquidate(), "Cannot liquidate");
 
-        // 2. Is cToken == toppedUpCToken: then only perform liquidation considering `toppedUpAmount`
-        require(cTokenDebt == toppedUpCToken, "Not allowed to liquidate with given cToken debt");
-
-        bool isCEther = _isCEther(cTokenDebt);
+        // 2. Is toppedUp OR partially liquidated
+        require(_isToppedUp() || _isPartiallyLiquidated(), "Cannot perform liquidateBorrow");
 
         address avatar = address(this);
         uint256 avatarDebt = cTokenDebt.borrowBalanceCurrent(avatar);
         // `toppedUpAmount` is also called poolDebt;
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
 
-        if(_isPartiallyLiquidated()) {
-            // If partially liquidated before
-            // maxLiquidationAmount = maxLiquidationAmount - partiallyLiquidatedAmount
-            maxLiquidationAmount = sub_(maxLiquidationAmount, partiallyLiquidatedAmount);
-        } else {
+        if(!_isPartiallyLiquidated()) {
             // First time liquidation is performed after topup
-            // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
-            maxLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+            // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+            remainingLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
         }
 
+        bool isCEtherDebt = _isCEther(cTokenDebt);
         // 3. `underlayingAmtToLiquidate` is under limit
-        uint256 amountToLiquidate = isCEther ? msg.value : underlyingAmtToLiquidate;
-        require(amountToLiquidate <= maxLiquidationAmount, "liquidateBorrow: amountToLiquidate is too big");
+        uint256 amountToLiquidate = isCEtherDebt ? msg.value : underlyingAmtToLiquidate;
+        require(amountToLiquidate <= remainingLiquidationAmount, "liquidateBorrow: amountToLiquidate is too big");
 
         // 4. Liquidator perform repayBorrow
+        uint256 repayAmount = 0;
         if(toppedUpAmount < amountToLiquidate) {
-            uint256 repayAmount = sub_(amountToLiquidate, toppedUpAmount);
+            repayAmount = sub_(amountToLiquidate, toppedUpAmount);
 
-            if(isCEther) {
+            if(isCEtherDebt) {
                 // CEther
                 cETH.repayBorrow.value(repayAmount)();
             } else {
@@ -378,14 +368,16 @@ contract Avatar is Exponential {
                 toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), repayAmount);
                 require(ICErc20(address(cTokenDebt)).repayBorrow(repayAmount) == 0, "liquidateBorrow: repayBorrow failed");
             }
-
             toppedUpAmount = 0;
         }
         else {
             // Partially liqudated
             toppedUpAmount = sub_(toppedUpAmount, amountToLiquidate);
-            partiallyLiquidatedAmount = add_(partiallyLiquidatedAmount, amountToLiquidate);
+            repayAmount = amountToLiquidate;
         }
+
+        // 4.2 Update remaining liquidation amount
+        remainingLiquidationAmount = sub_(remainingLiquidationAmount, repayAmount);
 
         // 5. Calculate premium and transfer to Liquidator
         (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
@@ -403,7 +395,10 @@ contract Avatar is Exponential {
 
         // 8. Send rest of the ETH back to sender
         // FIXME Need to use OpenZeppelin `Address.sendValue()`
-        if(isCEther) msg.sender.transfer(address(this).balance);
+        if(isCEtherDebt) {
+            uint256 refundAmount = sub_(amountToLiquidate, repayAmount);
+            if(refundAmount > 0) msg.sender.transfer(refundAmount);
+        }
     }
 
     // ERC20
@@ -436,8 +431,7 @@ contract Avatar is Exponential {
     function _untopAllowedAndResetMaxLiquidationSize() internal {
         require(_canUntop(), "Cannot untop");
         if(_isPartiallyLiquidated()) {
-            maxLiquidationAmount = 0;
-            partiallyLiquidatedAmount = 0;
+            remainingLiquidationAmount = 0;
         }
     }
 
@@ -449,8 +443,7 @@ contract Avatar is Exponential {
         // 2. Reset MaxLiquidationSize when can untop
         if(_canUntop()) {
             // This would enforce the MaxLiquidationSize calaulation again
-            maxLiquidationAmount = 0;
-            partiallyLiquidatedAmount = 0;
+            remainingLiquidationAmount = 0;
         } else {
             revert("Cannot untop");
         }
@@ -461,7 +454,7 @@ contract Avatar is Exponential {
     }
 
     function _isPartiallyLiquidated() internal view returns (bool) {
-        return partiallyLiquidatedAmount > 0;
+        return remainingLiquidationAmount > 0;
     }
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
@@ -470,7 +463,7 @@ contract Avatar is Exponential {
 
     // 1 remaining Liquidation amount
     // 2 correction of max liquidation amount
-    
+
     // 4 getAccountLiquidity calculation
     // 5 untopAllowedAndReset.... rename it
 
