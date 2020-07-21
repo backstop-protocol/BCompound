@@ -361,12 +361,10 @@ contract Avatar is Exponential {
         // 2. Is toppedUp OR partially liquidated
         require(_isToppedUp() || _isPartiallyLiquidated(), "Cannot perform liquidateBorrow");
 
-        address avatar = address(this);
-        uint256 avatarDebt = cTokenDebt.borrowBalanceCurrent(avatar);
-        // `toppedUpAmount` is also called poolDebt;
-        uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
-
         if(!_isPartiallyLiquidated()) {
+            uint256 avatarDebt = cTokenDebt.borrowBalanceCurrent(address(this));
+            // `toppedUpAmount` is also called poolDebt;
+            uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
             // First time liquidation is performed after topup
             // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
             remainingLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
@@ -384,6 +382,7 @@ contract Avatar is Exponential {
 
             if(isCEtherDebt) {
                 // CEther
+                require(msg.value == repayAmount, "Insuffecient ETH sent");
                 cETH.repayBorrow.value(repayAmount)();
             } else {
                 // CErc20
@@ -393,7 +392,6 @@ contract Avatar is Exponential {
             toppedUpAmount = 0;
         }
         else {
-            // Partially liqudated
             toppedUpAmount = sub_(toppedUpAmount, amountToLiquidate);
             repayAmount = amountToLiquidate;
         }
@@ -414,13 +412,6 @@ contract Avatar is Exponential {
 
         // 7. Reset topped up storage
         if(toppedUpAmount == 0) _resetTopupStorage();
-
-        // 8. Send rest of the ETH back to sender
-        // FIXME Need to use OpenZeppelin `Address.sendValue()`
-        if(isCEtherDebt) {
-            uint256 refundAmount = sub_(amountToLiquidate, repayAmount);
-            if(refundAmount > 0) msg.sender.transfer(refundAmount);
-        }
     }
 
     // ERC20
@@ -456,10 +447,8 @@ contract Avatar is Exponential {
     function _hardReevaluate() internal {
         // Check: must allowed untop
         require(_canUntop(), "Cannot untop");
-        // When already partially liquidated, reset it to force re-calculation
-        if(_isPartiallyLiquidated()) {
-            remainingLiquidationAmount = 0;
-        }
+        // Reset it to force re-calculation
+        remainingLiquidationAmount = 0;
     }
 
     /**
