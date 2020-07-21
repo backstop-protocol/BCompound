@@ -208,17 +208,24 @@ contract Avatar is Exponential {
         uint256 price = priceOracle.getUnderlyingPrice(cETH);
         uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
 
-        // If topped up
-        // when shortFall = 0
-        if(shortFall == 0) {
-            liquidity = (liquidity > toppedUpAmtInETH)
-                ? sub_(liquidity, toppedUpAmtInETH)
-                : toppedUpAmtInETH;
-            //shotFall = liquidity 
-        }
+        // liquidity = 0 and shortFall = 0
+        if(liquidity == toppedUpAmtInETH) return(0, 0, 0);
 
-        // when liquidity = 0
-        if(liquidity == 0) shortFall = add_(shortFall, toppedUpAmtInETH);
+        // when shortFall = 0
+        if(shortFall == 0 && liquidity > 0) {
+            if(liquidity > toppedUpAmtInETH) {
+                liquidity = sub_(liquidity, toppedUpAmtInETH);
+            } else {
+                shortFall = sub_(toppedUpAmtInETH, liquidity);
+                liquidity = 0;
+            }
+        } else if(liquidity == 0 && shortFall > 0) { // We can just check for `liquidity == 0`, to cover both of the following cases
+            shortFall = add_(shortFall, toppedUpAmtInETH);
+        } else {
+            // Handling case when compound returned liquidity = 0 and shortFall = 0
+            shortFall = add_(shortFall, toppedUpAmtInETH);
+            // FIXME We can combine last two `else` block, as calculation is same??
+        }
     }
 
     function claimComp() external onlyBComptroller {
