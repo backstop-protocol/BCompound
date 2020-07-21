@@ -130,18 +130,29 @@ contract Avatar is Exponential {
 
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
-        IERC20 underlying = cToken.underlying();
-        uint256 redeemedAmount = underlying.balanceOf(address(this));
-        underlying.safeTransfer(msg.sender, redeemedAmount);
+
+        if(_isCEther(cToken)) {
+            // FIXME OZ `Address.sendValue`
+            // FIXME if we can calculate and send exact amount
+            msg.sender.transfer(address(this).balance);
+        } else {
+            IERC20 underlying = cToken.underlying();
+            uint256 redeemedAmount = underlying.balanceOf(address(this));
+            underlying.safeTransfer(msg.sender, redeemedAmount);
+        }
         _hardReevaluate();
         return result;
     }
 
     function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
-        IERC20 underlying = cToken.underlying();
-        uint256 redeemedAmount = underlying.balanceOf(address(this));
-        underlying.safeTransfer(msg.sender, redeemedAmount);
+        if(_isCEther(cToken)) {
+            // FIXME OZ `Address.sendValue`
+            msg.sender.transfer(redeemAmount);
+        } else {
+            IERC20 underlying = cToken.underlying();
+            underlying.safeTransfer(msg.sender, redeemAmount);
+        }
         _hardReevaluate();
         return result;
     }
