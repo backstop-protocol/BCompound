@@ -159,9 +159,13 @@ contract Avatar is Exponential {
 
     function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
-        IERC20 underlying = cToken.underlying();
-        uint256 borrowedAmount = underlying.balanceOf(address(this));
-        underlying.safeTransfer(msg.sender, borrowedAmount);
+        if(_isCEther(cToken)) {
+            // FIXME OZ `Address.sendValue`
+            msg.sender.transfer(borrowAmount);
+        } else {
+            IERC20 underlying = cToken.underlying();
+            underlying.safeTransfer(msg.sender, borrowAmount);
+        }
         _hardReevaluate();
         return result;
     }
