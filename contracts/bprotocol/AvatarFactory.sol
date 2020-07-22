@@ -1,6 +1,6 @@
 pragma solidity 0.5.16;
 
-import { Avatar } from "./Avatar.sol";
+import { Avatar } from "./avatar/Avatar.sol";
 
 /**
  * @title Factory contract to create new Avatar contracts
