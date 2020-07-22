@@ -16,6 +16,7 @@ interface IComptroller {
 
     // Public storage defined in Comptroller contract
     // ===============================================
+    function checkMembership(address account, address cToken) external view returns (bool);
     function closeFactorMantissa() external returns (uint256);
     function liquidationIncentiveMantissa() external returns (uint256);
 
