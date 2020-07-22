@@ -4,11 +4,11 @@ import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
-import { AvatarBase } from "./AvatarBase.sol";
+import { Cushion } from "./Cushion.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AbsCToken is AvatarBase {
+contract AbsCToken is Cushion {
 
     // CEther
     // ======

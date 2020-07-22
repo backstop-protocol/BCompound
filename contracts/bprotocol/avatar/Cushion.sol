@@ -3,11 +3,19 @@ pragma solidity 0.5.16;
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
-import { AvatarBase } from "./AvatarBase.sol";
+import { CushionBase } from "./CushionBase.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AbsTopUntop is AvatarBase {
+contract Cushion is CushionBase {
+
+    /**
+     * @dev Returns the status if this Avatar's debt can be liquidated
+     * @return `true` when this Avatar can be liquidated, `false` otherwise
+     */
+    function canLiquidate() public returns (bool) {
+        return !_canUntop();
+    }
 
     /**
      * @dev Topup this avatar by repaying borrowings with ETH

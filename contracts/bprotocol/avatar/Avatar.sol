@@ -3,14 +3,13 @@ pragma solidity 0.5.16;
 import { AvatarBase } from "./AvatarBase.sol";
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
-import { AbsTopUntop } from "./AbsTopUntop.sol";
 
 /**
  * @title An Avatar contract deployed per account. The contract holds cTokens and directly interacts
  *        with Compound finance.
  * @author Smart Future Labs Ltd.
  */
-contract Avatar is AbsComptroller, AbsCToken, AbsTopUntop {
+contract Avatar is AbsComptroller, AbsCToken {
 
     /**
      * @dev Constructor

@@ -43,11 +43,6 @@ contract AvatarBase is Exponential {
         _;
     }
 
-    modifier poolPostOp(bool debtIncrease) {
-        _;
-        _reevaluate(debtIncrease);
-    }
-
     /**
      * @dev Constructor
      * @param _pool Pool contract address
@@ -77,61 +72,7 @@ contract AvatarBase is Exponential {
         return true;
     }
 
-    /**
-     * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
-     */
-    function _hardReevaluate() internal {
-        // Check: must allowed untop
-        require(_canUntop(), "Cannot untop");
-        // Reset it to force re-calculation
-        remainingLiquidationAmount = 0;
-    }
-
-    /**
-     * @dev Soft check and reset remaining liquidation amount
-     */
-    function _softReevaluate() internal {
-        if(_isPartiallyLiquidated()) {
-            _hardReevaluate();
-        }
-    }
-
-    function _reevaluate(bool debtIncrease) internal {
-        if(debtIncrease) {
-            _hardReevaluate();
-        } else {
-            _softReevaluate();
-        }
-    }
-
-    function _isToppedUp() internal view returns (bool) {
-        return toppedUpAmount > 0;
-    }
-
-    function _isPartiallyLiquidated() internal view returns (bool) {
-        return remainingLiquidationAmount > 0;
-    }
-
     function _isCEther(ICToken cToken) internal view returns (bool) {
         return address(cToken) == address(cETH);
     }
-
-    /**
-     * @dev Returns the status if this Avatar's debt can be liquidated
-     * @return `true` when this Avatar can be liquidated, `false` otherwise
-     */
-    function canLiquidate() public returns (bool) {
-        return !_canUntop();
-    }
-
-    /**
-     * @dev Checks if this Avatar can untop the amount.
-     * @return `true` if allowed to borrow, `false` otherwise.
-     */
-    function _canUntop() internal returns (bool) {
-        // When not topped up, just return true
-        if(!_isToppedUp()) return true;
-        return comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
-    }
-
 }
