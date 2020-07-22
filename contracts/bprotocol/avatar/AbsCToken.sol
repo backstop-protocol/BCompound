@@ -98,7 +98,6 @@ contract AbsCToken is Cushion {
         return cToken.repayBorrowBehalf(borrower, amountToRepay);
     }
 
-    // CToken / CEther
     function liquidateBorrow(
         ICToken debtCToken,
         uint256 underlyingAmtToLiquidate,
@@ -109,63 +108,7 @@ contract AbsCToken is Cushion {
         // 1. Can liquidate?
         require(canLiquidate(), "Cannot liquidate");
 
-        // 2. Is toppedUp OR partially liquidated
-        bool isPartiallyLiquidated = _isPartiallyLiquidated();
-        require(_isToppedUp() || isPartiallyLiquidated, "Cannot perform liquidateBorrow");
-        if(isPartiallyLiquidated) {
-            require(debtCToken == liquidationCToken, "debtCToken not equal to liquidationCToken");
-        } else {
-            require(debtCToken == toppedUpCToken, "debtCToken not equal to toppedUpCToken");
-            liquidationCToken = debtCToken;
-        }
-
-        if(!_isPartiallyLiquidated()) {
-            uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
-            // `toppedUpAmount` is also called poolDebt;
-            uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
-            // First time liquidation is performed after topup
-            // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
-            remainingLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
-        }
-
-        bool isCEtherDebt = _isCEther(debtCToken);
-        // 3. `underlayingAmtToLiquidate` is under limit
-        require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow: amountToLiquidate is too big");
-
-        // 4. Liquidator perform repayBorrow
-        uint256 repayAmount = 0;
-        if(toppedUpAmount < underlyingAmtToLiquidate) {
-            repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
-
-            if(isCEtherDebt) {
-                // CEther
-                require(msg.value == repayAmount, "Insuffecient ETH sent");
-                cETH.repayBorrow.value(repayAmount)();
-            } else {
-                // CErc20
-                toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), repayAmount);
-                require(ICErc20(address(debtCToken)).repayBorrow(repayAmount) == 0, "liquidateBorrow: repayBorrow failed");
-            }
-            toppedUpAmount = 0;
-        }
-        else {
-            toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
-            repayAmount = underlyingAmtToLiquidate;
-        }
-
-        // 4.2 Update remaining liquidation amount
-        remainingLiquidationAmount = sub_(remainingLiquidationAmount, repayAmount);
-
-        // 5. Calculate premium and transfer to Liquidator
-        (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
-            address(debtCToken),
-            address(collCToken),
-            underlyingAmtToLiquidate
-        );
-        require(err == 0, "Error in liquidateCalculateSeizeTokens");
-
-        // 6. Transfer permiumAmount to liquidator
-        require(collCToken.transfer(msg.sender, seizeTokens), "Collateral cToken transfer failed");
+        _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
     }
 
 
