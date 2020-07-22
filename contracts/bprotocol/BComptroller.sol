@@ -4,19 +4,21 @@ import { BToken } from "./BToken.sol";
 
 contract BComptroller {
 
+    address public registry;
+
     // CToken => BToken
     mapping(address => address) public cToken_bTokenMap;
 
     // BToken => CToken
     mapping(address => address) public bToken_cTokenMap;
 
-    constructor() public {
-
+    constructor(address _registry) public {
+        registry = _registry;
     }
 
     function newBToken(address cToken) external {
         require(isCTokenSupported(cToken), "A BToken with given CToken exists");
-        address bToken = address(new BToken(cToken));
+        address bToken = address(new BToken(registry, cToken));
         cToken_bTokenMap[cToken] = bToken;
         bToken_cTokenMap[bToken] = cToken;
     }

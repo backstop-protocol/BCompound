@@ -34,11 +34,6 @@ contract AvatarBase is Exponential {
         _;
     }
 
-    modifier onlyBToken() {
-        require(isValidBToken(msg.sender), "Only BToken is authorized");
-        _;
-    }
-
     modifier onlyBComptroller() {
         require(msg.sender == address(bComptroller), "Only BComptroller is authorized");
         _;
@@ -66,10 +61,6 @@ contract AvatarBase is Exponential {
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
         cETH = ICEther(_cETH);
-    }
-
-    function isValidBToken(address bToken) internal view returns (bool) {
-        return bComptroller.isBTokenSupported(bToken);
     }
 
     function _isCEther(ICToken cToken) internal view returns (bool) {

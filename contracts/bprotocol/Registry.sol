@@ -1,5 +1,7 @@
 pragma solidity 0.5.16;
 
+import { IAvatarFactory } from "./interfaces/IAvatarFactory.sol";
+
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 
 /**
@@ -11,30 +13,35 @@ contract Registry is Ownable {
     address public comptroller;
     address public priceOracle;
 
-    constructor(address _comptroller, address _priceOracle) public {
+    // BProtocol Contracts
+    IAvatarFactory public avatarFactory;
+
+    // User => avatar
+    mapping (address => address) public avatars;
+
+    constructor(
+        address _comptroller,
+        address _priceOracle,
+        address _avatarFactory
+    )
+        public
+    {
         require(_comptroller != address(0), "Comptroller address is zero");
         require(_priceOracle != address(0), "PriceOracle address is zero");
 
         comptroller = _comptroller;
         priceOracle = _priceOracle;
+        avatarFactory = IAvatarFactory(_avatarFactory);
     }
 
-    /*
-    function updateComptroller(address newComptroller) external onlyOwner {
-        require(newComptroller != address(0), "NewComptroller address is zero");
-        require(newComptroller != comptroller, "Comptroller address is same as existing");
-
-        comptroller = newComptroller;
+    function newAvatar() external returns (address) {
+        require(!isAvatarExistFor(msg.sender), "Avatar already exits for user");
+        address avatar = avatarFactory.newAvatar();
+        avatars[msg.sender] = avatar;
+        return avatar;
     }
-    */
 
-    /*
-    function updatePriceOracle(address newPriceOracle) external onlyOwner {
-        require(newPriceOracle != address(0), "NewPriceOracle address is zero");
-        require(newPriceOracle != priceOracle, "PriceOracle address is same as existing");
-
-        priceOracle = newPriceOracle;
+    function isAvatarExistFor(address user) public view returns (bool) {
+        return avatars[user] != address(0);
     }
-    */
-
 }

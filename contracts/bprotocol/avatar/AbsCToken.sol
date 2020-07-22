@@ -10,6 +10,15 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract AbsCToken is Cushion {
 
+    modifier onlyBToken() {
+        require(isValidBToken(msg.sender), "Only BToken is authorized");
+        _;
+    }
+
+    function isValidBToken(address bToken) internal view returns (bool) {
+        return bComptroller.isBTokenSupported(bToken);
+    }
+
     // CEther
     // ======
     function mint(ICEther cEther) public payable onlyBToken poolPostOp(false) {

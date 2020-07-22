@@ -40,6 +40,7 @@ contract Avatar is AbsComptroller, AbsCToken {
     {
     }
 
+    //override
     /**
      * @dev Mint cETH using ETH and enter market on Compound
      */
@@ -48,6 +49,7 @@ contract Avatar is AbsComptroller, AbsCToken {
         require(enterMarket(address(cEther)) == 0, "enterMarket failed");
     }
 
+    //override
     /**
      * @dev Mint cToken for ERC20 and enter market on Compound
      */
