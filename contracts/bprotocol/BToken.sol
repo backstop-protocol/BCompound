@@ -12,22 +12,18 @@ contract BToken {
     // Compoun's CToken this BToken contract is tied to
     address public cToken;
 
-    modifier onlyUser() {
-        // FIXME Improve this as `IRegistry.avatars` is called twice.
-        // FIXME try to think how to do the extrnal function call only once.
-        require(registry.avatars(msg.sender) != address(0), "Avatar not found for user");
-        _;
-    }
-
     constructor(address _registry, address _cToken) public {
         registry = IRegistry(_registry);
         cToken = _cToken;
     }
 
+    function avatar() public returns (IAvatar) {
+        return IAvatar(registry.avatars(msg.sender));
+    }
+
     // CEther
-    function mint() public onlyUser payable {
-        IAvatar avatar = IAvatar(registry.avatars(msg.sender));
-        avatar.mint.value(msg.value)(cToken);
+    function mint() public payable {
+        avatar().mint.value(msg.value)(cToken);
     }
 
     // CErc20
