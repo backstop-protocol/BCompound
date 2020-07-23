@@ -11,6 +11,8 @@ contract Registry is Ownable {
 
     // Compound Contracts
     address public comptroller;
+    // CEther contract address
+    address public cEther;
     address public priceOracle;
 
     // BProtocol Contracts
@@ -21,6 +23,7 @@ contract Registry is Ownable {
 
     constructor(
         address _comptroller,
+        address _cEther,
         address _priceOracle,
         address _avatarFactory
     )
@@ -30,6 +33,7 @@ contract Registry is Ownable {
         require(_priceOracle != address(0), "PriceOracle address is zero");
 
         comptroller = _comptroller;
+        cEther = _cEther;
         priceOracle = _priceOracle;
         avatarFactory = IAvatarFactory(_avatarFactory);
     }
