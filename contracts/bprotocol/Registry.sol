@@ -41,9 +41,17 @@ contract Registry is Ownable {
     }
 
     function newAvatar() external returns (address) {
-        require(!isAvatarExistFor(msg.sender), "Avatar already exits for user");
+        return _newAvatar(msg.sender);
+    }
+
+    function newAvatarOnBehalfOf(address user) external returns (address) {
+        return _newAvatar(user);
+    }
+
+    function _newAvatar(address user) internal returns (address) {
+        require(!isAvatarExistFor(user), "Avatar already exits for user");
         address avatar = _deployNewAvatar();
-        avatars[msg.sender] = avatar;
+        avatars[user] = avatar;
         return avatar;
     }
 
