@@ -17,17 +17,9 @@ task("accounts", "Prints the list of accounts", async () => {
 // defaultNetwork, networks, solc, and paths.
 // Go to https://buidler.dev/config/ to learn more
 module.exports = {
-  defaultNetwork: "development",
   networks: {
-    development: {
-      url: "http://127.0.0.1:8545",
-      blockGasLimit: 200000000,
-      hardfork: "istanbul",
-      throwOnTransactionFailures: true,
-      gas: 200000000,
-      gasPrice: 20000,
-      allowUnlimitedContractSize: true,
-    },
+    buidlerevm: { allowUnlimitedContractSize: true },
+    localhost: { url: "http://localhost:8545" },
   },
   // This is a sample solc configuration that specifies which version of solc to use
   solc: {
