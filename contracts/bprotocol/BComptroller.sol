@@ -12,7 +12,12 @@ contract BComptroller {
     // BToken => CToken
     mapping(address => address) public bToken_cTokenMap;
 
-    constructor(address _registry) public {
+    /**
+     * @dev Registry address set only one time
+     * @param _registry Address of the registry contract
+     */
+    function setRegistry(address _registry) public {
+        require(registry == address(0), "Registry is already set");
         registry = _registry;
     }
 

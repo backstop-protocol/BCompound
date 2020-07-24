@@ -1,4 +1,3 @@
-usePlugin("@nomiclabs/buidler-waffle");
 usePlugin("@nomiclabs/buidler-truffle5");
 usePlugin("@nomiclabs/buidler-web3");
 
@@ -17,6 +16,7 @@ task("accounts", "Prints the list of accounts", async () => {
 // defaultNetwork, networks, solc, and paths.
 // Go to https://buidler.dev/config/ to learn more
 module.exports = {
+  defaultNetwork: "localhost",
   networks: {
     buidlerevm: { allowUnlimitedContractSize: true },
     localhost: { url: "http://localhost:8545" },

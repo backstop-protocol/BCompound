@@ -1,6 +1,10 @@
 const bre = require("@nomiclabs/buidler");
 
-var Comptroller = artifacts.require("ComptrollerScenarioG1");
+const Comptroller = artifacts.require("ComptrollerScenarioG1");
+const Registry = artifacts.require("Registry");
+const Pool = artifacts.require("Pool");
+const BComptroller = artifacts.require("BComptroller");
+const BToken = artifacts.require("BToken");
 
 const fs = require("fs");
 const rawdata = fs.readFileSync(
@@ -9,48 +13,41 @@ const rawdata = fs.readFileSync(
 const dev_json = JSON.parse(rawdata);
 
 async function main() {
-  // Buidler always runs the compile task when running scripts through it.
-  // If this runs in a standalone fashion you may want to call compile manually
-  // to make sure everything is compiled
-  //   await bre.run("compile");
-
   // Compound finance Contracts
   // ===========================
   const comptroller_addr = dev_json.Contracts.Comptroller;
   const comptroller = await Comptroller.at(comptroller_addr);
 
+  const comp_addr = dev_json.Contracts.COMP;
+  const cETH_addr = dev_json.Contracts.cETH;
+  const priceOracle_addr = dev_json.Contracts.PriceOracle;
+
   // BProtocol contracts
   // ====================
-  const Pool = await ethers.getContractFactory("Pool");
-  const BComptroller = await ethers.getContractFactory("BComptroller");
-  const BToken = await ethers.getContractFactory("BToken");
-  const AvatarFactory = await ethers.getContractFactory("AvatarFactory");
 
-  const pool = await Pool.deploy();
-  const bComptroller = await BComptroller.deploy();
-  const bToken = await BToken.deploy();
-  const avatarFactory = await AvatarFactory.deploy(
+  const pool = await Pool.new();
+  const bComptroller = await BComptroller.new();
+
+  const registry = await Registry.new(
+    comptroller_addr,
+    comp_addr,
+    cETH_addr,
+    priceOracle_addr,
     pool.address,
-    bToken.address,
-    bComptroller.address,
-    comptroller.address
+    bComptroller.address
   );
 
-  await pool.deployed();
-  await bComptroller.deployed();
-  await bToken.deployed();
-  await avatarFactory.deployed();
+  await bComptroller.setRegistry(registry.address);
 
   console.log("Compound finance Contracts:::::");
   console.log("===============================");
   console.log("Comptroller:" + comptroller.address);
-
+  console.log("");
   console.log("BProtocol Contracts:::::");
   console.log("========================");
   console.log("Pool deployed to:", pool.address);
   console.log("BComptroller deployed to:", bComptroller.address);
-  console.log("BToken deployed to:", bToken.address);
-  console.log("AvatarFactory deployed to:", avatarFactory.address);
+  console.log("Registry:", registry.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
