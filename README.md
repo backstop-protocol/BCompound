@@ -20,7 +20,7 @@ Deploy Compound Contracts on ganache. This command will not stop automatically. 
 
 Generate TypeChain typings
 
-    npx typechain --target truffle-v5 './build/contracts/*.json'
+    npx buidler typechain
 
 Execute tests
 

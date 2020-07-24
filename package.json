@@ -22,7 +22,7 @@
     "@types/chai": "^4.2.12",
     "@types/mocha": "^8.0.0",
     "@types/node": "^14.0.25",
-    "buidler-typechain": "^0.1.1",
+    "buidler-typechain": "git+https://git@github.com/jchittoda/buidler-typechain#truffle-v5",
     "chai": "^4.2.0",
     "chai-bn": "^0.2.1",
     "eslint": "^7.5.0",

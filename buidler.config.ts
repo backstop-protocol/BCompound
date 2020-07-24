@@ -156,10 +156,9 @@ export default {
         tests: "./test",
         artifacts: "./build/contracts",
     },
-    /*
+
     typechain: {
         outDir: "./types",
         target: "truffle-v5",
     },
-    */
 };
