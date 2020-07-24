@@ -39,15 +39,21 @@ async function main() {
 
   await bComptroller.setRegistry(registry.address);
 
-  console.log("Compound finance Contracts:::::");
-  console.log("===============================");
-  console.log("Comptroller:" + comptroller.address);
+  // Creating BToken for cETH
+  const bToken_cETH = await bComptroller.newBToken.call(cETH_addr);
+  await bComptroller.newBToken(cETH_addr);
+
   console.log("");
-  console.log("BProtocol Contracts:::::");
-  console.log("========================");
-  console.log("Pool deployed to:", pool.address);
-  console.log("BComptroller deployed to:", bComptroller.address);
-  console.log("Registry:", registry.address);
+  console.log("Compound Finance Contracts");
+  console.log("===========================");
+  console.log("Comptroller:\t" + comptroller.address);
+  console.log("");
+  console.log("BProtocol Contracts");
+  console.log("===========================");
+  console.log("Pool:\t\t", pool.address);
+  console.log("BComptroller:\t", bComptroller.address);
+  console.log("Registry:\t", registry.address);
+  console.log("BToken for cETH:", bToken_cETH);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

@@ -21,12 +21,13 @@ contract BComptroller {
         registry = _registry;
     }
 
-    function newBToken(address cToken) external {
+    function newBToken(address cToken) external returns (address) {
         // FIXME ensure that the cToken is supported on Compound
-        require(isCTokenSupported(cToken), "A BToken with given CToken exists");
+        require(!isCTokenSupported(cToken), "A BToken with given CToken exists");
         address bToken = address(new BToken(registry, cToken));
         cToken_bTokenMap[cToken] = bToken;
         bToken_cTokenMap[bToken] = cToken;
+        return bToken;
     }
 
     function isCTokenSupported(address cToken) public view returns (bool) {
