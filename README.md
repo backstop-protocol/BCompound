@@ -10,9 +10,9 @@ Command to compile the `compound-demo` and `compound-protocol` contracts
 
     npm run compile
 
-Run Ganache with the defined configs. These configs are required by `compound-protocol`
+Run Buidler EVM
 
-    npm run ganache
+    npx buidler node
 
 Deploy Compound Contracts on ganache. This command will not stop automatically. You need to kill this with [Ctrl+C] once deployment is done.
 
@@ -20,7 +20,7 @@ Deploy Compound Contracts on ganache. This command will not stop automatically. 
 
 Execute tests
 
-    truffle test
+    npx buidler test
 
 Deploy Contracts
 

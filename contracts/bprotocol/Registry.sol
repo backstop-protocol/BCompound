@@ -2,12 +2,10 @@ pragma solidity 0.5.16;
 
 import { Avatar } from "./avatar/Avatar.sol";
 
-import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
-
 /**
  * @dev Registry contract to maintain Compound addresses and other details.
  */
-contract Registry is Ownable {
+contract Registry {
 
     // Compound Contracts
     address public comptroller;

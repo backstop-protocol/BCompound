@@ -22,6 +22,7 @@ contract BComptroller {
     }
 
     function newBToken(address cToken) external {
+        // FIXME ensure that the cToken is supported on Compound
         require(isCTokenSupported(cToken), "A BToken with given CToken exists");
         address bToken = address(new BToken(registry, cToken));
         cToken_bTokenMap[cToken] = bToken;
