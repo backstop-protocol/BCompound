@@ -18,6 +18,10 @@ Deploy Compound Contracts on ganache. This command will not stop automatically. 
 
     npm run deploy-compound
 
+Generate TypeChain typings
+
+    npx typechain --target truffle-v5 './build/contracts/*.json'
+
 Execute tests
 
     npx buidler test
