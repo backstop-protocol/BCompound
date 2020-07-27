@@ -161,4 +161,8 @@ export default {
         outDir: "./types",
         target: "truffle-v5",
     },
+
+    mocha: {
+        timeout: 100000
+    }
 };

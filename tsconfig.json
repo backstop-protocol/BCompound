@@ -1,19 +1,25 @@
 {
   "compilerOptions": {
-    "target": "ES5",
-    "lib": ["dom", "es2015", "es2016", "es2017"],
+    "esModuleInterop": true,
+    "target": "es2017",
     "module": "commonjs",
     "strict": true,
-    "baseUrl": ".",
-    "rootDir": ".",
-    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "dist",
+    "lib": ["es2015", "esnext.asynciterable"],
+    "sourceMap": true,
     "typeRoots": ["./node_modules/@types", "./types"],
-    "types": ["node", "mocha", "chai"]
+    "types": ["node", "truffle-contracts"],
+    "baseUrl": "."
+
   },
-  "include": ["./scripts", "./test"],
+  "include": ["/**/*.ts"],
   "files": ["./buidler.config.ts", 
     "./buidler-env.d.ts",
-"node_modules/buidler-typechain/src/type-extensions.d.ts"]
+    "node_modules/buidler-typechain/src/type-extensions.d.ts"
+    ]
 }
