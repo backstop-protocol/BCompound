@@ -20,6 +20,8 @@ contract Registry {
     // User => avatar
     mapping (address => address) public avatars;
 
+    event NewAvatar(address indexed avatar, address owner);
+
     constructor(
         address _comptroller,
         address _comp,
@@ -50,6 +52,7 @@ contract Registry {
         require(!isAvatarExistFor(user), "Avatar already exits for user");
         address avatar = _deployNewAvatar();
         avatars[user] = avatar;
+        emit NewAvatar(avatar, user);
         return avatar;
     }
 

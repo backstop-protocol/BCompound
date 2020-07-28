@@ -1,10 +1,19 @@
+import * as compound from "../compound-protocol/networks/development.json";
 
 export class CompoundUtils {
-    public getAllERC20(): string[] {
-        // Read all ERC20 tokens from development.json
+    public getComptroller(): string {
+        return compound.Contracts.Comptroller;
     }
 
-    public getAllCTokens(): string[] {
-        // Read all CTokens from development.json
+    public getPriceOracle(): string {
+        return compound.Contracts.PriceOracle;
+    }
+
+    public getComp(): string {
+        return compound.Contracts.COMP;
+    }
+
+    public getContracts(key: string): string {
+        return compound.Contracts[key];
     }
 }

@@ -14,8 +14,9 @@
     "sourceMap": true,
     "typeRoots": ["./node_modules/@types", "./types"],
     "types": ["node", "truffle-contracts"],
-    "baseUrl": "."
-
+    "baseUrl": ".",
+    "resolveJsonModule": true,
+    "suppressImplicitAnyIndexErrors" : true
   },
   "include": ["/**/*.ts"],
   "files": ["./buidler.config.ts", 

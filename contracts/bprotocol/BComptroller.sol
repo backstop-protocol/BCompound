@@ -12,6 +12,8 @@ contract BComptroller {
     // BToken => CToken
     mapping(address => address) public bToken_cTokenMap;
 
+    event NewBToken(address indexed cToken, address bToken);
+
     /**
      * @dev Registry address set only one time
      * @param _registry Address of the registry contract
@@ -27,6 +29,7 @@ contract BComptroller {
         address bToken = address(new BToken(registry, cToken));
         cToken_bTokenMap[cToken] = bToken;
         bToken_cTokenMap[bToken] = cToken;
+        emit NewBToken(cToken, bToken);
         return bToken;
     }
 
