@@ -48,9 +48,27 @@ contract Registry {
         return _newAvatar(user);
     }
 
+    /**
+     * @dev Get the user's avatar if exists otherwise create one for him
+     * @param user Address of the user
+     * @return The existing/new Avatar contract address
+     */
+    function getAvatar(address user) external returns (address) {
+        address avatar = avatars[user];
+        if(avatar == address(0)) {
+            avatar = _newAvatar(user);
+        }
+        return avatar;
+    }
+
+    /**
+     * @dev Create a new Avatar contract for the given user
+     * @param user Address of the user
+     * @return The address of the newly deployed Avatar contract
+     */
     function _newAvatar(address user) internal returns (address) {
-        require(!isAvatarExistFor(user), "Avatar already exits for user");
-        address avatar = _deployNewAvatar();
+        require(!isAvatarExistFor(user), "avatar-already-exits-for-user");
+        address avatar = _deployNewAvatar(user);
         avatars[user] = avatar;
         emit NewAvatar(avatar, user);
         return avatar;
@@ -58,9 +76,11 @@ contract Registry {
 
     /**
      * @dev Deploys a new instance of Avatar contract
+     * @param user Owner address of Avatar contract
+     * @return Returns the address of the newly deployed Avatar contract
      */
-    function _deployNewAvatar() internal returns (address) {
-        return address(new Avatar(pool, bComptroller, comptroller, comp, cEther));
+    function _deployNewAvatar(address user) internal returns (address) {
+        return address(new Avatar(user, pool, bComptroller, comptroller, comp, cEther));
     }
 
     function isAvatarExistFor(address user) public view returns (bool) {
