@@ -4,6 +4,9 @@ import { AvatarBase } from "./AvatarBase.sol";
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
 
+import { ICEther } from "../interfaces/CTokenInterfaces.sol";
+import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+
 /**
  * @title An Avatar contract deployed per account. The contract holds cTokens and directly interacts
  *        with Compound finance.
@@ -35,5 +38,24 @@ contract Avatar is AbsComptroller, AbsCToken {
             _cETH
         )
     {
+    }
+
+    //override
+    /**
+     * @dev Mint cETH using ETH and enter market on Compound
+     */
+    function mint(ICEther cEther) public payable {
+        super.mint(cEther);
+        require(enterMarket(address(cEther)) == 0, "enterMarket failed");
+    }
+
+    //override
+    /**
+     * @dev Mint cToken for ERC20 and enter market on Compound
+     */
+    function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
+        uint256 result = super.mint(cToken, mintAmount);
+        require(enterMarket(address(cToken)) == 0, "enterMarket failed");
+        return result;
     }
 }

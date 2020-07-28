@@ -10,9 +10,18 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract AbsCToken is Cushion {
 
+    modifier onlyBToken() {
+        require(isValidBToken(msg.sender), "Only BToken is authorized");
+        _;
+    }
+
+    function isValidBToken(address bToken) internal view returns (bool) {
+        return bComptroller.isBTokenSupported(bToken);
+    }
+
     // CEther
     // ======
-    function mint(ICEther cEther) external payable onlyBToken poolPostOp(false) {
+    function mint(ICEther cEther) public payable onlyBToken poolPostOp(false) {
         cEther.mint.value(msg.value)();
     }
 
@@ -26,14 +35,14 @@ contract AbsCToken is Cushion {
 
     // CToken
     // ======
-    function mint(ICErc20 cToken, uint256 mintAmount) external onlyBToken poolPostOp(false) returns (uint256) {
+    function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken poolPostOp(false) returns (uint256) {
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
         uint256 result = cToken.mint(mintAmount);
         return result;
     }
 
-    function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken returns (uint256) {
+    function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken poolPostOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
 
         if(_isCEther(cToken)) {
@@ -45,11 +54,10 @@ contract AbsCToken is Cushion {
             uint256 redeemedAmount = underlying.balanceOf(address(this));
             underlying.safeTransfer(msg.sender, redeemedAmount);
         }
-        _hardReevaluate();
         return result;
     }
 
-    function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken returns (uint256) {
+    function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken poolPostOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
@@ -58,11 +66,10 @@ contract AbsCToken is Cushion {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(msg.sender, redeemAmount);
         }
-        _hardReevaluate();
         return result;
     }
 
-    function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken returns (uint256) {
+    function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken poolPostOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
@@ -71,7 +78,6 @@ contract AbsCToken is Cushion {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(msg.sender, borrowAmount);
         }
-        _hardReevaluate();
         return result;
     }
 

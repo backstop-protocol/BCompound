@@ -1,40 +1,69 @@
 pragma solidity 0.5.16;
 
-import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { Avatar } from "./avatar/Avatar.sol";
 
 /**
  * @dev Registry contract to maintain Compound addresses and other details.
  */
-contract Registry is Ownable {
+contract Registry {
 
     // Compound Contracts
     address public comptroller;
+    address public comp;
+    address public cEther;
     address public priceOracle;
 
-    constructor(address _comptroller, address _priceOracle) public {
-        require(_comptroller != address(0), "Comptroller address is zero");
-        require(_priceOracle != address(0), "PriceOracle address is zero");
+    // BProtocol Contracts
+    address public pool;
+    address public bComptroller;
 
+    // User => avatar
+    mapping (address => address) public avatars;
+
+    event NewAvatar(address indexed avatar, address owner);
+
+    constructor(
+        address _comptroller,
+        address _comp,
+        address _cEther,
+        address _priceOracle,
+        address _pool,
+        address _bComptroller
+    )
+        public
+    {
         comptroller = _comptroller;
+        comp = _comp;
+        cEther = _cEther;
         priceOracle = _priceOracle;
+        pool = _pool;
+        bComptroller = _bComptroller;
     }
 
-    /*
-    function updateComptroller(address newComptroller) external onlyOwner {
-        require(newComptroller != address(0), "NewComptroller address is zero");
-        require(newComptroller != comptroller, "Comptroller address is same as existing");
-
-        comptroller = newComptroller;
+    function newAvatar() external returns (address) {
+        return _newAvatar(msg.sender);
     }
-    */
 
-    /*
-    function updatePriceOracle(address newPriceOracle) external onlyOwner {
-        require(newPriceOracle != address(0), "NewPriceOracle address is zero");
-        require(newPriceOracle != priceOracle, "PriceOracle address is same as existing");
-
-        priceOracle = newPriceOracle;
+    function newAvatarOnBehalfOf(address user) external returns (address) {
+        return _newAvatar(user);
     }
-    */
 
+    function _newAvatar(address user) internal returns (address) {
+        require(!isAvatarExistFor(user), "Avatar already exits for user");
+        address avatar = _deployNewAvatar();
+        avatars[user] = avatar;
+        emit NewAvatar(avatar, user);
+        return avatar;
+    }
+
+    /**
+     * @dev Deploys a new instance of Avatar contract
+     */
+    function _deployNewAvatar() internal returns (address) {
+        return address(new Avatar(pool, bComptroller, comptroller, comp, cEther));
+    }
+
+    function isAvatarExistFor(address user) public view returns (bool) {
+        return avatars[user] != address(0);
+    }
 }

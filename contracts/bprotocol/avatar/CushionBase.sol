@@ -12,7 +12,7 @@ contract CushionBase is AvatarBase {
     /**
      * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
      */
-    function _hardReevaluate() internal {
+    function _hardReevaluate() private {
         // Check: must allowed untop
         require(_canUntop(), "Cannot untop");
         // Reset it to force re-calculation
@@ -22,13 +22,13 @@ contract CushionBase is AvatarBase {
     /**
      * @dev Soft check and reset remaining liquidation amount
      */
-    function _softReevaluate() internal {
+    function _softReevaluate() private {
         if(_isPartiallyLiquidated()) {
             _hardReevaluate();
         }
     }
 
-    function _reevaluate(bool debtIncrease) internal {
+    function _reevaluate(bool debtIncrease) private {
         if(debtIncrease) {
             _hardReevaluate();
         } else {

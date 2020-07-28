@@ -3,6 +3,7 @@ pragma solidity 0.5.16;
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
+import { IBComptroller } from "../interfaces/IBComptroller.sol";
 
 import { Exponential } from "../lib/Exponential.sol";
 
@@ -13,7 +14,7 @@ contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
     address public pool;
-    address public bComptroller;
+    IBComptroller public bComptroller;
     IComptroller public comptroller;
     IERC20 public comp;
     ICEther public cETH;
@@ -33,13 +34,8 @@ contract AvatarBase is Exponential {
         _;
     }
 
-    modifier onlyBToken() {
-        require(isValidBToken(msg.sender), "Only BToken is authorized");
-        _;
-    }
-
     modifier onlyBComptroller() {
-        require(msg.sender == bComptroller, "Only BComptroller is authorized");
+        require(msg.sender == address(bComptroller), "Only BComptroller is authorized");
         _;
     }
 
@@ -61,15 +57,10 @@ contract AvatarBase is Exponential {
         internal
     {
         pool = _pool;
-        bComptroller = _bComptroller;
+        bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
         cETH = ICEther(_cETH);
-    }
-
-    function isValidBToken(address bToken) internal view returns (bool) {
-        // TODO Write the implementation
-        return true;
     }
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
