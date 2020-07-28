@@ -4,6 +4,8 @@ jobs:
   build:
     docker:
       - image: circleci/node:10.15.3
+      - image: trufflesuite/ganache-cli
+        command: ganache-cli -p 8545 --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize
     steps:
       - checkout
       - restore_cache:
@@ -15,8 +17,14 @@ jobs:
           name: Install packages
           command: npm install
       - run:
-          name: Install packages
+          name: Compile contracts
           command: npm run compile
+      - run:
+          name: Deploy Compound contracts on Ganache
+          command: npm run deploy-compound
+      - run:
+          name: Run tests
+          command: npx buidler test test/TestBComptroller.spec.ts
       - save_cache:
           key: dependency-cache-{{ checksum "package.json" }}
           paths:
