@@ -25,9 +25,9 @@ jobs:
       - run:
           name: Build TypeChain typings
           command: npx buidler typechain
-      #- run:
-      #    name: Deploy Compound contracts on Ganache
-      #    command: npm run deploy-compound
+      - run:
+          name: Deploy Compound contracts on Ganache
+          command: npm run deploy-compound
       - run:
           name: Run tests
           command: npx buidler test test/TestBComptroller.spec.ts
