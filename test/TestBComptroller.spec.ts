@@ -11,7 +11,7 @@ contract("BComptroller", async (accounts) => {
     let bProtocol: BProtocol;
 
     before(async () => {
-        //await testUtils.deployCompound();
+        await engine.deployCompound();
         bProtocol = await engine.deployBProtocol();
     });
 
