@@ -22,6 +22,9 @@ jobs:
       - run:
           name: Compile contracts
           command: npm run compile
+      - run:
+          name: Build TypeChain typings
+          command: npx buidler typechain
       #- run:
       #    name: Deploy Compound contracts on Ganache
       #    command: npm run deploy-compound
