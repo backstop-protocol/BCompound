@@ -26,7 +26,7 @@ contract BToken {
         registry = IRegistry(_registry);
         cToken = _cToken;
         isCEther = _cToken == registry.cEther();
-        underlying = ICToken(cToken).underlying();
+        if(! isCEther) underlying = ICToken(cToken).underlying();
     }
 
     // HELPER FUNCTIONS

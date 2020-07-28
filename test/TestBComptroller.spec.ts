@@ -27,7 +27,7 @@ contract("BComptroller", async (accounts) => {
         const cZRX_addr = compound.getContracts("cZRX");
         await expectRevert(
             bProtocol.bComptroller.newBToken(cZRX_addr),
-            "A BToken with given CToken exists",
+            "BToken-with-given-CToken-exists",
         );
     });
 });
