@@ -7,10 +7,10 @@ contract BComptroller {
     address public registry;
 
     // CToken => BToken
-    mapping(address => address) public cToken_bTokenMap;
+    mapping(address => address) public c2b;
 
     // BToken => CToken
-    mapping(address => address) public bToken_cTokenMap;
+    mapping(address => address) public b2c;
 
     event NewBToken(address indexed cToken, address bToken);
 
@@ -19,25 +19,25 @@ contract BComptroller {
      * @param _registry Address of the registry contract
      */
     function setRegistry(address _registry) public {
-        require(registry == address(0), "Registry is already set");
+        require(registry == address(0), "registry-is-already-set");
         registry = _registry;
     }
 
     function newBToken(address cToken) external returns (address) {
         // FIXME ensure that the cToken is supported on Compound
-        require(!isCTokenSupported(cToken), "A BToken with given CToken exists");
+        require(!isCToken(cToken), "BToken-with-given-CToken-exists");
         address bToken = address(new BToken(registry, cToken));
-        cToken_bTokenMap[cToken] = bToken;
-        bToken_cTokenMap[bToken] = cToken;
+        c2b[cToken] = bToken;
+        b2c[bToken] = cToken;
         emit NewBToken(cToken, bToken);
         return bToken;
     }
 
-    function isCTokenSupported(address cToken) public view returns (bool) {
-        return cToken_bTokenMap[cToken] != address(0);
+    function isCToken(address cToken) public view returns (bool) {
+        return c2b[cToken] != address(0);
     }
 
-    function isBTokenSupported(address bToken) public view returns (bool) {
-        return bToken_cTokenMap[bToken] != address(0);
+    function isBToken(address bToken) public view returns (bool) {
+        return b2c[bToken] != address(0);
     }
 }

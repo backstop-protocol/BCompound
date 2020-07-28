@@ -14,7 +14,7 @@ contract CushionBase is AvatarBase {
      */
     function _hardReevaluate() private {
         // Check: must allowed untop
-        require(_canUntop(), "Cannot untop");
+        require(_canUntop(), "cannot-untop");
         // Reset it to force re-calculation
         remainingLiquidationAmount = 0;
     }

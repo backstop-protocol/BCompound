@@ -13,6 +13,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
+    // Owner of the Avatar
+    address payable public owner;
     address public pool;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
@@ -30,12 +32,12 @@ contract AvatarBase is Exponential {
     ICToken public liquidationCToken;
 
     modifier onlyPool() {
-        require(msg.sender == pool, "Only pool is authorized");
+        require(msg.sender == pool, "only-pool-is-authorized");
         _;
     }
 
     modifier onlyBComptroller() {
-        require(msg.sender == address(bComptroller), "Only BComptroller is authorized");
+        require(msg.sender == address(bComptroller), "only-BComptroller-is-authorized");
         _;
     }
 
@@ -48,6 +50,7 @@ contract AvatarBase is Exponential {
      * @param _cETH cETH contract address
      */
     constructor(
+        address _owner,
         address _pool,
         address _bComptroller,
         address _comptroller,
@@ -56,6 +59,9 @@ contract AvatarBase is Exponential {
     )
         internal
     {
+        // Converting `_owner` address to payable address here, so that we don't need to pass
+        // `address payable` in inheritance hierarchy
+        owner = address(uint160(_owner));
         pool = _pool;
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);

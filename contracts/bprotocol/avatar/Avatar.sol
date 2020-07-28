@@ -16,6 +16,7 @@ contract Avatar is AbsComptroller, AbsCToken {
 
     /**
      * @dev Constructor
+     * @param _owner Owner of the Avatar contract
      * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
@@ -23,6 +24,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @param _cETH cETH contract address
      */
     constructor(
+        address _owner,
         address _pool,
         address _bComptroller,
         address _comptroller,
@@ -31,6 +33,7 @@ contract Avatar is AbsComptroller, AbsCToken {
     )
         public
         AvatarBase(
+            _owner,
             _pool,
             _bComptroller,
             _comptroller,
@@ -46,7 +49,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint(ICEther cEther) public payable {
         super.mint(cEther);
-        require(enterMarket(address(cEther)) == 0, "enterMarket failed");
+        require(enterMarket(address(cEther)) == 0, "enterMarket-failed");
     }
 
     //override
@@ -55,7 +58,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
         uint256 result = super.mint(cToken, mintAmount);
-        require(enterMarket(address(cToken)) == 0, "enterMarket failed");
+        require(enterMarket(address(cToken)) == 0, "enterMarket-failed");
         return result;
     }
 }

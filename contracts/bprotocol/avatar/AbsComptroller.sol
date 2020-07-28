@@ -41,7 +41,7 @@ contract AbsComptroller is CushionBase {
     function enableCToken(ICToken cToken) public {
         // 1. Validate cToken supported on the Compound
         (bool isListed,) = comptroller.markets(address(cToken));
-        require(isListed, "CToken not supported");
+        require(isListed, "CToken-not-supported");
 
         // 2. Initiate inifinite approval
         IERC20 underlying = cToken.underlying();
@@ -71,7 +71,7 @@ contract AbsComptroller is CushionBase {
         if(!_isToppedUp()) {
             return (err, liquidity, shortFall);
         }
-        require(err == 0, "Error in getting account liquidity");
+        require(err == 0, "Error-in-getting-account-liquidity");
 
         IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
         uint256 price = priceOracle.getUnderlyingPrice(cETH);

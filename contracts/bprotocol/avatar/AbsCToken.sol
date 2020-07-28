@@ -11,12 +11,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract AbsCToken is Cushion {
 
     modifier onlyBToken() {
-        require(isValidBToken(msg.sender), "Only BToken is authorized");
+        require(isValidBToken(msg.sender), "only-BToken-is-authorized");
         _;
     }
 
     function isValidBToken(address bToken) internal view returns (bool) {
-        return bComptroller.isBTokenSupported(bToken);
+        return bComptroller.isBToken(bToken);
     }
 
     // CEther
@@ -48,11 +48,11 @@ contract AbsCToken is Cushion {
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
             // FIXME if we can calculate and send exact amount
-            msg.sender.transfer(address(this).balance);
+            owner.transfer(address(this).balance);
         } else {
             IERC20 underlying = cToken.underlying();
             uint256 redeemedAmount = underlying.balanceOf(address(this));
-            underlying.safeTransfer(msg.sender, redeemedAmount);
+            underlying.safeTransfer(owner, redeemedAmount);
         }
         return result;
     }
@@ -61,10 +61,10 @@ contract AbsCToken is Cushion {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
-            msg.sender.transfer(redeemAmount);
+            owner.transfer(redeemAmount);
         } else {
             IERC20 underlying = cToken.underlying();
-            underlying.safeTransfer(msg.sender, redeemAmount);
+            underlying.safeTransfer(owner, redeemAmount);
         }
         return result;
     }
@@ -73,10 +73,10 @@ contract AbsCToken is Cushion {
         uint256 result = cToken.borrow(borrowAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
-            msg.sender.transfer(borrowAmount);
+            owner.transfer(borrowAmount);
         } else {
             IERC20 underlying = cToken.underlying();
-            underlying.safeTransfer(msg.sender, borrowAmount);
+            underlying.safeTransfer(owner, borrowAmount);
         }
         return result;
     }
@@ -112,7 +112,7 @@ contract AbsCToken is Cushion {
         external payable onlyPool
     {
         // 1. Can liquidate?
-        require(canLiquidate(), "Cannot liquidate");
+        require(canLiquidate(), "cannot-liquidate");
 
         _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
     }
