@@ -11,7 +11,9 @@ jobs:
       - run:
           name: Get compound-protocol
           command: git submodule update --init
-      - shasum package.json compound-protocol/package.json > checksum.tmp
+      - run:
+          name: Generate checksum
+          command: shasum package.json compound-protocol/package.json > checksum.tmp
       - restore_cache:
           key: dependency-cache-{{ checksum "checksum.tmp" }}
       - run:
