@@ -8,24 +8,26 @@ jobs:
         command: ganache-cli -p 8545 --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize
     steps:
       - checkout
-      - restore_cache:
-          key: dependency-cache-{{ checksum "package.json" }}
       - run:
           name: Get compound-protocol
           command: git submodule update --init
+      - shasum package.json compound-protocol/package.json > checksum.tmp
+      - restore_cache:
+          key: dependency-cache-{{ checksum "checksum.tmp" }}
       - run:
           name: Install packages
           command: npm install
       - run:
           name: Compile contracts
           command: npm run compile
-      - run:
-          name: Deploy Compound contracts on Ganache
-          command: npm run deploy-compound
+      #- run:
+      #    name: Deploy Compound contracts on Ganache
+      #    command: npm run deploy-compound
       - run:
           name: Run tests
           command: npx buidler test test/TestBComptroller.spec.ts
       - save_cache:
-          key: dependency-cache-{{ checksum "package.json" }}
+          key: dependency-cache-{{ checksum "checksum.tmp" }}
           paths:
             - node_modules
+            - compound-protocol/node_modules
