@@ -22,10 +22,14 @@ contract AbsComptroller is CushionBase {
 
         address[] memory cTokens = new address[](1);
         cTokens[0] = cToken;
-        return enterMarkets(cTokens)[0];
+        return _enterMarkets(cTokens)[0];
     }
 
-    function enterMarkets(address[] memory cTokens) public onlyBComptroller postPoolOp(false) returns (uint256[] memory) {
+    function enterMarkets(address[] calldata cTokens) external onlyBComptroller returns (uint256[] memory) {
+        return _enterMarkets(cTokens);
+    }
+
+    function _enterMarkets(address[] memory cTokens) internal postPoolOp(false) returns (uint256[] memory) {
         uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < cTokens.length; i++) {
             enableCToken(ICToken(cTokens[i]));

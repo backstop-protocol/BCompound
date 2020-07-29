@@ -3,6 +3,7 @@ import { BProtocolEngine, BProtocol } from "../TestUtils/BProtocolEngine";
 import { CompoundUtils } from "TestUtils/CompoundUtils";
 
 const { expectRevert } = require("@openzeppelin/test-helpers");
+
 const BComptroller: t.BComptrollerContract = artifacts.require("BComptroller");
 
 contract("BComptroller", async (accounts) => {
