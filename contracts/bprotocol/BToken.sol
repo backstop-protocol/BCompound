@@ -64,8 +64,12 @@ contract BToken {
 
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
-        underlying.safeTransferFrom(msg.sender, address(_avatar), repayAmount);
-        return _avatar.repayBorrow(cToken, repayAmount);
+        uint256 actualRepayAmount = repayAmount;
+        if(repayAmount == uint256(-1)) {
+            actualRepayAmount = _avatar.borrowBalanceCurrent(cToken);
+        }
+        underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
+        return _avatar.repayBorrow(cToken, actualRepayAmount);
     }
 
     // CEther / CErc20

@@ -19,6 +19,11 @@ contract AbsCToken is Cushion {
         return bComptroller.isBToken(bToken);
     }
 
+    function borrowBalanceCurrent(ICToken cToken) public returns (uint256) {
+        uint256 _borrowBalanceCurrent = cToken.borrowBalanceCurrent(address(this));
+        return add_(_borrowBalanceCurrent, toppedUpAmount);
+    }
+
     // CEther
     // ======
     function mint(ICEther cEther) public payable onlyBToken postPoolOp(false) {
@@ -88,12 +93,7 @@ contract AbsCToken is Cushion {
         postPoolOp(false)
         returns (uint256)
     {
-        uint256 amountToRepay = repayAmount;
-        if(repayAmount == uint(-1)) {
-            amountToRepay = cToken.borrowBalanceCurrent(address(this));
-        }
-
-        uint256 result = cToken.repayBorrow(amountToRepay);
+        uint256 result = cToken.repayBorrow(repayAmount);
         return result;
     }
 
