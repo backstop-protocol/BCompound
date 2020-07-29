@@ -7,10 +7,20 @@ jobs:
       - image: trufflesuite/ganache-cli
         command: ganache-cli -p 8545 --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize
     steps:
-      - checkout
+      - run: |
+          sudo apt-get install libudev-dev
+          sudo wget https://github.com/ethereum/solidity/releases/download/v0.5.16/solc-static-linux -O /usr/local/bin/solc
+          sudo chmod +x /usr/local/bin/solc
+      - checkout          
       - run:
           name: Get compound-protocol
           command: git submodule update --init
+      - run:
+          name: Update submodule
+          command: |
+            cd ./compound-protocol
+            git checkout bprotocol
+
       - run:
           name: Generate checksum
           command: shasum package.json compound-protocol/package.json > checksum.tmp
@@ -18,7 +28,11 @@ jobs:
           key: dependency-cache-{{ checksum "checksum.tmp" }}
       - run:
           name: Install packages
-          command: npm install
+          command: |            
+            cd compound-protocol && yarn install
+            cd compound-protocol/scenario && yarn install
+            npm install
+
       - run:
           name: Compile contracts
           command: npm run compile
