@@ -37,25 +37,21 @@ contract BToken {
      *      the Avatar user owns.
      */
     function approveInfinite() external {
-        address avatar = _getAvatar();
+        address avatar = address(avatar());
         underlying.safeApprove(avatar, 0);
         underlying.safeApprove(avatar, uint256(-1));
     }
 
-    function _getAvatar() internal returns (address) {
-        return registry.getAvatar(msg.sender);
-    }
-
     function avatar() public returns (IAvatar) {
-        return IAvatar(_getAvatar());
+        return IAvatar(registry.getAvatar(msg.sender));
     }
 
     function _iAvatarCEther() internal returns (IAvatarCEther) {
-        return IAvatarCEther(_getAvatar());
+        return IAvatarCEther(address(avatar()));
     }
 
     function _iAvatarCErc20() internal returns (IAvatarCErc20) {
-        return IAvatarCErc20(_getAvatar());
+        return IAvatarCErc20(address(avatar()));
     }
 
     // CEther
