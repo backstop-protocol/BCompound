@@ -32,16 +32,6 @@ contract BToken {
     // HELPER FUNCTIONS
     // =================
 
-    /**
-     * @dev A user call this function to give inifinite token approvals for underlying token to
-     *      the Avatar user owns.
-     */
-    function approveInfinite() external {
-        address avatar = address(avatar());
-        underlying.safeApprove(avatar, 0);
-        underlying.safeApprove(avatar, uint256(-1));
-    }
-
     function avatar() public returns (IAvatar) {
         return IAvatar(registry.getAvatar(msg.sender));
     }
@@ -64,24 +54,18 @@ contract BToken {
         _iAvatarCEther().repayBorrow.value(msg.value)();
     }
 
-    function repayBorrowBehalf(address borrower) external payable {
-        _iAvatarCEther().repayBorrowBehalf.value(msg.value)(borrower);
-    }
-
     // CErc20
     // =======
     function mint(uint256 mintAmount) external returns (uint256) {
+        IAvatarCErc20 _avatar = _iAvatarCErc20();
+        underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
         _iAvatarCErc20().mint(cToken, mintAmount);
     }
 
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
-        underlying.safeTransferFrom(msg.sender, address(this), repayAmount);
-        return _iAvatarCErc20().repayBorrow(cToken, repayAmount);
-    }
-
-    function repayBorrowBehalf(address borrower, uint256 repayAmount) external returns (uint256) {
-        underlying.safeTransferFrom(msg.sender, address(this), repayAmount);
-        return _iAvatarCErc20().repayBorrowBehalf(cToken, borrower, repayAmount);
+        IAvatarCErc20 _avatar = _iAvatarCErc20();
+        underlying.safeTransferFrom(msg.sender, address(_avatar), repayAmount);
+        return _avatar.repayBorrow(cToken, repayAmount);
     }
 
     // CEther / CErc20

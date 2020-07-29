@@ -29,15 +29,9 @@ contract AbsCToken is Cushion {
         cETH.repayBorrow.value(msg.value)();
     }
 
-    function repayBorrowBehalf(address borrower) external payable onlyBToken {
-        cETH.repayBorrowBehalf.value(msg.value)(borrower);
-    }
-
     // CToken
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken poolPostOp(false) returns (uint256) {
-        IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
         uint256 result = cToken.mint(mintAmount);
         return result;
     }
@@ -87,21 +81,8 @@ contract AbsCToken is Cushion {
             amountToRepay = cToken.borrowBalanceCurrent(address(this));
         }
 
-        IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
         uint256 result = cToken.repayBorrow(amountToRepay);
         return result;
-    }
-
-    function repayBorrowBehalf(ICErc20 cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
-        uint256 amountToRepay = repayAmount;
-        if(repayAmount == uint(-1)) {
-            amountToRepay = cToken.borrowBalanceCurrent(borrower);
-        }
-
-        IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
-        return cToken.repayBorrowBehalf(borrower, amountToRepay);
     }
 
     function liquidateBorrow(
