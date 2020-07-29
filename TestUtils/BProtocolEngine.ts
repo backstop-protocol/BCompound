@@ -21,7 +21,13 @@ export class BProtocol {
 // BProtocol System Engine to manage and deploy BProtocol contracts
 export class BProtocolEngine {
     public bProtocol!: BProtocol;
+
     private compoundUtil = new CompoundUtils();
+    private accounts!: Truffle.Accounts;
+
+    constructor(_accounts: Truffle.Accounts) {
+        this.accounts = _accounts;
+    }
 
     // Deploy Compound contracts
     public async deployCompound() {
@@ -40,9 +46,6 @@ export class BProtocolEngine {
         _bProtocol.registry = await this.deployRegistry();
 
         await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
-
-        // Deploy BToken for cETH
-        await this.deployNewBToken(this.compoundUtil.getContracts("cETH"));
 
         // console.log("Pool: " + _bProtocol.pool.address);
         // console.log("BComptroller: " + _bProtocol.bComptroller.address);
@@ -80,15 +83,16 @@ export class BProtocolEngine {
     // ========================
 
     // Deploy BToken
-    public async deployNewBToken(cToken: string): Promise<t.BTokenInstance> {
+    public async deployNewBToken(symbol: string): Promise<t.BTokenInstance> {
+        const cToken: string = this.compoundUtil.getContracts(symbol);
         const bToken_addr = await this.bProtocol.bComptroller.newBToken.call(cToken);
         await this.bProtocol.bComptroller.newBToken(cToken);
         const bToken: t.BTokenInstance = await BToken.at(bToken_addr);
-        this.bProtocol.bTokens.set(cToken, bToken);
+        this.bProtocol.bTokens.set(symbol, bToken);
         return bToken;
     }
 
-    public async deployNewAvatar(_from: string): Promise<t.AvatarInstance> {
+    public async deployNewAvatar(_from: string = this.accounts[0]): Promise<t.AvatarInstance> {
         const avatar_addr = await this.bProtocol.registry.newAvatar.call({ from: _from });
         await this.bProtocol.registry.newAvatar({ from: _from });
         const avatar: t.AvatarInstance = await Avatar.at(avatar_addr);

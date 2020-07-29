@@ -6,7 +6,7 @@ const { expectRevert } = require("@openzeppelin/test-helpers");
 const BComptroller: t.BComptrollerContract = artifacts.require("BComptroller");
 
 contract("BComptroller", async (accounts) => {
-    const engine = new BProtocolEngine();
+    const engine = new BProtocolEngine(accounts);
     const compound = new CompoundUtils();
     let bProtocol: BProtocol;
 
