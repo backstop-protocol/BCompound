@@ -12,7 +12,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract AbsComptroller is CushionBase {
 
-    function enterMarket(address cToken) public onlyBComptroller poolPostOp(false) returns (uint256) {
+    function enterMarket(address cToken) public onlyBComptroller postPoolOp(false) returns (uint256) {
         bool isMember = comptroller.checkMembership(address(this), cToken);
         if(isMember) return 0;
 
@@ -21,7 +21,7 @@ contract AbsComptroller is CushionBase {
         return enterMarkets(cTokens)[0];
     }
 
-    function enterMarkets(address[] memory cTokens) public onlyBComptroller poolPostOp(false) returns (uint256[] memory) {
+    function enterMarkets(address[] memory cTokens) public onlyBComptroller postPoolOp(false) returns (uint256[] memory) {
         uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < cTokens.length; i++) {
             enableCToken(ICToken(cTokens[i]));
@@ -29,7 +29,7 @@ contract AbsComptroller is CushionBase {
         return result;
     }
 
-    function exitMarket(ICToken cToken) public onlyBComptroller poolPostOp(true) returns (uint256) {
+    function exitMarket(ICToken cToken) public onlyBComptroller postPoolOp(true) returns (uint256) {
         comptroller.exitMarket(address(cToken));
         _disableCToken(cToken);
     }

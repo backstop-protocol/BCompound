@@ -19,30 +19,35 @@ contract AbsCToken is Cushion {
         return bComptroller.isBToken(bToken);
     }
 
+    function borrowBalanceCurrent(ICToken cToken) public returns (uint256) {
+        uint256 _borrowBalanceCurrent = cToken.borrowBalanceCurrent(address(this));
+        return add_(_borrowBalanceCurrent, toppedUpAmount);
+    }
+
     // CEther
     // ======
-    function mint(ICEther cEther) public payable onlyBToken poolPostOp(false) {
+    function mint(ICEther cEther) public payable onlyBToken postPoolOp(false) {
         cEther.mint.value(msg.value)();
     }
 
-    function repayBorrow() external payable onlyBToken poolPostOp(false) {
+    function repayBorrow()
+        external
+        payable
+        onlyBToken
+        prePoolOp(cETH, msg.value)
+        postPoolOp(false)
+    {
         cETH.repayBorrow.value(msg.value)();
-    }
-
-    function repayBorrowBehalf(address borrower) external payable onlyBToken {
-        cETH.repayBorrowBehalf.value(msg.value)(borrower);
     }
 
     // CToken
     // ======
-    function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken poolPostOp(false) returns (uint256) {
-        IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(msg.sender, address(this), mintAmount);
+    function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
         uint256 result = cToken.mint(mintAmount);
         return result;
     }
 
-    function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken poolPostOp(true) returns (uint256) {
+    function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
 
         if(_isCEther(cToken)) {
@@ -57,7 +62,7 @@ contract AbsCToken is Cushion {
         return result;
     }
 
-    function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken poolPostOp(true) returns (uint256) {
+    function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
@@ -69,7 +74,7 @@ contract AbsCToken is Cushion {
         return result;
     }
 
-    function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken poolPostOp(true) returns (uint256) {
+    function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
@@ -81,27 +86,15 @@ contract AbsCToken is Cushion {
         return result;
     }
 
-    function repayBorrow(ICErc20 cToken, uint256 repayAmount) external onlyBToken poolPostOp(false) returns (uint256) {
-        uint256 amountToRepay = repayAmount;
-        if(repayAmount == uint(-1)) {
-            amountToRepay = cToken.borrowBalanceCurrent(address(this));
-        }
-
-        IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
-        uint256 result = cToken.repayBorrow(amountToRepay);
+    function repayBorrow(ICErc20 cToken, uint256 repayAmount)
+        external
+        onlyBToken
+        prePoolOp(cToken, repayAmount)
+        postPoolOp(false)
+        returns (uint256)
+    {
+        uint256 result = cToken.repayBorrow(repayAmount);
         return result;
-    }
-
-    function repayBorrowBehalf(ICErc20 cToken, address borrower, uint256 repayAmount) external onlyBToken returns (uint256) {
-        uint256 amountToRepay = repayAmount;
-        if(repayAmount == uint(-1)) {
-            amountToRepay = cToken.borrowBalanceCurrent(borrower);
-        }
-
-        IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(msg.sender, address(this), amountToRepay);
-        return cToken.repayBorrowBehalf(borrower, amountToRepay);
     }
 
     function liquidateBorrow(
@@ -120,12 +113,12 @@ contract AbsCToken is Cushion {
 
     // ERC20
     // ======
-    function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken poolPostOp(true) returns (bool) {
+    function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         bool result = cToken.transfer(dst, amount);
         return result;
     }
 
-    function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken poolPostOp(true) returns (bool) {
+    function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         bool result = cToken.transferFrom(src, dst, amount);
         return result;
     }

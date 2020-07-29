@@ -9,6 +9,14 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Cushion is CushionBase {
 
+    modifier prePoolOp(ICToken cToken, uint256 repayBorrowAmount) {
+        uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
+        if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
+            _untop();
+        }
+        _;
+    }
+
     /**
      * @dev Returns the status if this Avatar's debt can be liquidated
      * @return `true` when this Avatar can be liquidated, `false` otherwise
@@ -57,13 +65,17 @@ contract Cushion is CushionBase {
         toppedUpAmount = topupAmount;
     }
 
+    function untop() external onlyPool {
+        _untop();
+    }
+
     /**
      * @dev Untop the borrowed position of this Avatar by borrowing from Compound and transferring
      *      it to the pool.
      * @notice Only Pool contract allowed to call the untop.
      * @return `true` if success, `false` otherwise.
      */
-    function untop() external onlyPool {
+    function _untop() internal {
         // when already untopped
         if(!_isToppedUp()) return;
 
@@ -72,8 +84,9 @@ contract Cushion is CushionBase {
 
         if(address(toppedUpCToken) == address(cETH)) {
             // 2. Send borrowed ETH to Pool contract
-            // FIXME Use OpenZeppelin `Address.sendValue`
-            msg.sender.transfer(toppedUpAmount);
+            // Sending ETH to Pool using `.send()` to avoid DoS attack
+            bool success = pool.send(toppedUpAmount);
+            success; // shh: Not checking return value to avoid DoS attack
         } else {
             // 2. Transfer borrowed amount to Pool contract
             IERC20 underlying = toppedUpCToken.underlying();
