@@ -10,9 +10,11 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract Cushion is CushionBase {
 
     modifier prePoolOp(ICToken cToken, uint256 repayBorrowAmount) {
-        uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
-        if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
-            _untop();
+        if(toppedUpAmount > 0) {
+            uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
+            if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
+                _untop();
+            }
         }
         _;
     }
