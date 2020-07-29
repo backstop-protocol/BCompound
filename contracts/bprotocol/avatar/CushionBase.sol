@@ -4,7 +4,7 @@ import { AvatarBase } from "./AvatarBase.sol";
 
 contract CushionBase is AvatarBase {
 
-    modifier poolPostOp(bool debtIncrease) {
+    modifier postPoolOp(bool debtIncrease) {
         _;
         _reevaluate(debtIncrease);
     }

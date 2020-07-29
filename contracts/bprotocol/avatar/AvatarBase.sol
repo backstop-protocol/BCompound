@@ -15,7 +15,7 @@ contract AvatarBase is Exponential {
 
     // Owner of the Avatar
     address payable public owner;
-    address public pool;
+    address payable public pool;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
     IERC20 public comp;
@@ -62,7 +62,7 @@ contract AvatarBase is Exponential {
         // Converting `_owner` address to payable address here, so that we don't need to pass
         // `address payable` in inheritance hierarchy
         owner = address(uint160(_owner));
-        pool = _pool;
+        pool = address(uint160(_pool));
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
