@@ -1,19 +1,29 @@
-import * as compound from "../compound-protocol/networks/development.json";
+//import * as compound from "../compound-protocol/networks/development.json";
 
 export class CompoundUtils {
+    public compound: any;
+
+    private loanJson() {
+        this.compound = require("../compound-protocol/networks/development.json");
+    }
+
     public getComptroller(): string {
-        return compound.Contracts.Comptroller;
+        this.loanJson();
+        return this.compound.Contracts.Comptroller;
     }
 
     public getPriceOracle(): string {
-        return compound.Contracts.PriceOracle;
+        this.loanJson();
+        return this.compound.Contracts.PriceOracle;
     }
 
     public getComp(): string {
-        return compound.Contracts.COMP;
+        this.loanJson();
+        return this.compound.Contracts.COMP;
     }
 
     public getContracts(key: string): string {
-        return compound.Contracts[key];
+        this.loanJson();
+        return this.compound.Contracts[key];
     }
 }
