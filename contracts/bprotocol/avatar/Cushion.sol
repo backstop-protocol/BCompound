@@ -9,6 +9,16 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Cushion is CushionBase {
 
+    modifier prePoolOp(ICToken cToken, uint256 repayBorrowAmount) {
+        if(toppedUpAmount > 0) {
+            uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
+            if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
+                _untop();
+            }
+        }
+        _;
+    }
+
     /**
      * @dev Returns the status if this Avatar's debt can be liquidated
      * @return `true` when this Avatar can be liquidated, `false` otherwise
@@ -46,7 +56,7 @@ contract Cushion is CushionBase {
         underlying.safeTransferFrom(pool, address(this), topupAmount);
 
         // 2. Repay borrows from Pool to topup
-        require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow failed");
+        require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-failed");
 
         // 3. Store Topped-up details
         _topupAndStoreDetails(cToken, topupAmount);
@@ -57,23 +67,28 @@ contract Cushion is CushionBase {
         toppedUpAmount = topupAmount;
     }
 
+    function untop() external onlyPool {
+        _untop();
+    }
+
     /**
      * @dev Untop the borrowed position of this Avatar by borrowing from Compound and transferring
      *      it to the pool.
      * @notice Only Pool contract allowed to call the untop.
      * @return `true` if success, `false` otherwise.
      */
-    function untop() external onlyPool {
+    function _untop() internal {
         // when already untopped
         if(!_isToppedUp()) return;
 
         // 1. Borrow from Compound and send tokens to Pool
-        require(toppedUpCToken.borrow(toppedUpAmount) == 0, "Borrow failed");
+        require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
 
         if(address(toppedUpCToken) == address(cETH)) {
             // 2. Send borrowed ETH to Pool contract
-            // FIXME Use OpenZeppelin `Address.sendValue`
-            msg.sender.transfer(toppedUpAmount);
+            // Sending ETH to Pool using `.send()` to avoid DoS attack
+            bool success = pool.send(toppedUpAmount);
+            success; // shh: Not checking return value to avoid DoS attack
         } else {
             // 2. Transfer borrowed amount to Pool contract
             IERC20 underlying = toppedUpCToken.underlying();
@@ -93,11 +108,11 @@ contract Cushion is CushionBase {
     {
         // 1. Is toppedUp OR partially liquidated
         bool isPartiallyLiquidated = _isPartiallyLiquidated();
-        require(_isToppedUp() || isPartiallyLiquidated, "Cannot perform liquidateBorrow");
+        require(_isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
         if(isPartiallyLiquidated) {
-            require(debtCToken == liquidationCToken, "debtCToken not equal to liquidationCToken");
+            require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
         } else {
-            require(debtCToken == toppedUpCToken, "debtCToken not equal to toppedUpCToken");
+            require(debtCToken == toppedUpCToken, "debtCToken-not-equal-to-toppedUpCToken");
             liquidationCToken = debtCToken;
         }
 
@@ -112,7 +127,7 @@ contract Cushion is CushionBase {
 
         bool isCEtherDebt = _isCEther(debtCToken);
         // 2. `underlayingAmtToLiquidate` is under limit
-        require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow: amountToLiquidate is too big");
+        require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
 
         // 3. Liquidator perform repayBorrow
         uint256 repayAmount = 0;
@@ -121,12 +136,12 @@ contract Cushion is CushionBase {
 
             if(isCEtherDebt) {
                 // CEther
-                require(msg.value == repayAmount, "Insuffecient ETH sent");
+                require(msg.value == repayAmount, "insuffecient-ETH-sent");
                 cETH.repayBorrow.value(repayAmount)();
             } else {
                 // CErc20
                 toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), repayAmount);
-                require(ICErc20(address(debtCToken)).repayBorrow(repayAmount) == 0, "liquidateBorrow: repayBorrow failed");
+                require(ICErc20(address(debtCToken)).repayBorrow(repayAmount) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
             toppedUpAmount = 0;
         }
@@ -144,9 +159,9 @@ contract Cushion is CushionBase {
             address(collCToken),
             underlyingAmtToLiquidate
         );
-        require(err == 0, "Error in liquidateCalculateSeizeTokens");
+        require(err == 0, "error-in-liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
-        require(collCToken.transfer(msg.sender, seizeTokens), "Collateral cToken transfer failed");
+        require(collCToken.transfer(msg.sender, seizeTokens), "collateral-cToken-transfer-failed");
     }
 }

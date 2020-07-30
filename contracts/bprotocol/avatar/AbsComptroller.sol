@@ -12,15 +12,24 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract AbsComptroller is CushionBase {
 
-    function enterMarkets(address[] calldata cTokens) external onlyBComptroller poolPostOp(false) returns (uint256[] memory) {
+    function enterMarket(address cToken) public onlyBComptroller postPoolOp(false) returns (uint256) {
+        bool isMember = comptroller.checkMembership(address(this), cToken);
+        if(isMember) return 0;
+
+        address[] memory cTokens = new address[](1);
+        cTokens[0] = cToken;
+        return enterMarkets(cTokens)[0];
+    }
+
+    function enterMarkets(address[] memory cTokens) public onlyBComptroller postPoolOp(false) returns (uint256[] memory) {
+        uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < cTokens.length; i++) {
             enableCToken(ICToken(cTokens[i]));
         }
-        uint256[] memory result = comptroller.enterMarkets(cTokens);
         return result;
     }
 
-    function exitMarket(ICToken cToken) external onlyBComptroller poolPostOp(true) returns (uint256) {
+    function exitMarket(ICToken cToken) public onlyBComptroller postPoolOp(true) returns (uint256) {
         comptroller.exitMarket(address(cToken));
         _disableCToken(cToken);
     }
@@ -32,7 +41,7 @@ contract AbsComptroller is CushionBase {
     function enableCToken(ICToken cToken) public {
         // 1. Validate cToken supported on the Compound
         (bool isListed,) = comptroller.markets(address(cToken));
-        require(isListed, "CToken not supported");
+        require(isListed, "CToken-not-supported");
 
         // 2. Initiate inifinite approval
         IERC20 underlying = cToken.underlying();
@@ -62,7 +71,7 @@ contract AbsComptroller is CushionBase {
         if(!_isToppedUp()) {
             return (err, liquidity, shortFall);
         }
-        require(err == 0, "Error in getting account liquidity");
+        require(err == 0, "Error-in-getting-account-liquidity");
 
         IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
         uint256 price = priceOracle.getUnderlyingPrice(cETH);
