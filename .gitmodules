@@ -2,4 +2,4 @@
 	path = compound-protocol
 	url = https://github.com/backstop-protocol/compound-protocol.git
     branch = bprotocol
-    ignore=dirty
+    ignore = dirty
