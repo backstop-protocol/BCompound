@@ -1,5 +1,8 @@
 pragma solidity 0.5.16;
 
+// TODO To be removed in mainnet deployment
+import "@nomiclabs/buidler/console.sol";
+
 import { CushionBase } from "./CushionBase.sol";
 
 import { IPriceOracle } from "../interfaces/CTokenInterfaces.sol";
@@ -47,15 +50,18 @@ contract AbsComptroller is CushionBase {
      * @param cToken CToken address to enable
      */
     function enableCToken(ICToken cToken) public {
-        // 1. Validate cToken supported on the Compound
+        // 1. If cToken is cETH then just return
+        if(address(cToken) == address(cETH)) return;
+
+        // 2. Validate cToken supported on the Compound
         (bool isListed,) = comptroller.markets(address(cToken));
         require(isListed, "CToken-not-supported");
 
-        // 2. Initiate inifinite approval
+        // 3. Initiate inifinite approval
         IERC20 underlying = cToken.underlying();
-        // 2.1 De-approve any previous approvals, before approving again
+        // 3.1 De-approve any previous approvals, before approving again
         underlying.safeApprove(address(cToken), 0);
-        // 2.3 Initiate inifinite approval
+        // 3.2 Initiate inifinite approval
         underlying.safeApprove(address(cToken), uint256(-1));
     }
 

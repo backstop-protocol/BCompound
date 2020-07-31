@@ -1,5 +1,8 @@
 pragma solidity 0.5.16;
 
+// TODO To be removed in mainnet deployment
+import "@nomiclabs/buidler/console.sol";
+
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";

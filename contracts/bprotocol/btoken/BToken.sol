@@ -1,10 +1,8 @@
 pragma solidity 0.5.16;
 
-import { IRegistry } from "./interfaces/IRegistry.sol";
-import { IAvatar } from "./interfaces/IAvatar.sol";
-import { IAvatarCEther } from "./interfaces/IAvatar.sol";
-import { IAvatarCErc20 } from "./interfaces/IAvatar.sol";
-import { ICToken } from "./interfaces/CTokenInterfaces.sol";
+import { IRegistry } from "../interfaces/IRegistry.sol";
+import { IAvatar } from "../interfaces/IAvatar.sol";
+import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -19,57 +17,14 @@ contract BToken {
     IRegistry public registry;
     // Compound's CToken this BToken contract is tied to
     address public cToken;
-    bool public isCEther = false;
-    IERC20 public underlying;
 
-    constructor(address _registry, address _cToken) public {
+    constructor(address _registry, address _cToken) internal {
         registry = IRegistry(_registry);
         cToken = _cToken;
-        isCEther = _cToken == registry.cEther();
-        if(! isCEther) underlying = ICToken(cToken).underlying();
     }
-
-    // HELPER FUNCTIONS
-    // =================
 
     function avatar() public returns (IAvatar) {
         return IAvatar(registry.getAvatar(msg.sender));
-    }
-
-    function _iAvatarCEther() internal returns (IAvatarCEther) {
-        return IAvatarCEther(address(avatar()));
-    }
-
-    function _iAvatarCErc20() internal returns (IAvatarCErc20) {
-        return IAvatarCErc20(address(avatar()));
-    }
-
-    // CEther
-    // =======
-    function mint() external payable {
-        _iAvatarCEther().mint.value(msg.value)(cToken);
-    }
-
-    function repayBorrow() external payable {
-        _iAvatarCEther().repayBorrow.value(msg.value)();
-    }
-
-    // CErc20
-    // =======
-    function mint(uint256 mintAmount) external returns (uint256) {
-        IAvatarCErc20 _avatar = _iAvatarCErc20();
-        underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
-        _iAvatarCErc20().mint(cToken, mintAmount);
-    }
-
-    function repayBorrow(uint256 repayAmount) external returns (uint256) {
-        IAvatarCErc20 _avatar = _iAvatarCErc20();
-        uint256 actualRepayAmount = repayAmount;
-        if(repayAmount == uint256(-1)) {
-            actualRepayAmount = _avatar.borrowBalanceCurrent(cToken);
-        }
-        underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
-        return _avatar.repayBorrow(cToken, actualRepayAmount);
     }
 
     // CEther / CErc20
