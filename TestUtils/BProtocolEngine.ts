@@ -1,13 +1,14 @@
 import * as t from "../types/index";
 import { buildComptrollerImpl } from "compound-protocol/scenario/src/Builder/ComptrollerImplBuilder";
 import { CompoundUtils } from "./CompoundUtils";
+import BN from "bn.js";
 
 const shell = require("shelljs");
 
 // Compound contracts
 const Comp: t.CompContract = artifacts.require("Comp");
 const Comptroller: t.ComptrollerContract = artifacts.require("Comptroller");
-const PriceOracle: t.PriceOracleContract = artifacts.require("PriceOracle");
+const FakePriceOracle: t.FakePriceOracleContract = artifacts.require("FakePriceOracle");
 
 // BProtocol contracts
 const Pool: t.PoolContract = artifacts.require("Pool");
@@ -21,7 +22,7 @@ const Avatar: t.AvatarContract = artifacts.require("Avatar");
 export class Compound {
     public comptroller!: t.ComptrollerInstance;
     public comp!: t.CompInstance;
-    public priceOracle!: t.PriceOracleInstance;
+    public priceOracle!: t.FakePriceOracleInstance;
 }
 
 // BProtocol Class to store all BProtocol deployed contracts
@@ -67,7 +68,7 @@ export class BProtocolEngine {
         _bProtocol.compound = new Compound();
         _bProtocol.compound.comptroller = await Comptroller.at(this.compoundUtil.getComptroller());
         _bProtocol.compound.comp = await Comp.at(this.compoundUtil.getComp());
-        _bProtocol.compound.priceOracle = await PriceOracle.at(this.compoundUtil.getPriceOracle());
+        _bProtocol.compound.priceOracle = await this.deployFakePriceOracle();
 
         // console.log("Pool: " + _bProtocol.pool.address);
         // console.log("BComptroller: " + _bProtocol.bComptroller.address);
@@ -134,5 +135,19 @@ export class BProtocolEngine {
         await this.bProtocol.registry.newAvatar({ from: _from });
         const avatar: t.AvatarInstance = await Avatar.at(avatar_addr);
         return avatar;
+    }
+
+    // Other Contracts
+    public async deployFakePriceOracle(): Promise<t.FakePriceOracleInstance> {
+        const FAKE_PRICE = new BN(10).pow(new BN(18));
+        // Create new FakePriceOracle
+        const priceOracle = await FakePriceOracle.new();
+        // Sets fake price for each cTokens supported
+        await priceOracle.setPrice(this.compoundUtil.getContracts("cETH"), FAKE_PRICE);
+        await priceOracle.setPrice(this.compoundUtil.getContracts("cZRX"), FAKE_PRICE);
+        await priceOracle.setPrice(this.compoundUtil.getContracts("cBAT"), FAKE_PRICE);
+        // Set the FakePriceOracle in Comptroller
+        await this.bProtocol.compound.comptroller._setPriceOracle(priceOracle.address);
+        return priceOracle;
     }
 }

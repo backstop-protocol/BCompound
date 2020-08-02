@@ -71,6 +71,28 @@ contract("Pool performs liquidation", async (accounts) => {
         comptroller = bProtocol.compound.comptroller;
     });
 
+    /*
+    // Test To Validate repay functionality
+    // TODO Remove / move this test in other files
+    context("should test repay", async () => {
+        it("should allow repayBorrow", async () => {
+            const minter = accounts[9];
+            await comptroller.enterMarkets([cETH_addr], { from: minter });
+            await cETH.mint({ from: minter, value: toWei("10", "ether") });
+            await cETH.borrow(toWei("1", "ether"), { from: minter });
+            await cETH.repayBorrow({ from: minter, value: toWei("1", "ether") });
+        });
+
+        it("should allow repayBorrowBehalf", async () => {
+            const minter = accounts[9];
+            await comptroller.enterMarkets([cETH_addr], { from: minter });
+            await cETH.mint({ from: minter, value: toWei("10", "ether") });
+            await cETH.borrow(toWei("1", "ether"), { from: minter });
+            await cETH.repayBorrowBehalf(minter, { from: minter, value: toWei("1", "ether") });
+        });
+    });
+    */
+
     it("1. should deploy BToken Contracts for cETH & cZRX", async () => {
         // BToken cETH
         bETH = await engine.deployNewBEther("cETH");
@@ -177,13 +199,22 @@ contract("Pool performs liquidation", async (accounts) => {
 
         // PRICE_ONE_ZRX_IN_CONTRACT = 1e18 / 100 = 1e16
         const PRICE_ONE_ZRX_IN_CONTRACT = PRICE_ONE_ETH_IN_CONTRACT.div(DIVISOR);
-        // TODO set price in oracle
-        //bProtocol.compound.comptroller.set;
+
+        const priceOracle = bProtocol.compound.priceOracle;
+        await priceOracle.setPrice(cZRX_addr, PRICE_ONE_ZRX_IN_CONTRACT);
+
+        expect(PRICE_ONE_ZRX_IN_CONTRACT).to.be.bignumber.equal(
+            await priceOracle.getUnderlyingPrice(cZRX_addr),
+        );
     });
 
     it("7. User-1 should borrow ZRX", async () => {
         const FIFTY_ZRX = ONE_ZRX.mul(new BN(50));
+        const zrxBalBefore = await ZRX.balanceOf(avatarUser1.address);
+        expect(ZERO).to.be.bignumber.equal(zrxBalBefore);
         await bZRX.borrow(ONE_ZRX, { from: user1 });
+        const zrxBalAfter = await ZRX.balanceOf(avatarUser1.address);
+        expect(zrxBalAfter).to.be.bignumber.gt(ZERO);
     });
 
     it("8. Pool should topup");
