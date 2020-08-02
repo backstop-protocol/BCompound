@@ -47,6 +47,11 @@ contract("Pool performs liquidation", async (accounts) => {
     let ONE_ZRX: BN;
     let HUNDRED_ZRX: BN;
 
+    // USD
+    const USD_PER_ETH = new BN(100); // $100
+    const ONE_ETH_RATE_IN_SCALE = new BN(10).pow(new BN(18));
+    const ONE_USD = ONE_ETH_RATE_IN_SCALE.div(USD_PER_ETH);
+
     async function init() {
         cETH_addr = compound.getContracts("cETH");
         cETH = await CEther.at(cETH_addr);
@@ -61,7 +66,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
     before(async () => {
         // Deploy Compound
-        await engine.deployCompound();
+        // await engine.deployCompound();
 
         // Initialize variables
         await init();
@@ -182,7 +187,7 @@ contract("Pool performs liquidation", async (accounts) => {
         expect(shortFall).to.be.bignumber.equal(ZERO);
     });
 
-    it("6. should update ZRX token price", async () => {
+    it("6. should update ZRX token price to $1 per ZRX", async () => {
         const priceZRX = await bProtocol.compound.priceOracle.getUnderlyingPrice(cZRX_addr);
 
         // ETH price is Oracle is always set to 1e18, represents full 1 ETH rate
@@ -209,20 +214,79 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("7. User-1 should borrow ZRX", async () => {
+        // Borrow 50 ZRX
         const FIFTY_ZRX = ONE_ZRX.mul(new BN(50));
         const zrxBalBefore = await ZRX.balanceOf(user1);
-        // const borrowAllowed = await bProtocol.compound.comptroller.borrowAllowed(
-        //     cZRX_addr,
-        //     avatarUser1.address,
-        //     FIFTY_ZRX,
-        // );
-        // console.log(borrowAllowed);
         await bZRX.borrow(FIFTY_ZRX, { from: user1 });
         const zrxBalAfter = await ZRX.balanceOf(user1);
         expect(zrxBalAfter).to.be.bignumber.gt(zrxBalBefore);
+
+        // Validate account liquidity on Compound
+        const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
+        expectedLiquidity(accLiquidityOnCompound, ZERO, ZERO, ZERO);
+
+        // account liquidity on Avatar
+        const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
-    it("8. Pool should topup");
+    it("8. Pool should topup", async () => {
+        const pool = bProtocol.pool;
 
-    it("9. Pool should liquidate");
+        // Ensure pool has ZRX balance
+        const zrxBal = await ZRX.balanceOf(pool);
+        expect(zrxBal).to.be.bignumber.gt(ZERO);
+
+        // Topup
+        const TEN_ZRX = ONE_ZRX.mul(new BN(10));
+        const topupAmount = TEN_ZRX;
+        // Approve ZRX tokens to Avatar
+        await ZRX.approve(avatarUser1.address, topupAmount, { from: pool });
+        await avatarUser1.methods["topup(address,uint256)"].sendTransaction(
+            cZRX_addr,
+            topupAmount,
+            { from: pool },
+        );
+        const zrxBalAfter = await ZRX.balanceOf(pool);
+
+        // account liquidity on Compound
+        const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
+        const expectedLiquidityInUSD = ONE_USD.mul(new BN(10)); // $10
+        expectedLiquidity(accLiquidityOnCompound, ZERO, expectedLiquidityInUSD, ZERO);
+
+        // account liquidity on Avatar
+        const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
+    });
+
+    it("9. should lower ZRX rate to $0.9", async () => {
+        const NINTY_CENTS = ONE_USD.mul(new BN(0.9));
+        await bProtocol.compound.priceOracle.setPrice(cZRX_addr, NINTY_CENTS);
+    });
+
+    it("10. Pool should liquidate", async () => {
+        const TEN_ZRX = ONE_ZRX.mul(new BN(10));
+        const pool = bProtocol.pool;
+        /*
+        const isBorrowAllowed = await comptroller.borrowAllowed.call(
+            cZRX_addr,
+            avatarUser1.address,
+            TEN_ZRX,
+        );
+        expect(ZERO).to.be.bignumber.equal(isBorrowAllowed);
+        */
+
+        await avatarUser1.liquidateBorrow(cZRX_addr, TEN_ZRX, cETH_addr, { from: pool });
+    });
 });
+
+function expectedLiquidity(
+    accountLiquidity: [BN, BN, BN],
+    expectedErr: BN,
+    expectedLiquidityAmt: BN,
+    expectedShortFallAmt: BN,
+) {
+    expect(expectedErr, accountLiquidity[0], "Unexpected Err");
+    expect(expectedLiquidityAmt, accountLiquidity[1], "Unexpected Liquidity Amount");
+    expect(expectedShortFallAmt, accountLiquidity[2], "Unexpected ShortFall Amount");
+}

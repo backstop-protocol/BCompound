@@ -27,7 +27,9 @@ export class Compound {
 
 // BProtocol Class to store all BProtocol deployed contracts
 export class BProtocol {
-    public pool!: t.PoolInstance;
+    // TODO For now fake EOA is a pool
+    public pool!: string;
+    //public pool!: t.PoolInstance;
     public bComptroller!: t.BComptrollerInstance;
     public registry!: t.RegistryInstance;
     public bTokens: Map<string, t.BTokenInstance> = new Map();
@@ -59,7 +61,9 @@ export class BProtocolEngine {
     public async deployBProtocol(): Promise<BProtocol> {
         this.bProtocol = new BProtocol();
         const _bProtocol = this.bProtocol;
-        _bProtocol.pool = await this.deployPool();
+        //_bProtocol.pool = await this.deployPool();
+        // Use 9th account as Pool
+        _bProtocol.pool = this.accounts[9];
         _bProtocol.bComptroller = await this.deployBComptroller();
         _bProtocol.registry = await this.deployRegistry();
 
@@ -93,7 +97,7 @@ export class BProtocolEngine {
         const comp = this.compoundUtil.getComp();
         const cETH = this.compoundUtil.getContracts("cETH");
         const priceOracle = this.compoundUtil.getPriceOracle();
-        const pool = this.bProtocol.pool.address;
+        const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
         return await Registry.new(comptroller, comp, cETH, priceOracle, pool, bComptroller);
     }

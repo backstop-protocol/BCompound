@@ -88,7 +88,7 @@ contract AbsComptroller is CushionBase {
         require(err == 0, "Error-in-getting-account-liquidity");
 
         IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
-        uint256 price = priceOracle.getUnderlyingPrice(cETH);
+        uint256 price = priceOracle.getUnderlyingPrice(toppedUpCToken);
         uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
 
         // liquidity = 0 and shortFall = 0
