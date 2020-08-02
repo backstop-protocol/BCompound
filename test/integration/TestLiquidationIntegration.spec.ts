@@ -60,11 +60,11 @@ contract("Pool performs liquidation", async (accounts) => {
     }
 
     before(async () => {
+        // Deploy Compound
+        await engine.deployCompound();
+
         // Initialize variables
         await init();
-
-        // Deploy Compound
-        // await engine.deployCompound();
 
         // Deploy BProtocol contracts
         bProtocol = await engine.deployBProtocol();
@@ -178,7 +178,7 @@ contract("Pool performs liquidation", async (accounts) => {
         result = await comptroller.getAccountLiquidity(avatarUser2.address);
         liquidity = result[1];
         shortFall = result[2];
-        expect(liquidity).to.be.bignumber.equal(ZERO);
+        expect(liquidity).to.be.bignumber.gt(ZERO);
         expect(shortFall).to.be.bignumber.equal(ZERO);
     });
 
@@ -210,11 +210,10 @@ contract("Pool performs liquidation", async (accounts) => {
 
     it("7. User-1 should borrow ZRX", async () => {
         const FIFTY_ZRX = ONE_ZRX.mul(new BN(50));
-        const zrxBalBefore = await ZRX.balanceOf(avatarUser1.address);
-        expect(ZERO).to.be.bignumber.equal(zrxBalBefore);
-        await bZRX.borrow(ONE_ZRX, { from: user1 });
-        const zrxBalAfter = await ZRX.balanceOf(avatarUser1.address);
-        expect(zrxBalAfter).to.be.bignumber.gt(ZERO);
+        const zrxBalBefore = await ZRX.balanceOf(user1);
+        await bZRX.borrow(FIFTY_ZRX, { from: user1 });
+        const zrxBalAfter = await ZRX.balanceOf(user1);
+        expect(zrxBalAfter).to.be.bignumber.gt(zrxBalBefore);
     });
 
     it("8. Pool should topup");
