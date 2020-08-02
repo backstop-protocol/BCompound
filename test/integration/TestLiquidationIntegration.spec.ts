@@ -50,7 +50,7 @@ contract("Pool performs liquidation", async (accounts) => {
     // USD
     const USD_PER_ETH = new BN(100); // $100
     const ONE_ETH_RATE_IN_SCALE = new BN(10).pow(new BN(18));
-    const ONE_USD = ONE_ETH_RATE_IN_SCALE.div(USD_PER_ETH);
+    const ONE_USD_IN_SCALE = ONE_ETH_RATE_IN_SCALE.div(USD_PER_ETH);
 
     async function init() {
         cETH_addr = compound.getContracts("cETH");
@@ -173,18 +173,12 @@ contract("Pool performs liquidation", async (accounts) => {
         expect(priceETH).to.be.bignumber.not.equal(ZERO);
 
         // Validate User-1 account liquidity
-        let result = await comptroller.getAccountLiquidity(avatarUser1.address);
-        let liquidity = result[1];
-        let shortFall = result[2];
-        expect(liquidity).to.be.bignumber.gt(ZERO);
-        expect(shortFall).to.be.bignumber.equal(ZERO);
+        let accountLiquidity = await comptroller.getAccountLiquidity(avatarUser1.address);
+        expectedLiquidity(accountLiquidity, ZERO, ZERO, ZERO);
 
         // Validate User-2 account liquidity
-        result = await comptroller.getAccountLiquidity(avatarUser2.address);
-        liquidity = result[1];
-        shortFall = result[2];
-        expect(liquidity).to.be.bignumber.gt(ZERO);
-        expect(shortFall).to.be.bignumber.equal(ZERO);
+        accountLiquidity = await comptroller.getAccountLiquidity(avatarUser2.address);
+        expectedLiquidity(accountLiquidity, ZERO, ZERO, ZERO);
     });
 
     it("6. should update ZRX token price to $1 per ZRX", async () => {
@@ -251,7 +245,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
         // account liquidity on Compound
         const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
-        const expectedLiquidityInUSD = ONE_USD.mul(new BN(10)); // $10
+        const expectedLiquidityInUSD = ONE_USD_IN_SCALE.mul(new BN(10)); // $10
         expectedLiquidity(accLiquidityOnCompound, ZERO, expectedLiquidityInUSD, ZERO);
 
         // account liquidity on Avatar
@@ -259,14 +253,16 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
-    it("9. should lower ZRX rate to $0.9", async () => {
-        const NINTY_CENTS = ONE_USD.mul(new BN(0.9));
-        await bProtocol.compound.priceOracle.setPrice(cZRX_addr, NINTY_CENTS);
+    it("9. should increase ZRX rate to $1.1", async () => {
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await bProtocol.compound.priceOracle.setPrice(cZRX_addr, NEW_RATE);
     });
 
     it("10. Pool should liquidate", async () => {
         const TEN_ZRX = ONE_ZRX.mul(new BN(10));
         const pool = bProtocol.pool;
+
         /*
         const isBorrowAllowed = await comptroller.borrowAllowed.call(
             cZRX_addr,

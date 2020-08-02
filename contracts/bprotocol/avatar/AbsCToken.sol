@@ -107,10 +107,13 @@ contract AbsCToken is Cushion {
     )
         external payable onlyPool
     {
+        console.log("In liquidateBorrow");
         // 1. Can liquidate?
         require(canLiquidate(), "cannot-liquidate");
+        console.log("2. In liquidateBorrow");
 
         _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
+        console.log("3. In liquidateBorrow");
     }
 
 

@@ -1,5 +1,8 @@
 pragma solidity 0.5.16;
 
+// TODO To be removed in mainnet deployment
+import "@nomiclabs/buidler/console.sol";
+
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
@@ -24,7 +27,9 @@ contract Cushion is CushionBase {
      * @return `true` when this Avatar can be liquidated, `false` otherwise
      */
     function canLiquidate() public returns (bool) {
-        return !_canUntop();
+        bool result = !_canUntop();
+        console.log("In canLiquidate(), result: %s", result);
+        return result;
     }
 
     /**
@@ -159,9 +164,12 @@ contract Cushion is CushionBase {
             address(collCToken),
             underlyingAmtToLiquidate
         );
+        console.log("liquidateCalculateSeizeTokens: %s", err);
         require(err == 0, "error-in-liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
+        console.log("In _doLiquidateBorrow, seizeTokens: %s", seizeTokens);
+        console.log("In _doLiquidateBorrow, collCToken bal: %s", collCToken.balanceOf(address(this)));
         require(collCToken.transfer(msg.sender, seizeTokens), "collateral-cToken-transfer-failed");
     }
 }

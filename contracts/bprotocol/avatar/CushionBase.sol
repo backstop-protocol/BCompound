@@ -1,5 +1,8 @@
 pragma solidity 0.5.16;
 
+// TODO To be removed in mainnet deployment
+import "@nomiclabs/buidler/console.sol";
+
 import { AvatarBase } from "./AvatarBase.sol";
 
 contract CushionBase is AvatarBase {
@@ -41,6 +44,7 @@ contract CushionBase is AvatarBase {
     }
 
     function _isToppedUp() internal view returns (bool) {
+        console.log("In _isToppedUp, result: %s", toppedUpAmount > 0);
         return toppedUpAmount > 0;
     }
 
@@ -51,7 +55,9 @@ contract CushionBase is AvatarBase {
     function _canUntop() internal returns (bool) {
         // When not topped up, just return true
         if(!_isToppedUp()) return true;
-        return comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
+        bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
+        console.log("In _canUntop, result: %s", result);
+        return result;
     }
 
 }
