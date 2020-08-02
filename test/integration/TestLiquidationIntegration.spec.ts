@@ -211,6 +211,12 @@ contract("Pool performs liquidation", async (accounts) => {
     it("7. User-1 should borrow ZRX", async () => {
         const FIFTY_ZRX = ONE_ZRX.mul(new BN(50));
         const zrxBalBefore = await ZRX.balanceOf(user1);
+        // const borrowAllowed = await bProtocol.compound.comptroller.borrowAllowed(
+        //     cZRX_addr,
+        //     avatarUser1.address,
+        //     FIFTY_ZRX,
+        // );
+        // console.log(borrowAllowed);
         await bZRX.borrow(FIFTY_ZRX, { from: user1 });
         const zrxBalAfter = await ZRX.balanceOf(user1);
         expect(zrxBalAfter).to.be.bignumber.gt(zrxBalBefore);

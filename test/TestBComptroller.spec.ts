@@ -18,9 +18,8 @@ contract("BComptroller", async (accounts) => {
 
     it("should create new BToken for cZRX", async () => {
         const cZRX_addr = compound.getContracts("cZRX");
-        const bToken: t.BTokenInstance = await engine.deployNewBToken(cZRX_addr);
+        const bToken: t.BErc20Instance = await engine.deployNewBErc20("cZRX");
         expect(await bToken.cToken()).to.be.equal(cZRX_addr);
-        expect(await bToken.isCEther()).to.be.equal(false);
         expect(await bToken.registry()).to.be.equal(bProtocol.registry.address);
         // TODO validate entries in c2b and b2c
     });
