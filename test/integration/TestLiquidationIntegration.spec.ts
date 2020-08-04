@@ -260,7 +260,8 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("10. Pool should liquidate", async () => {
-        const TEN_ZRX = ONE_ZRX.mul(new BN(10));
+        const FIVE_ZRX = ONE_ZRX.mul(new BN(5));
+
         const pool = bProtocol.pool;
 
         /*
@@ -272,7 +273,7 @@ contract("Pool performs liquidation", async (accounts) => {
         expect(ZERO).to.be.bignumber.equal(isBorrowAllowed);
         */
 
-        await avatarUser1.liquidateBorrow(cZRX_addr, TEN_ZRX, cETH_addr, { from: pool });
+        await avatarUser1.liquidateBorrow(cZRX_addr, FIVE_ZRX, cETH_addr, { from: pool });
     });
 });
 
