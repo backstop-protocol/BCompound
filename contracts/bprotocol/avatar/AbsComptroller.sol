@@ -89,8 +89,11 @@ contract AbsComptroller is CushionBase {
 
         IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
         uint256 price = priceOracle.getUnderlyingPrice(toppedUpCToken);
+        console.log("In getAccountLiquidity, price: %s", price);
         uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
 
+        console.log("In getAccountLiquidity, liquidity: %s", liquidity);
+        console.log("In getAccountLiquidity, toppedUpAmtInETH: %s", toppedUpAmtInETH);
         // liquidity = 0 and shortFall = 0
         if(liquidity == toppedUpAmtInETH) return(0, 0, 0);
 

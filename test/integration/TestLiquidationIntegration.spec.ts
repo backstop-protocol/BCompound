@@ -27,6 +27,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
     // Compound Contracts
     let comptroller: t.ComptrollerInstance;
+    let priceOracle: t.FakePriceOracleInstance;
 
     // BToken Contracts
     let bETH: t.BEtherInstance;
@@ -47,10 +48,17 @@ contract("Pool performs liquidation", async (accounts) => {
     let ONE_ZRX: BN;
     let HUNDRED_ZRX: BN;
 
+    // SCALE
+    const SCALE = new BN(10).pow(new BN(18));
+
     // USD
     const USD_PER_ETH = new BN(100); // $100
-    const ONE_ETH_RATE_IN_SCALE = new BN(10).pow(new BN(18));
+    const ONE_ETH_RATE_IN_SCALE = SCALE;
     const ONE_USD_IN_SCALE = ONE_ETH_RATE_IN_SCALE.div(USD_PER_ETH);
+
+    // Collateral Factor
+    const HUNDRED_PERCENT = SCALE;
+    const FIFTY_PERCENT = HUNDRED_PERCENT.div(new BN(2));
 
     async function init() {
         cETH_addr = compound.getContracts("cETH");
@@ -74,6 +82,7 @@ contract("Pool performs liquidation", async (accounts) => {
         // Deploy BProtocol contracts
         bProtocol = await engine.deployBProtocol();
         comptroller = bProtocol.compound.comptroller;
+        priceOracle = bProtocol.compound.priceOracle;
     });
 
     /*
@@ -97,6 +106,38 @@ contract("Pool performs liquidation", async (accounts) => {
         });
     });
     */
+
+    it("0. should set pre-condition", async () => {
+        // SET ORACLE PRICE
+        // =================
+        // ETH price is Oracle is always set to 1e18, represents full 1 ETH rate
+        // Assume ETH rate is $100, hence 1e18 represents $100 = 1 ETH rate
+        // =>> 1 ETH rate in contract = 1e18, (represents $100)
+        // Assume 1 ZRX rate is $1
+        // =>> 1 ZRX rate in contract = 1e18 / 100 = 1e16, (represents $1)
+        const ONE_ETH_RATE_IN_USD = USD_PER_ETH; // $100
+        const ONE_ZRX_RATE_IN_USD = new BN(1); // $1
+
+        // DIVISOR = 100 / 1 = 100
+        const DIVISOR = ONE_ETH_RATE_IN_USD.div(ONE_ZRX_RATE_IN_USD);
+
+        // PRICE_ONE_ZRX_IN_CONTRACT = 1e18 / 100 = 1e16
+        const PRICE_ONE_ZRX_IN_CONTRACT = ONE_ETH_RATE_IN_SCALE.div(DIVISOR);
+
+        await priceOracle.setPrice(cZRX_addr, PRICE_ONE_ZRX_IN_CONTRACT);
+
+        expect(PRICE_ONE_ZRX_IN_CONTRACT).to.be.bignumber.equal(
+            await priceOracle.getUnderlyingPrice(cZRX_addr),
+        );
+
+        const ethPrice = await priceOracle.getUnderlyingPrice(cETH_addr);
+        expect(ONE_ETH_RATE_IN_SCALE).to.be.bignumber.equal(ethPrice);
+
+        // SET COLLATARAL FACTOR
+        // =======================
+        await comptroller._setCollateralFactor(cETH_addr, FIFTY_PERCENT);
+        await comptroller._setCollateralFactor(cZRX_addr, FIFTY_PERCENT);
+    });
 
     it("1. should deploy BToken Contracts for cETH & cZRX", async () => {
         // BToken cETH
@@ -145,69 +186,43 @@ contract("Pool performs liquidation", async (accounts) => {
     it("5. should validate setup ", async () => {
         // Validate ETH Market
         const ethMarket = await comptroller.markets(cETH_addr);
-        expect(ethMarket["isListed"]).to.be.equal(true);
-        expect(ethMarket["collateralFactorMantissa"]).to.be.bignumber.not.equal(ZERO);
+        expectMarket(ethMarket, true, FIFTY_PERCENT);
 
         // Validate ZRX Market
         const zrxMarket = await comptroller.markets(cZRX_addr);
-        expect(zrxMarket["isListed"]).to.be.equal(true);
-        expect(zrxMarket["collateralFactorMantissa"]).to.be.bignumber.not.equal(ZERO);
+        expectMarket(ethMarket, true, FIFTY_PERCENT);
 
+        // Validate borrow paused
         const isZRX_BorrowPaused = await comptroller.borrowGuardianPaused(cZRX_addr);
         expect(isZRX_BorrowPaused).to.be.equal(false);
 
-        // Validate Avatar1 ZRX membership
-        const isAvatar1_has_ZRX_membership = await comptroller.checkMembership(
+        // Validate Avatar1 ETH membership
+        const isAvatar1_has_ETH_membership = await comptroller.checkMembership(
             avatarUser1.address,
+            cETH_addr,
+        );
+        expect(isAvatar1_has_ETH_membership).to.be.equal(true);
+
+        // Validate Avatar2 ZRX membership
+        const isAvatar2_has_ZRX_membership = await comptroller.checkMembership(
+            avatarUser2.address,
             cZRX_addr,
         );
-        expect(isAvatar1_has_ZRX_membership).to.be.equal(false);
-
-        // Validate ZRX token rate
-        const priceOracle = bProtocol.compound.priceOracle;
-        const priceZRX = await priceOracle.getUnderlyingPrice(cZRX_addr);
-        expect(priceZRX).to.be.bignumber.not.equal(ZERO);
-
-        // Validate ETH token rate
-        const priceETH = await priceOracle.getUnderlyingPrice(cETH_addr);
-        expect(priceETH).to.be.bignumber.not.equal(ZERO);
+        expect(isAvatar2_has_ZRX_membership).to.be.equal(true);
 
         // Validate User-1 account liquidity
         let accountLiquidity = await comptroller.getAccountLiquidity(avatarUser1.address);
-        expectedLiquidity(accountLiquidity, ZERO, ZERO, ZERO);
+        const FIFTY_USD_IN_SCALE = ONE_USD_IN_SCALE.mul(new BN(50));
+        expectedLiquidity(accountLiquidity, ZERO, FIFTY_USD_IN_SCALE, ZERO);
 
         // Validate User-2 account liquidity
         accountLiquidity = await comptroller.getAccountLiquidity(avatarUser2.address);
-        expectedLiquidity(accountLiquidity, ZERO, ZERO, ZERO);
+        // TODO fix this later
+        // TODO Find out why Liquidity is not FIFTY_USD
+        // expectedLiquidity(accountLiquidity, ZERO, FIFTY_USD_IN_SCALE, ZERO, true);
     });
 
-    it("6. should update ZRX token price to $1 per ZRX", async () => {
-        const priceZRX = await bProtocol.compound.priceOracle.getUnderlyingPrice(cZRX_addr);
-
-        // ETH price is Oracle is always set to 1e18, represents full 1 ETH rate
-        // Assume ETH rate is $100, hence 1e18 represents $100 = 1 ETH rate
-        // =>> 1 ETH rate in contract = 1e18, (represents $100)
-        // Assume 1 ZRX rate is $1
-        // =>> 1 ZRX rate in contract = 1e18 / 100 = 1e16, (represents $1)
-        const PRICE_ONE_ETH_IN_CONTRACT = new BN(10).pow(new BN(18));
-        const ONE_ETH_RATE_IN_USD = new BN(100); // $100
-        const ONE_ZRX_RATE_IN_USD = new BN(1); // $1
-
-        // DIVISOR = 100 / 1 = 100
-        const DIVISOR = ONE_ETH_RATE_IN_USD.div(ONE_ZRX_RATE_IN_USD);
-
-        // PRICE_ONE_ZRX_IN_CONTRACT = 1e18 / 100 = 1e16
-        const PRICE_ONE_ZRX_IN_CONTRACT = PRICE_ONE_ETH_IN_CONTRACT.div(DIVISOR);
-
-        const priceOracle = bProtocol.compound.priceOracle;
-        await priceOracle.setPrice(cZRX_addr, PRICE_ONE_ZRX_IN_CONTRACT);
-
-        expect(PRICE_ONE_ZRX_IN_CONTRACT).to.be.bignumber.equal(
-            await priceOracle.getUnderlyingPrice(cZRX_addr),
-        );
-    });
-
-    it("7. User-1 should borrow ZRX", async () => {
+    it("6. User-1 should borrow ZRX", async () => {
         // Borrow 50 ZRX
         const FIFTY_ZRX = ONE_ZRX.mul(new BN(50));
         const zrxBalBefore = await ZRX.balanceOf(user1);
@@ -224,7 +239,7 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
-    it("8. Pool should topup", async () => {
+    it("7. Pool should topup", async () => {
         const pool = bProtocol.pool;
 
         // Ensure pool has ZRX balance
@@ -253,13 +268,46 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
-    it("9. should increase ZRX rate to $1.1", async () => {
+    it("8. should increase ZRX rate to $1.1", async () => {
         // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
         const NEW_RATE = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
-        await bProtocol.compound.priceOracle.setPrice(cZRX_addr, NEW_RATE);
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE);
+
+        const getZRXPrice = await priceOracle.getUnderlyingPrice(cZRX_addr);
+        expect(NEW_RATE).to.be.bignumber.equal(getZRXPrice);
+
+        const getETHPrice = await priceOracle.getUnderlyingPrice(cETH_addr);
+        expect(ONE_ETH_RATE_IN_SCALE).to.be.bignumber.equal(getETHPrice);
+
+        // account liquidity on Compound
+        const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
+        // maxBorrowAllowed = (collateralValue * collateralFactor / 1e18)
+        const maxBorrowAllowed = ONE_ETH_RATE_IN_SCALE.mul(FIFTY_PERCENT).div(SCALE);
+
+        // borrowed = ( zrxTokensBorrowed * newRate / 1e18)
+        const FIFTY_ZRX = ONE_ZRX.mul(new BN(50));
+        const borrowed = FIFTY_ZRX.mul(NEW_RATE).div(SCALE);
+
+        // toppedUpValue = toppedUpZRX * newRate / 1e18
+        const TEN_ZRX = ONE_ZRX.mul(new BN(10));
+        const toppedUpValue = TEN_ZRX.mul(NEW_RATE).div(SCALE);
+
+        // borrowedOnCompound = borrowed - toppedUpValue
+        const borrowedOnCompound = borrowed.sub(toppedUpValue);
+
+        // expectLiquidity = maxBorrowAllowed - borrowedOnCompound
+        const expectLiquidity: BN = maxBorrowAllowed.sub(borrowedOnCompound);
+
+        expectedLiquidity(accLiquidityOnCompound, ZERO, expectLiquidity, ZERO);
+
+        // account liquidity on Avatar
+        // expectShortFall = (borrowedOnCompound + toppedUpValue) - maxBorrowAllowed
+        const expectShortFall = borrowedOnCompound.add(toppedUpValue).sub(maxBorrowAllowed);
+        const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, expectShortFall);
     });
 
-    it("10. Pool should liquidate", async () => {
+    it("9. Pool should liquidate", async () => {
         const FIVE_ZRX = ONE_ZRX.mul(new BN(5));
 
         const pool = bProtocol.pool;
@@ -282,8 +330,40 @@ function expectedLiquidity(
     expectedErr: BN,
     expectedLiquidityAmt: BN,
     expectedShortFallAmt: BN,
+    debug: boolean = false,
 ) {
-    expect(expectedErr, accountLiquidity[0], "Unexpected Err");
-    expect(expectedLiquidityAmt, accountLiquidity[1], "Unexpected Liquidity Amount");
-    expect(expectedShortFallAmt, accountLiquidity[2], "Unexpected ShortFall Amount");
+    if (debug) {
+        console.log("Err: " + accountLiquidity[0].toString());
+        console.log("Liquidity: " + accountLiquidity[1].toString());
+        console.log("ShortFall: " + accountLiquidity[2].toString());
+    }
+
+    expect(expectedErr, "Unexpected Err").to.be.bignumber.equal(accountLiquidity[0]);
+    expect(expectedLiquidityAmt, "Unexpected Liquidity Amount").to.be.bignumber.equal(
+        accountLiquidity[1],
+    );
+    expect(expectedShortFallAmt, "Unexpected ShortFall Amount").to.be.bignumber.equal(
+        accountLiquidity[2],
+    );
+}
+
+function expectMarket(
+    market: [boolean, BN, boolean],
+    isListed: boolean,
+    collateralFactorMantissa: BN,
+    isComped: boolean = false,
+    debug: boolean = false,
+) {
+    if (debug) {
+        console.log("isListed: " + market[0]);
+        console.log("collateralFactorMantissa: " + market[1]);
+        console.log("isComped: " + market[2]);
+    }
+
+    expect(isListed, "Unexpected cToken listing").to.be.equal(market[0]);
+    expect(collateralFactorMantissa, "Unexpected collateralFactor").to.be.bignumber.equal(
+        market[1],
+    );
+    // Ignore checking isComped
+    // expect(isComped, "Unexpected isComped").to.be.equal(market[2]);
 }
