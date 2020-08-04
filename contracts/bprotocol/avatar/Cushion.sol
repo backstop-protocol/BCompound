@@ -113,6 +113,7 @@ contract Cushion is CushionBase {
     {
         // 1. Is toppedUp OR partially liquidated
         bool isPartiallyLiquidated = _isPartiallyLiquidated();
+        console.log("In _doLiquidateBorrow, isPartiallyLiquidated: %s", isPartiallyLiquidated);
         require(_isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
         if(isPartiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
@@ -121,7 +122,7 @@ contract Cushion is CushionBase {
             liquidationCToken = debtCToken;
         }
 
-        if(!_isPartiallyLiquidated()) {
+        if(!isPartiallyLiquidated) {
             uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
             // `toppedUpAmount` is also called poolDebt;
             uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
@@ -136,6 +137,8 @@ contract Cushion is CushionBase {
 
         // 3. Liquidator perform repayBorrow
         uint256 repayAmount = 0;
+        console.log("In _doLiquidateBorrow, toppedUpAmount-1: %s", toppedUpAmount);
+        console.log("In _doLiquidateBorrow, underlyingAmtToLiquidate-1: %s", underlyingAmtToLiquidate);
         if(toppedUpAmount < underlyingAmtToLiquidate) {
             repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
 
@@ -155,8 +158,14 @@ contract Cushion is CushionBase {
             repayAmount = underlyingAmtToLiquidate;
         }
 
+        console.log("In _doLiquidateBorrow, toppedUpAmount-2: %s", toppedUpAmount);
+        console.log("In _doLiquidateBorrow, underlyingAmtToLiquidate-2: %s", underlyingAmtToLiquidate);
+
         // 4.1 Update remaining liquidation amount
+        console.log("In _doLiquidateBorrow, remainingLiquidationAmount1: %s", remainingLiquidationAmount);
         remainingLiquidationAmount = sub_(remainingLiquidationAmount, repayAmount);
+        console.log("In _doLiquidateBorrow, remainingLiquidationAmount2: %s", remainingLiquidationAmount);
+        console.log("In _doLiquidateBorrow, repayAmount: %s", repayAmount);
 
         // 5. Calculate premium and transfer to Liquidator
         (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(

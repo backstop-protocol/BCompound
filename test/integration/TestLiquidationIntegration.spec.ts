@@ -74,7 +74,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
     before(async () => {
         // Deploy Compound
-        // await engine.deployCompound();
+        await engine.deployCompound();
 
         // Initialize variables
         await init();
@@ -321,7 +321,37 @@ contract("Pool performs liquidation", async (accounts) => {
         expect(ZERO).to.be.bignumber.equal(isBorrowAllowed);
         */
 
+        // validate liquidation incentive
+        const liquidationIncentive = await comptroller.liquidationIncentiveMantissa();
+        const expectLiqIncentive = SCALE.mul(new BN(110)).div(new BN(100));
+        expect(expectLiqIncentive).to.be.bignumber.equal(liquidationIncentive);
+
+        // before
+        // const accLiquidity = await comptroller.getAccountLiquidity(avatarUser1.address);
+        // expectedLiquidity(accLiquidity, ZERO, ZERO, ZERO, true);
+
+        // Liquidate 1st time
         await avatarUser1.liquidateBorrow(cZRX_addr, FIVE_ZRX, cETH_addr, { from: pool });
+
+        // Calculate seize tokens
+        // siezeTokens =
+        const zrxPrice = await priceOracle.getUnderlyingPrice(cZRX_addr);
+        const zrxRepayInETH = FIVE_ZRX.mul(zrxPrice).div(SCALE);
+        const seize_ethInETH = zrxRepayInETH.mul(liquidationIncentive).div(SCALE);
+        //const expectLiquidity = xx;
+        console.log(seize_ethInETH.toString());
+        const exchRate = await cETH.exchangeRateCurrent.call();
+        const seize_cEther = seize_ethInETH.mul(SCALE).div(exchRate);
+        console.log(seize_cEther.toString());
+
+        // const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
+        // expectedLiquidity(accLiquidityOnCompound, ZERO, ZERO, ZERO);
+
+        // const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        // expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
+
+        // Liquidate 2nd time
+        // await avatarUser1.liquidateBorrow(cZRX_addr, FIVE_ZRX, cETH_addr, { from: pool });
     });
 });
 
