@@ -74,7 +74,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
     before(async () => {
         // Deploy Compound
-        await engine.deployCompound();
+        // await engine.deployCompound();
 
         // Initialize variables
         await init();
@@ -308,8 +308,6 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("9. Pool should liquidate", async () => {
-        const FIVE_ZRX = ONE_ZRX.mul(new BN(5));
-
         const pool = bProtocol.pool;
 
         /*
@@ -330,19 +328,45 @@ contract("Pool performs liquidation", async (accounts) => {
         // const accLiquidity = await comptroller.getAccountLiquidity(avatarUser1.address);
         // expectedLiquidity(accLiquidity, ZERO, ZERO, ZERO, true);
 
-        // Liquidate 1st time
-        await avatarUser1.liquidateBorrow(cZRX_addr, FIVE_ZRX, cETH_addr, { from: pool });
-
         // Calculate seize tokens
-        // siezeTokens =
+
         const zrxPrice = await priceOracle.getUnderlyingPrice(cZRX_addr);
-        const zrxRepayInETH = FIVE_ZRX.mul(zrxPrice).div(SCALE);
+        const zrxRepayInETH = ONE_ZRX.mul(zrxPrice).div(SCALE);
         const seize_ethInETH = zrxRepayInETH.mul(liquidationIncentive).div(SCALE);
         //const expectLiquidity = xx;
         console.log(seize_ethInETH.toString());
         const exchRate = await cETH.exchangeRateCurrent.call();
         const seize_cEther = seize_ethInETH.mul(SCALE).div(exchRate);
         console.log(seize_cEther.toString());
+
+        // Liquidate 1st time
+        for (let index = 0; index < 10; index++) {
+            const isAllowed = await comptroller.transferAllowed.call(
+                cETH_addr,
+                avatarUser1.address,
+                pool,
+                seize_cEther,
+            );
+            const liq = await comptroller.getAccountLiquidity(avatarUser1.address);
+            const red = await comptroller.redeemAllowed.call(
+                cETH_addr,
+                avatarUser1.address,
+                seize_cEther,
+            );
+            console.log(
+                "index: " +
+                    index +
+                    " transferAllowed: " +
+                    isAllowed +
+                    " Liquidity: " +
+                    liq[1] +
+                    " ShortFall: " +
+                    liq[2] +
+                    " RedeemAllowed: " +
+                    red,
+            );
+            await avatarUser1.liquidateBorrow(cZRX_addr, ONE_ZRX, cETH_addr, { from: pool });
+        }
 
         // const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
         // expectedLiquidity(accLiquidityOnCompound, ZERO, ZERO, ZERO);
@@ -351,7 +375,7 @@ contract("Pool performs liquidation", async (accounts) => {
         // expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
 
         // Liquidate 2nd time
-        // await avatarUser1.liquidateBorrow(cZRX_addr, FIVE_ZRX, cETH_addr, { from: pool });
+        // await avatarUser1.liquidateBorrow(cZRX_addr, ONE_ZRX, cETH_addr, { from: pool });
     });
 });
 
