@@ -122,14 +122,14 @@ contract Cushion is CushionBase {
         }
 
         if(!isPartiallyLiquidated) {
-            remainingLiquidationAmount = _calculateMaxLiquidationAmount(debtCToken);
+            remainingLiquidationAmount = getMaxLiquidationAmount(debtCToken);
         }
 
         // 2. `underlayingAmtToLiquidate` is under limit
         require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
 
         // 3. Liquidator perform repayBorrow
-        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = _calculateAmountToLiquidate(underlyingAmtToLiquidate);
+        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, remainingLiquidationAmount);
 
         if(amtToRepayOnCompound > 0) {
             bool isCEtherDebt = _isCEther(debtCToken);
@@ -146,7 +146,6 @@ contract Cushion is CushionBase {
         
         toppedUpAmount = sub_(toppedUpAmount, amtToDeductFromTopup);
         
-        
         // 4.1 Update remaining liquidation amount
         remainingLiquidationAmount = sub_(remainingLiquidationAmount, underlyingAmtToLiquidate);
         
@@ -162,26 +161,28 @@ contract Cushion is CushionBase {
         require(collCToken.transfer(msg.sender, seizeTokens), "collateral-cToken-transfer-failed");
     }
 
-    function _calculateMaxLiquidationAmount(ICToken debtCToken) internal returns (uint256) {
+    function getMaxLiquidationAmount(ICToken debtCToken) public returns (uint256) {
         uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
         // `toppedUpAmount` is also called poolDebt;
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
         // When First time liquidation is performed after topup
-        // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+        // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
         return mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
     }
 
-    function _calculateAmountToLiquidate(uint256 underlyingAmtToLiquidate)
-        internal view returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
+    function splitAmountToLiquidate(
+        uint256 underlyingAmtToLiquidate,
+        uint256 maxLiquidationAmount
+    )
+        public view returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
     {
         // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
         (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
         require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
         uint underlyingAmtToLiqScalar = result.mantissa;
 
-        console.log("remainingLiquidationAmount: %s", remainingLiquidationAmount);
-        // percent = underlyingAmtToLiqScalar / remainingLiquidationAmount
-        uint256 percentInScale = div_(underlyingAmtToLiqScalar, remainingLiquidationAmount);
+        // percent = underlyingAmtToLiqScalar / maxLiquidationAmount
+        uint256 percentInScale = div_(underlyingAmtToLiqScalar, maxLiquidationAmount);
 
         // amtToDeductFromTopup = toppedUpAmount * percentInScale / 1e18
         amtToDeductFromTopup = mulTrucate(toppedUpAmount, percentInScale);
