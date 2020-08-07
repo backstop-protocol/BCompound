@@ -365,6 +365,9 @@ contract("Pool performs liquidation", async (accounts) => {
                     " RedeemAllowed: " +
                     red,
             );
+            // const result = await avatarUser1.calculateAmountToLiquidate(ONE_ZRX);
+            // const amountToRepayOnCompound = result[1];
+            await ZRX.approve(avatarUser1.address, ONE_ZRX, { from: pool });
             await avatarUser1.liquidateBorrow(cZRX_addr, ONE_ZRX, cETH_addr, { from: pool });
         }
 

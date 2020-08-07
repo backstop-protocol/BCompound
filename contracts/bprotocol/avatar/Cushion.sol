@@ -113,7 +113,6 @@ contract Cushion is CushionBase {
     {
         // 1. Is toppedUp OR partially liquidated
         bool isPartiallyLiquidated = _isPartiallyLiquidated();
-        console.log("In _doLiquidateBorrow, isPartiallyLiquidated: %s", isPartiallyLiquidated);
         require(_isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
         if(isPartiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
@@ -123,62 +122,71 @@ contract Cushion is CushionBase {
         }
 
         if(!isPartiallyLiquidated) {
-            uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
-            // `toppedUpAmount` is also called poolDebt;
-            uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
-            // First time liquidation is performed after topup
-            // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
-            remainingLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+            remainingLiquidationAmount = _calculateMaxLiquidationAmount(debtCToken);
         }
 
-        bool isCEtherDebt = _isCEther(debtCToken);
         // 2. `underlayingAmtToLiquidate` is under limit
         require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
 
         // 3. Liquidator perform repayBorrow
-        uint256 repayAmount = 0;
-        console.log("In _doLiquidateBorrow, toppedUpAmount-1: %s", toppedUpAmount);
-        console.log("In _doLiquidateBorrow, underlyingAmtToLiquidate-1: %s", underlyingAmtToLiquidate);
-        if(toppedUpAmount < underlyingAmtToLiquidate) {
-            repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
+        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = _calculateAmountToLiquidate(underlyingAmtToLiquidate);
 
+        if(amtToRepayOnCompound > 0) {
+            bool isCEtherDebt = _isCEther(debtCToken);
             if(isCEtherDebt) {
                 // CEther
-                require(msg.value == repayAmount, "insuffecient-ETH-sent");
-                cETH.repayBorrow.value(repayAmount)();
+                require(msg.value == amtToRepayOnCompound, "insuffecient-ETH-sent");
+                cETH.repayBorrow.value(amtToRepayOnCompound)();
             } else {
                 // CErc20
-                toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), repayAmount);
-                require(ICErc20(address(debtCToken)).repayBorrow(repayAmount) == 0, "liquidateBorrow:-repayBorrow-failed");
+                toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), amtToRepayOnCompound);
+                require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
-            toppedUpAmount = 0;
         }
-        else {
-            toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
-            repayAmount = underlyingAmtToLiquidate;
-        }
-
-        console.log("In _doLiquidateBorrow, toppedUpAmount-2: %s", toppedUpAmount);
-        console.log("In _doLiquidateBorrow, underlyingAmtToLiquidate-2: %s", underlyingAmtToLiquidate);
-
+        
+        toppedUpAmount = sub_(toppedUpAmount, amtToDeductFromTopup);
+        
+        
         // 4.1 Update remaining liquidation amount
-        console.log("In _doLiquidateBorrow, remainingLiquidationAmount1: %s", remainingLiquidationAmount);
-        remainingLiquidationAmount = sub_(remainingLiquidationAmount, repayAmount);
-        console.log("In _doLiquidateBorrow, remainingLiquidationAmount2: %s", remainingLiquidationAmount);
-        console.log("In _doLiquidateBorrow, repayAmount: %s", repayAmount);
-
+        remainingLiquidationAmount = sub_(remainingLiquidationAmount, underlyingAmtToLiquidate);
+        
         // 5. Calculate premium and transfer to Liquidator
         (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
             address(debtCToken),
             address(collCToken),
             underlyingAmtToLiquidate
         );
-        console.log("liquidateCalculateSeizeTokens: %s", err);
         require(err == 0, "error-in-liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
-        console.log("In _doLiquidateBorrow, seizeTokens: %s", seizeTokens);
-        console.log("In _doLiquidateBorrow, collCToken bal: %s", collCToken.balanceOf(address(this)));
         require(collCToken.transfer(msg.sender, seizeTokens), "collateral-cToken-transfer-failed");
+    }
+
+    function _calculateMaxLiquidationAmount(ICToken debtCToken) internal returns (uint256) {
+        uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
+        // `toppedUpAmount` is also called poolDebt;
+        uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
+        // When First time liquidation is performed after topup
+        // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+        return mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+    }
+
+    function _calculateAmountToLiquidate(uint256 underlyingAmtToLiquidate)
+        internal view returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
+    {
+        // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
+        (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
+        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
+        uint underlyingAmtToLiqScalar = result.mantissa;
+
+        console.log("remainingLiquidationAmount: %s", remainingLiquidationAmount);
+        // percent = underlyingAmtToLiqScalar / remainingLiquidationAmount
+        uint256 percentInScale = div_(underlyingAmtToLiqScalar, remainingLiquidationAmount);
+
+        // amtToDeductFromTopup = toppedUpAmount * percentInScale / 1e18
+        amtToDeductFromTopup = mulTrucate(toppedUpAmount, percentInScale);
+
+        // amtToRepayOnCompound = underlyingAmtToLiquidate - amtToDeductFromTopup
+        amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
     }
 }
