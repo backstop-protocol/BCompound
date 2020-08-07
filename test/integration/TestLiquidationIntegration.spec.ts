@@ -4,6 +4,7 @@ import { BProtocolEngine, BProtocol } from "../../TestUtils/BProtocolEngine";
 import { CompoundUtils } from "../../TestUtils/CompoundUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
+
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers");
 
 const DetailedErc20: t.DetailedErc20Contract = artifacts.require("DetailedERC20");
@@ -74,7 +75,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
     before(async () => {
         // Deploy Compound
-        // await engine.deployCompound();
+        await engine.deployCompound();
 
         // Initialize variables
         await init();
@@ -84,28 +85,6 @@ contract("Pool performs liquidation", async (accounts) => {
         comptroller = bProtocol.compound.comptroller;
         priceOracle = bProtocol.compound.priceOracle;
     });
-
-    /*
-    // Test To Validate repay functionality
-    // TODO Remove / move this test in other files
-    context("should test repay", async () => {
-        it("should allow repayBorrow", async () => {
-            const minter = accounts[9];
-            await comptroller.enterMarkets([cETH_addr], { from: minter });
-            await cETH.mint({ from: minter, value: toWei("10", "ether") });
-            await cETH.borrow(toWei("1", "ether"), { from: minter });
-            await cETH.repayBorrow({ from: minter, value: toWei("1", "ether") });
-        });
-
-        it("should allow repayBorrowBehalf", async () => {
-            const minter = accounts[9];
-            await comptroller.enterMarkets([cETH_addr], { from: minter });
-            await cETH.mint({ from: minter, value: toWei("10", "ether") });
-            await cETH.borrow(toWei("1", "ether"), { from: minter });
-            await cETH.repayBorrowBehalf(minter, { from: minter, value: toWei("1", "ether") });
-        });
-    });
-    */
 
     it("0. should set pre-condition", async () => {
         // SET ORACLE PRICE
@@ -133,7 +112,7 @@ contract("Pool performs liquidation", async (accounts) => {
         const ethPrice = await priceOracle.getUnderlyingPrice(cETH_addr);
         expect(ONE_ETH_RATE_IN_SCALE).to.be.bignumber.equal(ethPrice);
 
-        // SET COLLATARAL FACTOR
+        // SET COLLATERAL FACTOR
         // =======================
         await comptroller._setCollateralFactor(cETH_addr, FIFTY_PERCENT);
         await comptroller._setCollateralFactor(cZRX_addr, FIFTY_PERCENT);
@@ -365,10 +344,37 @@ contract("Pool performs liquidation", async (accounts) => {
                     " RedeemAllowed: " +
                     red,
             );
-            // const result = await avatarUser1.calculateAmountToLiquidate(ONE_ZRX);
-            // const amountToRepayOnCompound = result[1];
-            await ZRX.approve(avatarUser1.address, ONE_ZRX, { from: pool });
-            await avatarUser1.liquidateBorrow(cZRX_addr, ONE_ZRX, cETH_addr, { from: pool });
+            const canLiquidate = await avatarUser1.canLiquidate.call();
+            console.log("canLiquidate: ", canLiquidate);
+            if (canLiquidate) {
+                const tokensToLiquidate = ONE_ZRX.mul(new BN(2));
+                const maxLiquidationAmount = await avatarUser1.getMaxLiquidationAmount.call(
+                    cZRX_addr,
+                );
+
+                console.log("Max Liquidation Amount: " + maxLiquidationAmount.toString());
+                const toppedUpAmount = await avatarUser1.toppedUpAmount();
+                console.log("ToppedUp Amount: " + toppedUpAmount.toString());
+                const result = await avatarUser1.splitAmountToLiquidate(
+                    tokensToLiquidate,
+                    maxLiquidationAmount,
+                );
+                const amountToRepayOnCompound = result[1];
+                await ZRX.approve(avatarUser1.address, amountToRepayOnCompound, { from: pool });
+                await avatarUser1.liquidateBorrow(cZRX_addr, tokensToLiquidate, cETH_addr, {
+                    from: pool,
+                });
+            } else {
+                console.log("Cannot liquidate further");
+                const accLiquidityOnCompound = await comptroller.getAccountLiquidity(
+                    avatarUser1.address,
+                );
+                console.log(accLiquidityOnCompound);
+
+                const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+                console.log(accLiquidityOnAvatar);
+                break;
+            }
         }
 
         // const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
@@ -379,6 +385,20 @@ contract("Pool performs liquidation", async (accounts) => {
 
         // Liquidate 2nd time
         // await avatarUser1.liquidateBorrow(cZRX_addr, ONE_ZRX, cETH_addr, { from: pool });
+    });
+
+    it("10. Pool should perform untop", async () => {
+        const pool = bProtocol.pool;
+        await avatarUser1.untop({ from: pool });
+
+        const toppedUpAmount = await avatarUser1.toppedUpAmount();
+        expect(ZERO).to.be.bignumber.equal(toppedUpAmount);
+
+        const isToppedUp = await avatarUser1.isToppedUp();
+        expect(false).to.be.equal(isToppedUp);
+
+        const canLiquidate = await avatarUser1.canLiquidate.call();
+        expect(false).to.be.equal(canLiquidate);
     });
 });
 
