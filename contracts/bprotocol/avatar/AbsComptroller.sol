@@ -82,7 +82,7 @@ contract AbsComptroller is CushionBase {
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
         // If not topped up, get the account liquidity from Comptroller
         (err, liquidity, shortFall) = comptroller.getAccountLiquidity(address(this));
-        if(!_isToppedUp()) {
+        if(!isToppedUp()) {
             return (err, liquidity, shortFall);
         }
         require(err == 0, "Error-in-getting-account-liquidity");

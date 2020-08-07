@@ -17,7 +17,7 @@ contract CushionBase is AvatarBase {
      */
     function _hardReevaluate() private {
         // Check: must allowed untop
-        require(_canUntop(), "cannot-untop");
+        require(canUntop(), "cannot-untop");
         // Reset it to force re-calculation
         remainingLiquidationAmount = 0;
     }
@@ -26,7 +26,7 @@ contract CushionBase is AvatarBase {
      * @dev Soft check and reset remaining liquidation amount
      */
     function _softReevaluate() private {
-        if(_isPartiallyLiquidated()) {
+        if(isPartiallyLiquidated()) {
             _hardReevaluate();
         }
     }
@@ -39,11 +39,11 @@ contract CushionBase is AvatarBase {
         }
     }
 
-    function _isPartiallyLiquidated() internal view returns (bool) {
+    function isPartiallyLiquidated() public view returns (bool) {
         return remainingLiquidationAmount > 0;
     }
 
-    function _isToppedUp() internal view returns (bool) {
+    function isToppedUp() public view returns (bool) {
         console.log("In _isToppedUp, result: %s", toppedUpAmount > 0);
         return toppedUpAmount > 0;
     }
@@ -52,11 +52,11 @@ contract CushionBase is AvatarBase {
      * @dev Checks if this Avatar can untop the amount.
      * @return `true` if allowed to borrow, `false` otherwise.
      */
-    function _canUntop() internal returns (bool) {
+    function canUntop() public returns (bool) {
         // When not topped up, just return true
-        if(!_isToppedUp()) return true;
+        if(!isToppedUp()) return true;
         bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
-        console.log("In _canUntop, result: %s", result);
+        console.log("In canUntop, result: %s", result);
         return result;
     }
 

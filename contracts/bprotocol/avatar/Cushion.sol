@@ -27,7 +27,7 @@ contract Cushion is CushionBase {
      * @return `true` when this Avatar can be liquidated, `false` otherwise
      */
     function canLiquidate() public returns (bool) {
-        bool result = !_canUntop();
+        bool result = !canUntop();
         console.log("In canLiquidate(), result: %s", result);
         return result;
     }
@@ -37,7 +37,7 @@ contract Cushion is CushionBase {
      */
     function topup() external payable onlyPool {
         // when already topped
-        if(_isToppedUp()) return;
+        if(isToppedUp()) return;
 
         // 2. Repay borrows from Pool to topup
         cETH.repayBorrow.value(msg.value)();
@@ -54,7 +54,7 @@ contract Cushion is CushionBase {
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
         // when already topped
-        if(_isToppedUp()) return;
+        if(isToppedUp()) return;
 
         // 1. Transfer funds from the Pool contract
         IERC20 underlying = cToken.underlying();
@@ -84,7 +84,7 @@ contract Cushion is CushionBase {
      */
     function _untop() internal {
         // when already untopped
-        if(!_isToppedUp()) return;
+        if(!isToppedUp()) return;
 
         // 1. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
@@ -112,8 +112,8 @@ contract Cushion is CushionBase {
         internal
     {
         // 1. Is toppedUp OR partially liquidated
-        bool isPartiallyLiquidated = _isPartiallyLiquidated();
-        require(_isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
+        bool isPartiallyLiquidated = isPartiallyLiquidated();
+        require(isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
         if(isPartiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
         } else {
