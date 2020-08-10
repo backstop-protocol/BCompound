@@ -4,15 +4,13 @@ import { BProtocolEngine, BProtocol } from "@utils/BProtocolEngine";
 import { CompoundUtils } from "@utils/CompoundUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
-import { expectedLiquidity } from "@utils/expectUtils";
+import { expectedLiquidity, expectMarket } from "@utils/expectUtils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers");
 
 const DetailedErc20: t.DetailedErc20Contract = artifacts.require("DetailedERC20");
 const CEther: t.CEtherContract = artifacts.require("CEther");
 const CErc20: t.CErc20Contract = artifacts.require("CErc20");
-const Comptroller: t.ComptrollerContract = artifacts.require("Comptroller");
-const PriceOracle: t.PriceOracleContract = artifacts.require("PriceOracle");
 
 const chai = require("chai");
 const expect = chai.expect;
