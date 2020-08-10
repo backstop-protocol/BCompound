@@ -1,6 +1,6 @@
 import * as t from "types/index";
-import { BProtocolEngine, BProtocol } from "../TestUtils/BProtocolEngine";
-import { CompoundUtils } from "TestUtils/CompoundUtils";
+import { BProtocolEngine, BProtocol } from "@utils/BProtocolEngine";
+import { CompoundUtils } from "@utils/CompoundUtils";
 
 const { expectRevert } = require("@openzeppelin/test-helpers");
 
