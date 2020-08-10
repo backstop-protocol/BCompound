@@ -16,7 +16,10 @@
     "types": ["node", "truffle-contracts"],
     "baseUrl": ".",
     "resolveJsonModule": true,
-    "suppressImplicitAnyIndexErrors" : true
+    "suppressImplicitAnyIndexErrors" : true,
+    "paths": {
+      "@utils/*": ["test-utils/*"],
+    }
   },
   "include": ["/**/*.ts"],
   "files": ["./buidler.config.ts", 

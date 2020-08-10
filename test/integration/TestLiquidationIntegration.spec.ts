@@ -1,9 +1,10 @@
 import * as t from "../../types/index";
 
-import { BProtocolEngine, BProtocol } from "../../TestUtils/BProtocolEngine";
-import { CompoundUtils } from "../../TestUtils/CompoundUtils";
+import { BProtocolEngine, BProtocol } from "@utils/BProtocolEngine";
+import { CompoundUtils } from "@utils/CompoundUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
+import { expectedLiquidity } from "@utils/expectUtils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers");
 
@@ -289,37 +290,13 @@ contract("Pool performs liquidation", async (accounts) => {
     it("9. Pool should liquidate", async () => {
         const pool = bProtocol.pool;
 
-        /*
-        const isBorrowAllowed = await comptroller.borrowAllowed.call(
-            cZRX_addr,
-            avatarUser1.address,
-            TEN_ZRX,
-        );
-        expect(ZERO).to.be.bignumber.equal(isBorrowAllowed);
-        */
-
         // validate liquidation incentive
         const liquidationIncentive = await comptroller.liquidationIncentiveMantissa();
         const expectLiqIncentive = SCALE.mul(new BN(110)).div(new BN(100));
         expect(expectLiqIncentive).to.be.bignumber.equal(liquidationIncentive);
 
-        // before
-        // const accLiquidity = await comptroller.getAccountLiquidity(avatarUser1.address);
-        // expectedLiquidity(accLiquidity, ZERO, ZERO, ZERO, true);
-
-        // Calculate seize tokens
-
-        const zrxPrice = await priceOracle.getUnderlyingPrice(cZRX_addr);
-        const zrxRepayInETH = ONE_ZRX.mul(zrxPrice).div(SCALE);
-        const seize_ethInETH = zrxRepayInETH.mul(liquidationIncentive).div(SCALE);
-        //const expectLiquidity = xx;
-        console.log(seize_ethInETH.toString());
-        const exchRate = await cETH.exchangeRateCurrent.call();
-        const seize_cEther = seize_ethInETH.mul(SCALE).div(exchRate);
-        console.log(seize_cEther.toString());
-
-        // Liquidate 1st time
         for (let index = 0; index < 10; index++) {
+            /*
             const isAllowed = await comptroller.transferAllowed.call(
                 cETH_addr,
                 avatarUser1.address,
@@ -344,31 +321,33 @@ contract("Pool performs liquidation", async (accounts) => {
                     " RedeemAllowed: " +
                     red,
             );
+            */
             const canLiquidate = await avatarUser1.canLiquidate.call();
-            console.log("canLiquidate: ", canLiquidate);
+            // console.log("canLiquidate: ", canLiquidate);
+
             if (canLiquidate) {
                 const tokensToLiquidate = ONE_ZRX.mul(new BN(2));
+
                 const maxLiquidationAmount = await avatarUser1.getMaxLiquidationAmount.call(
                     cZRX_addr,
                 );
 
-                console.log("Max Liquidation Amount: " + maxLiquidationAmount.toString());
                 const toppedUpAmount = await avatarUser1.toppedUpAmount();
-                console.log("ToppedUp Amount: " + toppedUpAmount.toString());
+
                 const result = await avatarUser1.splitAmountToLiquidate(
                     tokensToLiquidate,
                     maxLiquidationAmount,
                 );
                 const amountToRepayOnCompound = result[1];
                 await ZRX.approve(avatarUser1.address, amountToRepayOnCompound, { from: pool });
+
                 await avatarUser1.liquidateBorrow(cZRX_addr, tokensToLiquidate, cETH_addr, {
                     from: pool,
                 });
             } else {
-                console.log("Cannot liquidate further");
-                
-                break;
+                // console.log("Cannot liquidate further");
 
+                break;
             }
         }
 
@@ -377,9 +356,6 @@ contract("Pool performs liquidation", async (accounts) => {
 
         // const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
         // expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
-
-        // Liquidate 2nd time
-        // await avatarUser1.liquidateBorrow(cZRX_addr, ONE_ZRX, cETH_addr, { from: pool });
     });
 
     it("10. Pool should perform untop", async () => {
@@ -396,46 +372,3 @@ contract("Pool performs liquidation", async (accounts) => {
         expect(false).to.be.equal(canLiquidate);
     });
 });
-
-function expectedLiquidity(
-    accountLiquidity: [BN, BN, BN],
-    expectedErr: BN,
-    expectedLiquidityAmt: BN,
-    expectedShortFallAmt: BN,
-    debug: boolean = false,
-) {
-    if (debug) {
-        console.log("Err: " + accountLiquidity[0].toString());
-        console.log("Liquidity: " + accountLiquidity[1].toString());
-        console.log("ShortFall: " + accountLiquidity[2].toString());
-    }
-
-    expect(expectedErr, "Unexpected Err").to.be.bignumber.equal(accountLiquidity[0]);
-    expect(expectedLiquidityAmt, "Unexpected Liquidity Amount").to.be.bignumber.equal(
-        accountLiquidity[1],
-    );
-    expect(expectedShortFallAmt, "Unexpected ShortFall Amount").to.be.bignumber.equal(
-        accountLiquidity[2],
-    );
-}
-
-function expectMarket(
-    market: [boolean, BN, boolean],
-    isListed: boolean,
-    collateralFactorMantissa: BN,
-    isComped: boolean = false,
-    debug: boolean = false,
-) {
-    if (debug) {
-        console.log("isListed: " + market[0]);
-        console.log("collateralFactorMantissa: " + market[1]);
-        console.log("isComped: " + market[2]);
-    }
-
-    expect(isListed, "Unexpected cToken listing").to.be.equal(market[0]);
-    expect(collateralFactorMantissa, "Unexpected collateralFactor").to.be.bignumber.equal(
-        market[1],
-    );
-    // Ignore checking isComped
-    // expect(isComped, "Unexpected isComped").to.be.equal(market[2]);
-}
