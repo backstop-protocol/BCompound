@@ -366,14 +366,9 @@ contract("Pool performs liquidation", async (accounts) => {
                 });
             } else {
                 console.log("Cannot liquidate further");
-                const accLiquidityOnCompound = await comptroller.getAccountLiquidity(
-                    avatarUser1.address,
-                );
-                console.log(accLiquidityOnCompound);
-
-                const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
-                console.log(accLiquidityOnAvatar);
+                
                 break;
+
             }
         }
 
