@@ -1,18 +1,22 @@
 pragma solidity 0.5.16;
 
+// interface
 import { IRegistry } from "./interfaces/IRegistry.sol";
 import { IAvatar } from "./interfaces/IAvatar.sol";
 import { IAvatarCEther } from "./interfaces/IAvatar.sol";
 import { IAvatarCErc20 } from "./interfaces/IAvatar.sol";
 import { ICToken } from "./interfaces/CTokenInterfaces.sol";
 
+import { BTokenScore } from "./scoring/BTokenScore.sol";
+
+// Libs
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
- * @dev BToken is BProtocol token contract which represents the Compound's CToken
+ * @title BToken is BProtocol token contract which represents the Compound's CToken
  */
-contract BToken {
+contract BToken is BTokenScore {
     using SafeERC20 for IERC20;
 
     // BProtocol Registry contract
@@ -44,10 +48,32 @@ contract BToken {
         return IAvatarCErc20(address(avatar()));
     }
 
+    function toUnderlyingAmount(uint256 redeemTokens) internal returns (uint256) {
+        uint256 exchangeRate = ICToken(cToken).exchangeRateCurrent();
+        return mulTrucate(redeemTokens, exchangeRate);
+    }
+
+    // Math functions
+    // ===============
+    function mulTrucate(uint a, uint b) internal pure returns (uint) {
+        return mul_(a, b) / 1e18;
+    }
+
+    function mul_(uint a, uint b) pure internal returns (uint) {
+        if (a == 0 || b == 0) {
+            return 0;
+        }
+        uint c = a * b;
+        require(c / a == b);
+        return c;
+    }
+
+
     // CEther
     // =======
     function mint() external payable {
         _iAvatarCEther().mint.value(msg.value)(cToken);
+        updateCollScore(msg.sender, cToken, toInt256(msg.value));
     }
 
     function repayBorrow() external payable {
@@ -60,6 +86,7 @@ contract BToken {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
         underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
         _iAvatarCErc20().mint(cToken, mintAmount);
+        updateCollScore(msg.sender, cToken, toInt256(mintAmount));
     }
 
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
@@ -69,31 +96,53 @@ contract BToken {
             actualRepayAmount = _avatar.borrowBalanceCurrent(cToken);
         }
         underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
-        return _avatar.repayBorrow(cToken, actualRepayAmount);
+        uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
+        updateDebtScore(msg.sender, cToken, -toInt256(repayAmount));
+        return result;
     }
 
     // CEther / CErc20
     // ===============
     function redeem(uint256 redeemTokens) external returns (uint256) {
-        return avatar().redeem(cToken, redeemTokens);
+        uint256 result = avatar().redeem(cToken, redeemTokens);
+        uint256 underlyingRedeemAmount = toUnderlyingAmount(redeemTokens);
+        updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
+        return result;
     }
 
     function redeemUnderlying(uint256 redeemAmount) external returns (uint256) {
-        return avatar().redeemUnderlying(cToken, redeemAmount);
+        uint256 result = avatar().redeemUnderlying(cToken, redeemAmount);
+        updateCollScore(msg.sender, cToken, -toInt256(redeemAmount));
+        return result;
     }
 
     function borrow(uint256 borrowAmount) external returns (uint256) {
-        return avatar().borrow(cToken, borrowAmount);
+        uint256 result = avatar().borrow(cToken, borrowAmount);
+        updateDebtScore(msg.sender, cToken, toInt256(borrowAmount));
+        return result;
     }
 
     // IERC20
     // =======
     function transfer(address dst, uint256 amount) external returns (bool) {
-        return avatar().transfer(cToken, dst, amount);
+        bool result = avatar().transfer(cToken, dst, amount);
+        uint256 underlyingRedeemAmount = toUnderlyingAmount(amount);
+        updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
+        return result;
     }
 
     function transferFrom(address src, address dst, uint256 amount) external returns (bool) {
-        return avatar().transferFrom(cToken, src, dst, amount);
+        bool result = avatar().transferFrom(cToken, src, dst, amount);
+
+        uint256 underlyingRedeemAmount = toUnderlyingAmount(amount);
+        // If src is an Avatar, deduct coll score
+        address srcUser = registry.userOf(src);
+        if(srcUser != address(0)) updateCollScore(srcUser, cToken, -toInt256(underlyingRedeemAmount));
+        
+        // if dst is an Avatar, increase coll score
+        address dstUser = registry.userOf(dst);
+        if(dstUser != address(0)) updateCollScore(dstUser, cToken, toInt256(underlyingRedeemAmount));
+        return result;
     }
 
     function approve(address spender, uint256 amount) public returns (bool) {

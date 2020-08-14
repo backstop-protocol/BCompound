@@ -17,8 +17,11 @@ contract Registry {
     address public pool;
     address public bComptroller;
 
-    // User => avatar
-    mapping (address => address) public avatars;
+    // User => Avatar
+    mapping (address => address) public u2a;
+
+    // Avatar => User
+    mapping (address => address) public a2u;
 
     event NewAvatar(address indexed avatar, address owner);
 
@@ -54,7 +57,7 @@ contract Registry {
      * @return The existing/new Avatar contract address
      */
     function getAvatar(address user) external returns (address) {
-        address avatar = avatars[user];
+        address avatar = u2a[user];
         if(avatar == address(0)) {
             avatar = _newAvatar(user);
         }
@@ -69,7 +72,8 @@ contract Registry {
     function _newAvatar(address user) internal returns (address) {
         require(!isAvatarExistFor(user), "avatar-already-exits-for-user");
         address avatar = _deployNewAvatar(user);
-        avatars[user] = avatar;
+        u2a[user] = avatar;
+        a2u[avatar] = user;
         emit NewAvatar(avatar, user);
         return avatar;
     }
@@ -84,6 +88,14 @@ contract Registry {
     }
 
     function isAvatarExistFor(address user) public view returns (bool) {
-        return avatars[user] != address(0);
+        return u2a[user] != address(0);
+    }
+
+    function userOf(address avatar) public view returns (address) {
+        return a2u[avatar];
+    }
+
+    function avatarOf(address user) public view returns (address) {
+        return u2a[user];
     }
 }
