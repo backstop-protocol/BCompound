@@ -15,7 +15,7 @@ jobs:
       - checkout          
       - run:
           name: Get compound-protocol
-          command: git submodule update --init
+          command: git submodule update --init --recursive
       - run:
           name: Update submodule
           command: |
@@ -31,8 +31,6 @@ jobs:
           name: Install packages
           command: |            
             npm install
-            cd compound-protocol && yarn install
-
       - run:
           name: Compile contracts
           command: npm run compile
