@@ -32,7 +32,6 @@ jobs:
           command: |            
             npm install
             cd compound-protocol && yarn install
-            cd compound-protocol/scenario && yarn install
 
       - run:
           name: Compile contracts
