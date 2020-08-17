@@ -49,9 +49,8 @@
   "scripts": {
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
     "postinstall": "cd compound-protocol && yarn",
-    "compile": "rimraf build && rimraf cache && truffle compile --contracts_directory compound-protocol/tests && npx buidler compile",
-    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
-    "rimraf": "./node_modules/rimraf/bin.js"
+    "compile": "truffle compile --contracts_directory compound-protocol/tests && npx buidler compile",
+    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true"
   },
   "repository": {
     "type": "git",
