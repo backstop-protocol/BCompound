@@ -20,8 +20,12 @@ contract BTokenScore is ScoringMachine {
         return keccak256(abi.encodePacked(parent, "coll", cToken));
     }
 
-    function slashAsset(address cToken) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(parent, "slash-debt", cToken));
+    function slashedAsset(address cToken) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(parent, "slashed-debt", cToken));
+    }
+
+    function slasherAsset(address cToken) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(parent, "slasher-debt", cToken));
     }
 
     // Update Score
@@ -34,8 +38,12 @@ contract BTokenScore is ScoringMachine {
         updateScore(user(_user), collAsset(cToken), amount, now);
     }
 
-    function slashScore(address _user, address cToken, int256 amount) external onlyOwner {
-        updateScore(user(_user), slashAsset(cToken), amount, now);
+    function slashedScore(address _user, address cToken, int256 amount) external onlyOwner {
+        updateScore(user(_user), slashedAsset(cToken), amount, now);
+    }
+
+    function slasherScore(address _user, address cToken, int256 amount) external onlyOwner {
+        updateScore(user(_user), slasherAsset(cToken), amount, now);
     }
 
     // Get Score
@@ -56,12 +64,20 @@ contract BTokenScore is ScoringMachine {
         return getScore(GLOBAL_USER, collAsset(cToken), time, spinStart, 0);
     }
 
-    function getSlashScore(address _user, address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
-        return getScore(user(_user), slashAsset(cToken), time, spinStart, 0);
+    function getSlashedScore(address _user, address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
+        return getScore(user(_user), slashedAsset(cToken), time, spinStart, 0);
     }
 
-    function getSlashGlobalScore(address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
-        return getScore(GLOBAL_USER, slashAsset(cToken), time, spinStart, 0);
+    function getSlashedGlobalScore(address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
+        return getScore(GLOBAL_USER, slashedAsset(cToken), time, spinStart, 0);
+    }
+
+    function getSlasherScore(address _user, address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
+        return getScore(user(_user), slasherAsset(cToken), time, spinStart, 0);
+    }
+
+    function getSlasherGlobalScore(address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
+        return getScore(GLOBAL_USER, slasherAsset(cToken), time, spinStart, 0);
     }
 
     // Utility function
