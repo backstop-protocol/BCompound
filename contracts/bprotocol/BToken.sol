@@ -51,7 +51,7 @@ contract BToken is BTokenScore {
         return IAvatarCErc20(address(avatar()));
     }
 
-    function toUnderlyingAmount(uint256 redeemTokens) internal returns (uint256) {
+    function toUnderlying(uint256 redeemTokens) internal returns (uint256) {
         uint256 exchangeRate = ICToken(cToken).exchangeRateCurrent();
         return mulTrucate(redeemTokens, exchangeRate);
     }
@@ -109,7 +109,7 @@ contract BToken is BTokenScore {
     // ===============
     function redeem(uint256 redeemTokens) external returns (uint256) {
         uint256 result = avatar().redeem(cToken, redeemTokens);
-        uint256 underlyingRedeemAmount = toUnderlyingAmount(redeemTokens);
+        uint256 underlyingRedeemAmount = toUnderlying(redeemTokens);
         updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
         return result;
     }
@@ -144,9 +144,10 @@ contract BToken is BTokenScore {
         require(registry.isAvatarExist(targetAvatar), "avatar-not-exists");
         require(msg.sender == pool, "only-pool-is-authorized");
 
-        uint256 seized = IAvatar(targetAvatar).liquidateBorrow.value(msg.value)(cToken, amount, collateral);
-
-        updateCollScore(targetAvatar, cToken, -toInt256(seized));
+        uint256 seizedCTokens = IAvatar(targetAvatar).liquidateBorrow.value(msg.value)(cToken, amount, collateral);
+        // Convert seizedCToken to underlyingTokens
+        uint256 underlyingSeizedTokens = toUnderlying(seizedCTokens);
+        updateCollScore(targetAvatar, cToken, -toInt256(underlyingSeizedTokens));
         updateDebtScore(targetAvatar, collateral, -toInt256(amount));
     }
 
@@ -154,7 +155,7 @@ contract BToken is BTokenScore {
     // =======
     function transfer(address dst, uint256 amount) external returns (bool) {
         bool result = avatar().transfer(cToken, dst, amount);
-        uint256 underlyingRedeemAmount = toUnderlyingAmount(amount);
+        uint256 underlyingRedeemAmount = toUnderlying(amount);
         updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
         return result;
     }
@@ -162,7 +163,7 @@ contract BToken is BTokenScore {
     function transferFrom(address src, address dst, uint256 amount) external returns (bool) {
         bool result = avatar().transferFrom(cToken, src, dst, amount);
 
-        uint256 underlyingRedeemAmount = toUnderlyingAmount(amount);
+        uint256 underlyingRedeemAmount = toUnderlying(amount);
         // If src is an Avatar, deduct coll score
         address srcUser = registry.userOf(src);
         if(srcUser != address(0)) updateCollScore(srcUser, cToken, -toInt256(underlyingRedeemAmount));
