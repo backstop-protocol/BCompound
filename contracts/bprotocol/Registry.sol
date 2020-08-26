@@ -87,6 +87,10 @@ contract Registry {
         return address(new Avatar(user, pool, bComptroller, comptroller, comp, cEther));
     }
 
+    function isAvatarExist(address avatar) public view returns (bool) {
+        return a2u[avatar] != address(0);
+    }
+
     function isAvatarExistFor(address user) public view returns (bool) {
         return u2a[user] != address(0);
     }

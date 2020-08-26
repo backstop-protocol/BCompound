@@ -23,12 +23,15 @@ contract BToken is BTokenScore {
     IRegistry public registry;
     // Compound's CToken this BToken contract is tied to
     address public cToken;
+    // Pool contract
+    address public pool;
     bool public isCEther = false;
     IERC20 public underlying;
 
-    constructor(address _registry, address _cToken) public {
+    constructor(address _registry, address _cToken, address _pool) public {
         registry = IRegistry(_registry);
         cToken = _cToken;
+        pool = _pool;
         isCEther = _cToken == registry.cEther();
         if(! isCEther) underlying = ICToken(cToken).underlying();
     }
@@ -121,6 +124,30 @@ contract BToken is BTokenScore {
         uint256 result = avatar().borrow(cToken, borrowAmount);
         updateDebtScore(msg.sender, cToken, toInt256(borrowAmount));
         return result;
+    }
+
+    /**
+     * @dev Liquidate borrow an Avatar
+     * @notice Only Pool contract can call this function
+     * @param targetAvatar Avatar to liquidate
+     * @param amount Underlying amount to liquidate
+     * @param collateral Collateral CToken address
+     */
+    function liquidateBorrow(
+        address targetAvatar,
+        uint256 amount,
+        address collateral
+    ) 
+        external
+        payable
+    {
+        require(registry.isAvatarExist(targetAvatar), "avatar-not-exists");
+        require(msg.sender == pool, "only-pool-is-authorized");
+
+        uint256 seized = IAvatar(targetAvatar).liquidateBorrow.value(msg.value)(cToken, amount, collateral);
+
+        updateCollScore(targetAvatar, cToken, -toInt256(seized));
+        updateDebtScore(targetAvatar, collateral, -toInt256(amount));
     }
 
     // IERC20

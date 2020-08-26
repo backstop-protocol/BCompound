@@ -5,6 +5,7 @@ import { BToken } from "./BToken.sol";
 contract BComptroller {
 
     address public registry;
+    address public pool;
 
     // CToken => BToken
     mapping(address => address) public c2b;
@@ -13,6 +14,10 @@ contract BComptroller {
     mapping(address => address) public b2c;
 
     event NewBToken(address indexed cToken, address bToken);
+
+    constructor(address _pool) public {
+        pool = _pool;
+    }
 
     /**
      * @dev Registry address set only one time
@@ -26,7 +31,7 @@ contract BComptroller {
     function newBToken(address cToken) external returns (address) {
         // FIXME ensure that the cToken is supported on Compound
         require(!isCToken(cToken), "BToken-with-given-CToken-exists");
-        address bToken = address(new BToken(registry, cToken));
+        address bToken = address(new BToken(registry, cToken, pool));
         c2b[cToken] = bToken;
         b2c[bToken] = cToken;
         emit NewBToken(cToken, bToken);

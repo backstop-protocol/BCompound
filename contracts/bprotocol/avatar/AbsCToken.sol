@@ -102,12 +102,15 @@ contract AbsCToken is Cushion {
         uint256 underlyingAmtToLiquidate,
         ICToken collCToken
     )
-        external payable onlyPool
+        external 
+        payable 
+        onlyBToken
+        returns (uint256)
     {
         // 1. Can liquidate?
         require(canLiquidate(), "cannot-liquidate");
 
-        _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
+        return _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
     }
 
 

@@ -6,6 +6,7 @@ interface IRegistry {
     function cEther() external returns (address);
 
     function avatars(address user) external view returns (address);
+    function isAvatarExist(address avatar) external view returns (bool);
     function isAvatarExistFor(address user) external view returns (bool);
     function userOf(address avatar) external view returns (address);
     function avatarOf(address user) external view returns (address);

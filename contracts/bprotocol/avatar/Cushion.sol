@@ -105,6 +105,7 @@ contract Cushion is CushionBase {
         ICToken collCToken
     )
         internal
+        returns (uint256)
     {
         // 1. Is toppedUp OR partially liquidated
         bool isPartiallyLiquidated = _isPartiallyLiquidated();
@@ -163,5 +164,7 @@ contract Cushion is CushionBase {
 
         // 6. Transfer permiumAmount to liquidator
         require(collCToken.transfer(msg.sender, seizeTokens), "collateral-cToken-transfer-failed");
+        
+        return seizeTokens;
     }
 }
