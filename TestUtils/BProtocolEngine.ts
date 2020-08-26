@@ -58,7 +58,7 @@ export class BProtocolEngine {
 
     // Deploy BComptroller contract
     private async deployBComptroller(): Promise<t.BComptrollerInstance> {
-        return await BComptroller.new();
+        return await BComptroller.new(this.bProtocol.pool.address);
     }
 
     // Deploy Registry contract
