@@ -141,7 +141,7 @@ contract Cushion is CushionBase {
                 cETH.repayBorrow.value(repayAmount)();
             } else {
                 // CErc20
-                toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), repayAmount);
+                toppedUpCToken.underlying().safeTransferFrom(pool, address(this), repayAmount);
                 require(ICErc20(address(debtCToken)).repayBorrow(repayAmount) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
             toppedUpAmount = 0;
@@ -163,7 +163,7 @@ contract Cushion is CushionBase {
         require(err == 0, "error-in-liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
-        require(collCToken.transfer(msg.sender, seizeTokens), "collateral-cToken-transfer-failed");
+        require(collCToken.transfer(pool, seizeTokens), "collateral-cToken-transfer-failed");
         
         return seizeTokens;
     }
