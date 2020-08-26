@@ -78,6 +78,7 @@ contract BToken is BTokenScore {
 
     function repayBorrow() external payable {
         _iAvatarCEther().repayBorrow.value(msg.value)();
+        updateDebtScore(msg.sender, cToken, -toInt256(msg.value));
     }
 
     // CErc20
