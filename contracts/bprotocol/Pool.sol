@@ -22,20 +22,23 @@ contract Pool is Exponential, Ownable {
     // member => underlaying => amount
     mapping(address => mapping(address => uint)) public balance;
 
-    // avatar => debtCToken => TopupInfo
-    mapping(address => mapping(address => TopupInfo)) public topped;
+    // avatar => TopupInfo
+    mapping(address => TopupInfo) public topped;
 
     struct TopupInfo {
-        address toppedBy; // member who toppedUp
-        uint timeout; // after timeout toppedBy cannot bite
+        address toppedBy;   // member who toppedUp
+        uint expire;        // after expire time, other member can topup
+        address underlying; // underlying token address
+        uint amount;        // amount of underlying tokens toppedUp
     }
 
     event MemberDeposit(address indexed member, address underlying, uint amount);
-    event MemberWithdrew(address indexed member, address underlying, uint amount);
+    event MemberWithdraw(address indexed member, address underlying, uint amount);
     event MemberToppedUp(address indexed member, address avatar, address cToken, uint amount);
     event MemberUntopped(address indexed member, address avatar);
     event MemberBite(address indexed member, address avatar, address cToken, uint amount);
     event ProfitParamsChanged(uint numerator, uint denominator);
+    event MembersSet(address[] members);
 
     modifier onlyMember() {
         bool member = false;
@@ -68,6 +71,7 @@ contract Pool is Exponential, Ownable {
 
     function setMembers(address[] calldata members_) external onlyOwner {
         members = members_;
+        emit MembersSet(members_);
     }
 
     function deposit() external payable onlyMember {
@@ -81,50 +85,65 @@ contract Pool is Exponential, Ownable {
         emit MemberDeposit(msg.sender, underlying, amount);
     }
 
-    function withdraw(uint amount) external {
-        balance[msg.sender][ETH_ADDR] = sub_(balance[msg.sender][ETH_ADDR], amount);
-        msg.sender.transfer(amount);
-        emit MemberWithdrew(msg.sender, ETH_ADDR, amount);
-    }
-
     function withdraw(address underlying, uint amount) external {
-        balance[msg.sender][underlying] = sub_(balance[msg.sender][underlying], amount);
-        IERC20(underlying).safeTransfer(msg.sender, amount);
-        emit MemberWithdrew(msg.sender, underlying, amount);
+        if(_isETH(underlying)) {
+            balance[msg.sender][ETH_ADDR] = sub_(balance[msg.sender][ETH_ADDR], amount);
+            msg.sender.transfer(amount);
+        } else {
+            balance[msg.sender][underlying] = sub_(balance[msg.sender][underlying], amount);
+            IERC20(underlying).safeTransfer(msg.sender, amount);
+        }
+        emit MemberWithdraw(msg.sender, underlying, amount);
     }
 
-    function topup(address avatar, address cToken, uint amount) external onlyMember {
-        require(topped[avatar][cToken].toppedBy == address(0), "pool: already-topped");
+    function topup(address avatar, address cToken, uint amount, bool resetApprove) external onlyMember {
+        address toppedBy = topped[avatar].toppedBy;
+        require(toppedBy == address(0), "pool: already-topped");
+        require(amount > 0, "pool: amount-is-zero");
+        // TODO who is intitled to topup
+        // TODO if avatar already topped by other member and its passed 10 mins,
+        // TODO do untop before current member topup
 
-        IERC20 underlying = ICErc20(cToken).underlying();
-        underlying.safeApprove(avatar, 0);
-        underlying.safeApprove(avatar, amount);
-        ICushionCErc20(avatar).topup(cToken, amount);
-        topped[avatar][cToken] = TopupInfo({toppedBy: msg.sender, timeout: now + 10 minutes});
+        // if already topped, untop before
+        if(toppedBy != address(0)) _untop(avatar);
+
+        address underlying;
+        if(_isCEther(cToken)) {
+            underlying = ETH_ADDR;
+            ICushionCEther(avatar).topup.value(amount)();
+        } else {
+            underlying = address(ICErc20(cToken).underlying());
+            if(resetApprove) IERC20(underlying).safeApprove(avatar, 0);
+            IERC20(underlying).safeApprove(avatar, amount);
+            ICushionCErc20(avatar).topup(cToken, amount);
+        }
+        balance[msg.sender][underlying] = sub_(balance[msg.sender][underlying], amount);
+        topped[avatar] = TopupInfo({
+                toppedBy: msg.sender,
+                expire: now + 10 minutes,
+                underlying: underlying,
+                amount: amount
+            });
 
         emit MemberToppedUp(msg.sender, avatar, cToken, amount);
     }
 
-    function topup(address avatar, uint amount) external onlyMember {
-        require(topped[avatar][cEther].toppedBy == address(0), "pool: already-topped");
-        ICushionCEther(avatar).topup.value(amount)();
-        emit MemberToppedUp(msg.sender, avatar, cEther, amount);
+    function uptop(address avatar) external {
+        require(topped[avatar].toppedBy == msg.sender, "pool: not-member-who-topped");
+        _untop(avatar);
     }
 
-    function uptop(address avatar, address cToken) external onlyMember {
-        require(topped[avatar][cToken].toppedBy != address(0), "pool: not-topped");
+    function _untop(address avatar) internal {
+        TopupInfo memory ti = topped[avatar];
+        balance[ti.toppedBy][ti.underlying] = add_(balance[ti.toppedBy][ti.underlying], ti.amount);
         ICushion(avatar).untop();
-        delete topped[avatar][cToken];
-        emit MemberUntopped(msg.sender, avatar);
+        delete topped[avatar];
+        emit MemberUntopped(ti.toppedBy, avatar);
     }
 
-    function liquidateBorrow(address avatar, address collCToken, address debtCToken, uint underlyingAmountToLiquidate) external onlyMember {
-        TopupInfo memory ti = topped[avatar][debtCToken];
-        // toppedBy member can only allow bite for next 10 mins
-        bool memberWhoToppedUp = ti.toppedBy == msg.sender && now <= ti.timeout;
-        // other members can allow bite after 10 mins
-        bool otherMember = ti.toppedBy != msg.sender && now > ti.timeout;
-        require(memberWhoToppedUp || otherMember, "pool: member-not-allowed");
+    function liquidateBorrow(address avatar, address collCToken, address debtCToken, uint underlyingAmountToLiquidate) external {
+        TopupInfo memory ti = topped[avatar];
+        require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
 
         // TODO add more logic
 
@@ -133,7 +152,7 @@ contract Pool is Exponential, Ownable {
         // TODO need to know liquidatedAmount
 
 
-        delete topped[avatar][debtCToken];
+        delete topped[avatar];
         emit MemberBite(msg.sender, avatar, debtCToken, underlyingAmountToLiquidate); // TODO
     }
 
@@ -147,5 +166,9 @@ contract Pool is Exponential, Ownable {
 
     function _isETH(address addr) internal pure returns (bool) {
         return addr == ETH_ADDR;
+    }
+
+    function _isCEther(address addr) internal view returns (bool) {
+        return addr == cEther;
     }
 }
