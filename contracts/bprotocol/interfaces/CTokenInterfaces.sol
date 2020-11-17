@@ -15,7 +15,7 @@ contract CTokenInterface {
     function decimals() external view returns (uint8);
 
     /*** User Interface ***/
-    function underlying() external returns (IERC20);
+    function underlying() external view returns (IERC20);
     function balanceOfUnderlying(address owner) external returns (uint);
     function getAccountSnapshot(address account) external view returns (uint, uint, uint, uint);
     function borrowRatePerBlock() external view returns (uint);
