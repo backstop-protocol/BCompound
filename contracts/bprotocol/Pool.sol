@@ -4,6 +4,7 @@ import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import { ICToken } from "./interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "./interfaces/CTokenInterfaces.sol";
 import { IAvatar, ICushion, ICushionCEther, ICushionCErc20 } from "./interfaces/IAvatar.sol";
 
@@ -17,11 +18,12 @@ contract Pool is Exponential, Ownable {
     address internal constant ETH_ADDR = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public cEther;
     address[] public members;
+    address public jar;
+    // member share profit params
     uint public shareNumerator;
     uint public shareDenominator;
     // member => underlaying => amount
     mapping(address => mapping(address => uint)) public balance;
-
     // avatar => TopupInfo
     mapping(address => TopupInfo) public topped;
 
@@ -52,8 +54,9 @@ contract Pool is Exponential, Ownable {
         _;
     }
 
-    constructor(address cEther_) public {
+    constructor(address cEther_, address jar_) public {
         cEther = cEther_;
+        jar = jar_;
     }
 
     /**
@@ -67,7 +70,6 @@ contract Pool is Exponential, Ownable {
         shareDenominator = denominator;
         emit ProfitParamsChanged(numerator, denominator);
     }
-
 
     function setMembers(address[] calldata members_) external onlyOwner {
         members = members_;
@@ -166,19 +168,20 @@ contract Pool is Exponential, Ownable {
         emit MemberUntopped(ti.toppedBy, avatar);
     }
 
-    function liquidateBorrow(address avatar, address collCToken, address debtCToken, uint underlyingAmountToLiquidate) external {
+    function liquidateBorrow(address avatar, address collCToken, address debtCToken, uint underlyingAmtToLiquidate) external {
         TopupInfo memory ti = topped[avatar];
         require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
 
-        // TODO add more logic
+        uint seizedTokens = IAvatar(avatar).liquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
 
-        IAvatar(avatar).liquidateBorrow(debtCToken, underlyingAmountToLiquidate, collCToken);
-        // TODO pool received tokens, send portion to Jar
-        // TODO need to know liquidatedAmount
+        uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
+        uint jarShare = sub_(seizedTokens, memberShare);
 
+        ICToken(collCToken).transfer(ti.toppedBy, memberShare);
+        ICToken(collCToken).transfer(jar, jarShare);
 
         delete topped[avatar];
-        emit MemberBite(msg.sender, avatar, debtCToken, underlyingAmountToLiquidate); // TODO
+        emit MemberBite(ti.toppedBy, avatar, debtCToken, underlyingAmtToLiquidate);
     }
 
     function membersLength() external view returns (uint) {
