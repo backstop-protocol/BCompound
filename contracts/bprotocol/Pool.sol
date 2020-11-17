@@ -96,23 +96,48 @@ contract Pool is Exponential, Ownable {
         emit MemberWithdraw(msg.sender, underlying, amount);
     }
 
-    function topup(address avatar, address cToken, uint amount, bool resetApprove) external onlyMember {
-        address toppedBy = topped[avatar].toppedBy;
-        require(toppedBy == address(0), "pool: already-topped");
-        require(amount > 0, "pool: amount-is-zero");
-        // TODO who is intitled to topup
-        // TODO if avatar already topped by other member and its passed 10 mins,
-        // TODO do untop before current member topup
+    function removeElement(address[] memory array, uint index) internal pure returns(address[] memory newArray) {
+        if(index >= array.length) {
+            newArray = array;
+        }
+        else {
+            newArray = new address[](array.length - 1);
+            for(uint i = 0 ; i < array.length ; i++) {
+                if(i == index) continue;
+                if(i < index) newArray[i] = array[i];
+                else newArray[i-1] = array[i];
+            }
+        }
+    }
 
-        // if already topped, untop before
+    function chooseMember(address avatar, address underlying, address[] memory candidates) public view returns(address winner) {
+        if(candidates.length == 0) return address(0);
+        // A bit of randomness to choose winner. We don't need pure randomness, its ok even if a
+        // liquidator can predict his winning in the future.
+        // round-robin selection for member per avatar per 10 mins.
+        uint chosen = uint(keccak256(abi.encodePacked(avatar, now / 10 minutes))) % candidates.length;
+        address possibleWinner = candidates[chosen];
+        if(balance[possibleWinner][underlying] == 0) return chooseMember(avatar, underlying, removeElement(candidates, chosen));
+
+        winner = possibleWinner;
+    }
+
+    function topup(address avatar, address cToken, uint amount, bool resetApprove) external onlyMember {
+        uint expire = topped[avatar].expire;
+        // allow next topup after expire
+        require(now > expire, "pool: not-expired");
+        require(amount > 0, "pool: amount-is-zero");
+        address underlying = _getUnderlying(cToken);
+        address winner = chooseMember(avatar, underlying, members);
+        require(msg.sender == winner, "pool: not-winner");
+
+        // if already topped-up, untop now
+        address toppedBy = topped[avatar].toppedBy;
         if(toppedBy != address(0)) _untop(avatar);
 
-        address underlying;
         if(_isCEther(cToken)) {
-            underlying = ETH_ADDR;
             ICushionCEther(avatar).topup.value(amount)();
         } else {
-            underlying = address(ICErc20(cToken).underlying());
             if(resetApprove) IERC20(underlying).safeApprove(avatar, 0);
             IERC20(underlying).safeApprove(avatar, amount);
             ICushionCErc20(avatar).topup(cToken, amount);
@@ -170,5 +195,13 @@ contract Pool is Exponential, Ownable {
 
     function _isCEther(address addr) internal view returns (bool) {
         return addr == cEther;
+    }
+
+    function _getUnderlying(address cToken) internal view returns (address underlying) {
+        if(_isCEther(cToken)) {
+            underlying = ETH_ADDR;
+        } else {
+            underlying = address(ICErc20(cToken).underlying());
+        }
     }
 }
