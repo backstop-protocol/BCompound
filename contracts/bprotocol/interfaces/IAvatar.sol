@@ -13,6 +13,9 @@ contract IAvatar is IERC20 {
     function borrow(address cToken, uint256 borrowAmount) external returns (uint256);
     function liquidateBorrow(address debtCToken, uint256 underlyingAmtToLiquidate, address collCToken) external payable;
     function borrowBalanceCurrent(address cToken) external returns (uint256);
+
+    // Comptroller functions
+    function enterMarket(address cToken) external returns (uint256);
 }
 
 // Workaround for issue https://github.com/ethereum/solidity/issues/526

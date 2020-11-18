@@ -1,5 +1,8 @@
 pragma solidity 0.5.16;
 
+// TODO To be removed in mainnet deployment
+import "@nomiclabs/buidler/console.sol";
+
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
@@ -104,10 +107,13 @@ contract AbsCToken is Cushion {
     )
         external payable onlyPool
     {
+        console.log("In liquidateBorrow");
         // 1. Can liquidate?
         require(canLiquidate(), "cannot-liquidate");
+        console.log("2. In liquidateBorrow");
 
         _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
+        console.log("3. In liquidateBorrow");
     }
 
 
