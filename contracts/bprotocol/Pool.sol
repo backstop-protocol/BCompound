@@ -19,6 +19,8 @@ contract Pool is Exponential, Ownable {
     address public cEther;
     address[] public members;
     address public jar;
+    // member selection duration for round robin, default 60 mins
+    uint public selectionDuration = 60 minutes;
     // member share profit params
     uint public shareNumerator;
     uint public shareDenominator;
@@ -41,6 +43,7 @@ contract Pool is Exponential, Ownable {
     event MemberBite(address indexed member, address avatar, address cToken, uint amount);
     event ProfitParamsChanged(uint numerator, uint denominator);
     event MembersSet(address[] members);
+    event SelectionDurationChanged(uint oldDuration, uint newDuration);
 
     modifier onlyMember() {
         bool member = false;
@@ -65,10 +68,17 @@ contract Pool is Exponential, Ownable {
     function() external payable {}
 
     function setProfitParams(uint numerator, uint denominator) external onlyOwner {
-        require(numerator < denominator, "invalid-profit-params");
+        require(numerator < denominator, "pool: invalid-profit-params");
         shareNumerator = numerator;
         shareDenominator = denominator;
         emit ProfitParamsChanged(numerator, denominator);
+    }
+
+    function setSelectionDuration(uint newDuration) external onlyOwner {
+        require(newDuration > 0, "pool: selection-duration-is-zero");
+        uint oldDuration = selectionDuration;
+        selectionDuration = newDuration;
+        emit SelectionDurationChanged(oldDuration, newDuration);
     }
 
     function setMembers(address[] calldata members_) external onlyOwner {
@@ -116,8 +126,8 @@ contract Pool is Exponential, Ownable {
         if(candidates.length == 0) return address(0);
         // A bit of randomness to choose winner. We don't need pure randomness, its ok even if a
         // liquidator can predict his winning in the future.
-        // round-robin selection for member per avatar per 10 mins.
-        uint chosen = uint(keccak256(abi.encodePacked(avatar, now / 10 minutes))) % candidates.length;
+        // round-robin selection for member per avatar per selectionDuration mins.
+        uint chosen = uint(keccak256(abi.encodePacked(avatar, now / selectionDuration))) % candidates.length;
         address possibleWinner = candidates[chosen];
         if(balance[possibleWinner][underlying] == 0) return chooseMember(avatar, underlying, removeElement(candidates, chosen));
 
