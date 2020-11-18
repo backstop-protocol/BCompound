@@ -182,7 +182,20 @@ contract Pool is Exponential, Ownable {
         TopupInfo memory ti = topped[avatar];
         require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
 
-        uint seizedTokens = IAvatar(avatar).liquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
+        // read the latest toppedUpAmount from Avatar, as partial liquidation is possible
+        uint toppedUpAmount = IAvatar(avatar).toppedUpAmount();
+        uint repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
+        uint eth = 0;
+        if(toppedUpAmount < underlyingAmtToLiquidate) {
+            if(_isCEther(debtCToken)) {
+                eth = repayAmount;
+            } else {
+                IERC20(ti.underlying).safeApprove(avatar, repayAmount);
+            }
+            balance[ti.toppedBy][ti.underlying] = sub_(balance[ti.toppedBy][ti.underlying], repayAmount);
+        }
+
+        uint seizedTokens = IAvatar(avatar).liquidateBorrow.value(eth)(debtCToken, underlyingAmtToLiquidate, collCToken);
 
         uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
         uint jarShare = sub_(seizedTokens, memberShare);
@@ -190,7 +203,8 @@ contract Pool is Exponential, Ownable {
         ICToken(collCToken).transfer(ti.toppedBy, memberShare);
         ICToken(collCToken).transfer(jar, jarShare);
 
-        delete topped[avatar];
+        bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
+        if(! stillToppedUp) delete topped[avatar];
         emit MemberBite(ti.toppedBy, avatar, debtCToken, underlyingAmtToLiquidate);
     }
 
