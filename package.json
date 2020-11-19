@@ -8,7 +8,7 @@
     "promise-retry": "^1.1.1"
   },
   "devDependencies": {
-    "@nomiclabs/buidler": "^1.3.8",
+    "@nomiclabs/buidler": "^1.4.8",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-truffle5": "^1.3.4",
     "@nomiclabs/buidler-waffle": "^2.0.0",
@@ -23,7 +23,7 @@
     "@types/chai": "^4.2.12",
     "@types/mocha": "^8.0.0",
     "@types/node": "^14.0.25",
-    "buidler-typechain": "git+https://git@github.com/jchittoda/buidler-typechain#truffle-v5",
+    "buidler-typechain": "^0.2.2",
     "chai": "^4.2.0",
     "chai-bn": "^0.2.1",
     "eslint": "^7.5.0",
@@ -37,10 +37,10 @@
     "solc": "^0.5.16",
     "truffle": "^5.1.39",
     "truffle-typings": "^1.0.8",
-    "ts-generator": "0.0.8",
+    "ts-generator": "0.1.1",
     "ts-node": "^8.10.2",
     "tsconfig-paths": "^3.9.0",
-    "typechain": "^2.0.0",
+    "typechain": "^3.0.0",
     "typechain-target-truffle": "^1.0.2",
     "typescript": "^3.9.7",
     "web3": "^1.2.9",
@@ -49,7 +49,7 @@
   "scripts": {
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
     "postinstall": "cd compound-protocol && yarn && cd scenario && yarn",
-    "compile": "truffle compile --contracts_directory compound-protocol/tests && npx buidler compile",
+    "compile": "npx truffle compile --contracts_directory compound-protocol/tests && npx buidler compile",
     "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true"
   },
   "repository": {

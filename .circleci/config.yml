@@ -33,7 +33,7 @@ jobs:
             npm install
       - run:
           name: Compile contracts
-          command: npm run compile
+          command: export NODE_OPTIONS='--max-old-space-size=8192' && npm run compile
       - run:
           name: Build TypeChain typings
           command: npx buidler typechain

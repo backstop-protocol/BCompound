@@ -105,10 +105,7 @@ contract AbsCToken is Cushion {
         uint256 underlyingAmtToLiquidate,
         ICToken collCToken
     )
-        external 
-        payable 
-        onlyBToken
-        returns (uint256)
+        external payable onlyPool returns (uint256)
     {
         console.log("In liquidateBorrow");
         // 1. Can liquidate?
