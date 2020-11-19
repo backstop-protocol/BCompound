@@ -16,9 +16,11 @@ contract BEther is BToken {
 
     function mint() external payable {
         _iAvatarCEther().mint.value(msg.value)(cToken);
+        updateCollScore(msg.sender, cToken, toInt256(msg.value));
     }
 
     function repayBorrow() external payable {
         _iAvatarCEther().repayBorrow.value(msg.value)();
+        updateDebtScore(msg.sender, cToken, -toInt256(msg.value));
     }
 }

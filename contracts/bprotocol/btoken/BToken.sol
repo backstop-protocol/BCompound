@@ -59,51 +59,13 @@ contract BToken is BTokenScore {
         return mul_(a, b) / 1e18;
     }
 
-    function mul_(uint a, uint b) pure internal returns (uint) {
+    function mul_(uint a, uint b) internal pure returns (uint) {
         if (a == 0 || b == 0) {
             return 0;
         }
         uint c = a * b;
         require(c / a == b);
         return c;
-    }
-
-
-    // CEther
-    // =======
-    /*
-    function mint() external payable {
-        _iAvatarCEther().mint.value(msg.value)(cToken);
-        updateCollScore(msg.sender, cToken, toInt256(msg.value));
-    }
-    */
-
-    function repayBorrow() external payable {
-        _iAvatarCEther().repayBorrow.value(msg.value)();
-        updateDebtScore(msg.sender, cToken, -toInt256(msg.value));
-    }
-
-    // CErc20
-    // =======
-    /*
-    function mint(uint256 mintAmount) external returns (uint256) {
-        IAvatarCErc20 _avatar = _iAvatarCErc20();
-        underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
-        _iAvatarCErc20().mint(cToken, mintAmount);
-        updateCollScore(msg.sender, cToken, toInt256(mintAmount));
-    }
-    */
-
-    function repayBorrow(uint256 repayAmount) external returns (uint256) {
-        IAvatarCErc20 _avatar = _iAvatarCErc20();
-        uint256 actualRepayAmount = repayAmount;
-        if(repayAmount == uint256(-1)) {
-            actualRepayAmount = _avatar.borrowBalanceCurrent(cToken);
-        }
-        underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
-        uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
-        updateDebtScore(msg.sender, cToken, -toInt256(repayAmount));
-        return result;
     }
 
     // CEther / CErc20
@@ -138,7 +100,7 @@ contract BToken is BTokenScore {
         address targetAvatar,
         uint256 amount,
         address collateral
-    ) 
+    )
         external
         payable
     {
@@ -168,7 +130,7 @@ contract BToken is BTokenScore {
         // If src is an Avatar, deduct coll score
         address srcUser = registry.userOf(src);
         if(srcUser != address(0)) updateCollScore(srcUser, cToken, -toInt256(underlyingRedeemAmount));
-        
+
         // if dst is an Avatar, increase coll score
         address dstUser = registry.userOf(dst);
         if(dstUser != address(0)) updateCollScore(dstUser, cToken, toInt256(underlyingRedeemAmount));

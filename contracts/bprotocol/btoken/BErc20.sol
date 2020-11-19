@@ -23,6 +23,7 @@ contract BErc20 is BToken {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
         underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
         _avatar.mint(cToken, mintAmount);
+        updateCollScore(msg.sender, cToken, toInt256(mintAmount));
     }
 
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
@@ -32,7 +33,9 @@ contract BErc20 is BToken {
             actualRepayAmount = _avatar.borrowBalanceCurrent(cToken);
         }
         underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
-        return _avatar.repayBorrow(cToken, actualRepayAmount);
+        uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
+        updateDebtScore(msg.sender, cToken, -toInt256(repayAmount));
+        return result;
     }
 
 }
