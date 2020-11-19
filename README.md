@@ -1,6 +1,6 @@
 If the submodule `compound-protocol` is not updated, run this command to get the updated submodule code.
 
-    git submodule update --init
+    git submodule update --init --recursive
 
 Install the dependencies required for `compound-demo` and `compound-protocol`
 

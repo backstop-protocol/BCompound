@@ -50,7 +50,9 @@
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
     "postinstall": "cd compound-protocol && yarn && cd scenario && yarn",
     "compile": "npx truffle compile --contracts_directory compound-protocol/tests && npx buidler compile",
-    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true"
+    "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
+    "test": "npx buidler test",
+    "gen-typings": "npx buidler typechain"
   },
   "repository": {
     "type": "git",
