@@ -1,13 +1,13 @@
 pragma solidity 0.5.16;
 
 // interface
-import { IRegistry } from "./interfaces/IRegistry.sol";
-import { IAvatar } from "./interfaces/IAvatar.sol";
-import { IAvatarCEther } from "./interfaces/IAvatar.sol";
-import { IAvatarCErc20 } from "./interfaces/IAvatar.sol";
-import { ICToken } from "./interfaces/CTokenInterfaces.sol";
+import { IRegistry } from "../interfaces/IRegistry.sol";
+import { IAvatar } from "../interfaces/IAvatar.sol";
+import { IAvatarCEther } from "../interfaces/IAvatar.sol";
+import { IAvatarCErc20 } from "../interfaces/IAvatar.sol";
+import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 
-import { BTokenScore } from "./scoring/BTokenScore.sol";
+import { BTokenScore } from "../scoring/BTokenScore.sol";
 
 // Libs
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";

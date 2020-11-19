@@ -7,7 +7,7 @@ import { IAvatar } from "./interfaces/IAvatar.sol";
 
 contract BComptroller {
 
-    address public registry;
+    IRegistry public registry;
     address public pool;
 
     // CToken => BToken
@@ -37,9 +37,9 @@ contract BComptroller {
         bool is_cETH = cToken == registry.cEther();
         address bToken;
         if(is_cETH) {
-            bToken = address(new BEther(address(registry), cToken));
+            bToken = address(new BEther(address(registry), cToken, pool));
         } else {
-            bToken = address(new BErc20(address(registry), cToken));
+            bToken = address(new BErc20(address(registry), cToken, pool));
         }
 
         c2b[cToken] = bToken;
