@@ -11,7 +11,7 @@ contract BErc20 is BToken {
 
     IERC20 public underlying;
 
-    constructor(address _registry, address _cToken) public BToken(_registry, _cToken) {
+    constructor(address _registry, address _cToken, address _pool) public BToken(_registry, _cToken, _pool) {
         underlying = ICToken(cToken).underlying();
     }
 

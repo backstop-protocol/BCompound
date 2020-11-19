@@ -2,4 +2,7 @@
 	path = compound-protocol
 	url = https://github.com/backstop-protocol/compound-protocol.git
     branch = bprotocol
-    ignore = dirty
+    ignore=dirty
+[submodule "user-rating"]
+	path = user-rating
+	url = https://github.com/backstop-protocol/user-rating.git

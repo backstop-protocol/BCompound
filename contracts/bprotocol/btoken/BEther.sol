@@ -6,7 +6,7 @@ import { IAvatarCEther } from "../interfaces/IAvatar.sol";
 
 contract BEther is BToken {
 
-    constructor(address _registry, address _cToken) public BToken(_registry, _cToken) {
+    constructor(address _registry, address _cToken, address _pool) public BToken(_registry, _cToken, _pool) {
 
     }
 

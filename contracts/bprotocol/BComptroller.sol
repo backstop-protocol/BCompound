@@ -8,6 +8,7 @@ import { IAvatar } from "./interfaces/IAvatar.sol";
 contract BComptroller {
 
     IRegistry public registry;
+    address public pool;
 
     // CToken => BToken
     mapping(address => address) public c2b;
@@ -16,6 +17,10 @@ contract BComptroller {
     mapping(address => address) public b2c;
 
     event NewBToken(address indexed cToken, address bToken);
+
+    constructor(address _pool) public {
+        pool = _pool;
+    }
 
     /**
      * @dev Registry address set only one time
@@ -32,9 +37,9 @@ contract BComptroller {
         bool is_cETH = cToken == registry.cEther();
         address bToken;
         if(is_cETH) {
-            bToken = address(new BEther(address(registry), cToken));
+            bToken = address(new BEther(address(registry), cToken, pool));
         } else {
-            bToken = address(new BErc20(address(registry), cToken));
+            bToken = address(new BErc20(address(registry), cToken, pool));
         }
 
         c2b[cToken] = bToken;
