@@ -39,7 +39,7 @@ jobs:
           command: npx buidler typechain
       - run:
           name: Run tests
-          command: npx buidler test test/TestBComptroller.spec.ts
+          command: npx buidler test
       - save_cache:
           key: dependency-cache-{{ checksum "checksum.tmp" }}
           paths:

@@ -49,7 +49,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint(ICEther cEther) public payable {
         super.mint(cEther);
-        require(enterMarket(address(cEther)) == 0, "enterMarket-failed");
+        require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
     }
 
     //override
@@ -58,7 +58,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
         uint256 result = super.mint(cToken, mintAmount);
-        require(enterMarket(address(cToken)) == 0, "enterMarket-failed");
+        require(_enterMarket(address(cToken)) == 0, "enterMarket-failed");
         return result;
     }
 }

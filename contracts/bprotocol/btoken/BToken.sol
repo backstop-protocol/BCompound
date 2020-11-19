@@ -36,9 +36,6 @@ contract BToken is BTokenScore {
         if(! isCEther) underlying = ICToken(cToken).underlying();
     }
 
-    // HELPER FUNCTIONS
-    // =================
-
     function avatar() public returns (IAvatar) {
         return IAvatar(registry.getAvatar(msg.sender));
     }
