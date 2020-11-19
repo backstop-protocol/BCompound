@@ -7,11 +7,11 @@ contract IERC20 {
 }
 
 contract IAvatar is IERC20 {
-
+    function toppedUpAmount() external returns (uint256);
     function redeem(address cToken, uint256 redeemTokens) external returns (uint256);
     function redeemUnderlying(address cToken, uint256 redeemAmount) external returns (uint256);
     function borrow(address cToken, uint256 borrowAmount) external returns (uint256);
-    function liquidateBorrow(address debtCToken, uint256 underlyingAmtToLiquidate, address collCToken) external payable;
+    function liquidateBorrow(address debtCToken, uint256 underlyingAmtToLiquidate, address collCToken) external payable returns (uint256);
     function borrowBalanceCurrent(address cToken) external returns (uint256);
 
     // Comptroller functions
@@ -31,4 +31,17 @@ contract IAvatarCErc20 is IAvatar {
     function mint(address cToken, uint256 mintAmount) external returns (uint256);
     function repayBorrow(address cToken, uint256 repayAmount) external returns (uint256);
     function repayBorrowBehalf(address cToken, address borrower, uint256 repayAmount) external returns (uint256);
+}
+
+contract ICushion {
+    function canLiquidate() external returns (bool);
+    function untop() external;
+}
+
+contract ICushionCErc20 is ICushion {
+    function topup(address cToken, uint256 topupAmount) external;
+}
+
+contract ICushionCEther is ICushion {
+    function topup() external payable;
 }
