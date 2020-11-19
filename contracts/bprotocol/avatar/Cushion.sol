@@ -1,5 +1,8 @@
 pragma solidity 0.5.16;
 
+// TODO To be removed in mainnet deployment
+import "@nomiclabs/buidler/console.sol";
+
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
@@ -24,7 +27,9 @@ contract Cushion is CushionBase {
      * @return `true` when this Avatar can be liquidated, `false` otherwise
      */
     function canLiquidate() public returns (bool) {
-        return !_canUntop();
+        bool result = !canUntop();
+        console.log("In canLiquidate(), result: %s", result);
+        return result;
     }
 
     /**
@@ -32,7 +37,7 @@ contract Cushion is CushionBase {
      */
     function topup() external payable onlyPool {
         // when already topped
-        if(_isToppedUp()) return;
+        if(isToppedUp()) return;
 
         // 2. Repay borrows from Pool to topup
         cETH.repayBorrow.value(msg.value)();
@@ -49,7 +54,7 @@ contract Cushion is CushionBase {
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
         // when already topped
-        if(_isToppedUp()) return;
+        if(isToppedUp()) return;
 
         // 1. Transfer funds from the Pool contract
         IERC20 underlying = cToken.underlying();
@@ -79,7 +84,7 @@ contract Cushion is CushionBase {
      */
     function _untop() internal {
         // when already untopped
-        if(!_isToppedUp()) return;
+        if(!isToppedUp()) return;
 
         // 1. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
@@ -108,8 +113,8 @@ contract Cushion is CushionBase {
         returns (uint256)
     {
         // 1. Is toppedUp OR partially liquidated
-        bool isPartiallyLiquidated = _isPartiallyLiquidated();
-        require(_isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
+        bool isPartiallyLiquidated = isPartiallyLiquidated();
+        require(isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
         if(isPartiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
         } else {
@@ -117,43 +122,34 @@ contract Cushion is CushionBase {
             liquidationCToken = debtCToken;
         }
 
-        if(!_isPartiallyLiquidated()) {
-            uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
-            // `toppedUpAmount` is also called poolDebt;
-            uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
-            // First time liquidation is performed after topup
-            // remainingLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
-            remainingLiquidationAmount = mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+        if(!isPartiallyLiquidated) {
+            remainingLiquidationAmount = getMaxLiquidationAmount(debtCToken);
         }
 
-        bool isCEtherDebt = _isCEther(debtCToken);
         // 2. `underlayingAmtToLiquidate` is under limit
         require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
 
         // 3. Liquidator perform repayBorrow
-        uint256 repayAmount = 0;
-        if(toppedUpAmount < underlyingAmtToLiquidate) {
-            repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
+        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, remainingLiquidationAmount);
 
+        if(amtToRepayOnCompound > 0) {
+            bool isCEtherDebt = _isCEther(debtCToken);
             if(isCEtherDebt) {
                 // CEther
-                require(msg.value == repayAmount, "insuffecient-ETH-sent");
-                cETH.repayBorrow.value(repayAmount)();
+                require(msg.value == amtToRepayOnCompound, "insuffecient-ETH-sent");
+                cETH.repayBorrow.value(amtToRepayOnCompound)();
             } else {
                 // CErc20
-                toppedUpCToken.underlying().safeTransferFrom(pool, address(this), repayAmount);
-                require(ICErc20(address(debtCToken)).repayBorrow(repayAmount) == 0, "liquidateBorrow:-repayBorrow-failed");
+                toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), amtToRepayOnCompound);
+                require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
-            toppedUpAmount = 0;
         }
-        else {
-            toppedUpAmount = sub_(toppedUpAmount, underlyingAmtToLiquidate);
-            repayAmount = underlyingAmtToLiquidate;
-        }
-
+        
+        toppedUpAmount = sub_(toppedUpAmount, amtToDeductFromTopup);
+        
         // 4.1 Update remaining liquidation amount
-        remainingLiquidationAmount = sub_(remainingLiquidationAmount, repayAmount);
-
+        remainingLiquidationAmount = sub_(remainingLiquidationAmount, underlyingAmtToLiquidate);
+        
         // 5. Calculate premium and transfer to Liquidator
         (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
             address(debtCToken),
@@ -166,5 +162,35 @@ contract Cushion is CushionBase {
         require(collCToken.transfer(pool, seizeTokens), "collateral-cToken-transfer-failed");
         
         return seizeTokens;
+    }
+
+    function getMaxLiquidationAmount(ICToken debtCToken) public returns (uint256) {
+        uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
+        // `toppedUpAmount` is also called poolDebt;
+        uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
+        // When First time liquidation is performed after topup
+        // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+        return mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
+    }
+
+    function splitAmountToLiquidate(
+        uint256 underlyingAmtToLiquidate,
+        uint256 maxLiquidationAmount
+    )
+        public view returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
+    {
+        // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
+        (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
+        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
+        uint underlyingAmtToLiqScalar = result.mantissa;
+
+        // percent = underlyingAmtToLiqScalar / maxLiquidationAmount
+        uint256 percentInScale = div_(underlyingAmtToLiqScalar, maxLiquidationAmount);
+
+        // amtToDeductFromTopup = toppedUpAmount * percentInScale / 1e18
+        amtToDeductFromTopup = mulTrucate(toppedUpAmount, percentInScale);
+
+        // amtToRepayOnCompound = underlyingAmtToLiquidate - amtToDeductFromTopup
+        amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
     }
 }
