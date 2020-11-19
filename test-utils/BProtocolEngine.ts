@@ -33,6 +33,7 @@ export class BProtocol {
     public bComptroller!: t.BComptrollerInstance;
     public registry!: t.RegistryInstance;
     public bTokens: Map<string, t.BTokenInstance> = new Map();
+    public jar!: string;
 
     // variable to hold all Compound contracts
     public compound!: Compound;
@@ -64,6 +65,7 @@ export class BProtocolEngine {
         //_bProtocol.pool = await this.deployPool();
         // Use 9th account as Pool
         _bProtocol.pool = this.accounts[9];
+        _bProtocol.jar = this.accounts[8]; // TODO
         _bProtocol.bComptroller = await this.deployBComptroller();
         _bProtocol.registry = await this.deployRegistry();
 
@@ -83,12 +85,13 @@ export class BProtocolEngine {
 
     // Deploy Pool contract
     private async deployPool(): Promise<t.PoolInstance> {
-        return await Pool.new();
+        const cETH = this.compoundUtil.getContracts("cETH");
+        return await Pool.new(cETH, this.bProtocol.jar);
     }
 
     // Deploy BComptroller contract
     private async deployBComptroller(): Promise<t.BComptrollerInstance> {
-        return await BComptroller.new(this.bProtocol.pool.address);
+        return await BComptroller.new(this.bProtocol.pool);
     }
 
     // Deploy Registry contract

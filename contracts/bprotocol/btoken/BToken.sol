@@ -71,10 +71,12 @@ contract BToken is BTokenScore {
 
     // CEther
     // =======
+    /*
     function mint() external payable {
         _iAvatarCEther().mint.value(msg.value)(cToken);
         updateCollScore(msg.sender, cToken, toInt256(msg.value));
     }
+    */
 
     function repayBorrow() external payable {
         _iAvatarCEther().repayBorrow.value(msg.value)();
@@ -83,12 +85,14 @@ contract BToken is BTokenScore {
 
     // CErc20
     // =======
+    /*
     function mint(uint256 mintAmount) external returns (uint256) {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
         underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
         _iAvatarCErc20().mint(cToken, mintAmount);
         updateCollScore(msg.sender, cToken, toInt256(mintAmount));
     }
+    */
 
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
