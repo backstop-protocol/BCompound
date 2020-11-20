@@ -6,21 +6,11 @@ import "@nomiclabs/buidler/console.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
-import { CushionBase } from "./CushionBase.sol";
+import { AvatarBase } from "./AvatarBase.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Cushion is CushionBase {
-
-    modifier prePoolOp(ICToken cToken, uint256 repayBorrowAmount) {
-        if(toppedUpAmount > 0) {
-            uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
-            if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
-                _untop();
-            }
-        }
-        _;
-    }
+contract Cushion is AvatarBase {
 
     /**
      * @dev Returns the status if this Avatar's debt can be liquidated

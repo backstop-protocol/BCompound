@@ -3,7 +3,7 @@ pragma solidity 0.5.16;
 // TODO To be removed in mainnet deployment
 import "@nomiclabs/buidler/console.sol";
 
-import { CushionBase } from "./CushionBase.sol";
+import { AvatarBase } from "./AvatarBase.sol";
 
 import { IPriceOracle } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
@@ -13,7 +13,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title Abstract Comptroller contract for Avatar
  */
-contract AbsComptroller is CushionBase {
+contract AbsComptroller is AvatarBase {
 
     function enterMarket(address cToken) external onlyBComptroller returns (uint256) {
         return _enterMarket(cToken);
