@@ -178,22 +178,24 @@ contract Pool is Exponential, Ownable {
         emit MemberUntopped(ti.toppedBy, avatar);
     }
 
-    function liquidateBorrow(address avatar, address collCToken, address debtCToken, uint underlyingAmtToLiquidate) external {
+    function liquidateBorrow(
+        address avatar,
+        address collCToken,
+        address debtCToken,
+        uint underlyingAmtToLiquidate,
+        uint amtToRepayOnCompound // use off-chain call Avatar.calcAmountToLiquidate()
+    ) external {
         TopupInfo memory ti = topped[avatar];
         require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
 
-        // read the latest toppedUpAmount from Avatar, as partial liquidation is possible
-        uint toppedUpAmount = IAvatar(avatar).toppedUpAmount();
-        uint repayAmount = sub_(underlyingAmtToLiquidate, toppedUpAmount);
         uint eth = 0;
-        if(toppedUpAmount < underlyingAmtToLiquidate) {
-            if(_isCEther(debtCToken)) {
-                eth = repayAmount;
-            } else {
-                IERC20(ti.underlying).safeApprove(avatar, repayAmount);
-            }
-            balance[ti.toppedBy][ti.underlying] = sub_(balance[ti.toppedBy][ti.underlying], repayAmount);
+        if(_isCEther(debtCToken)) {
+            eth = amtToRepayOnCompound;
+        } else {
+            IERC20(ti.underlying).safeApprove(avatar, amtToRepayOnCompound);
         }
+
+        balance[ti.toppedBy][ti.underlying] = sub_(balance[ti.toppedBy][ti.underlying], amtToRepayOnCompound);
 
         uint seizedTokens = IAvatar(avatar).liquidateBorrow.value(eth)(debtCToken, underlyingAmtToLiquidate, collCToken);
 

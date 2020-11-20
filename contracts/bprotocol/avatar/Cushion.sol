@@ -183,4 +183,21 @@ contract Cushion is AvatarBase {
         // amtToRepayOnCompound = underlyingAmtToLiquidate - amtToDeductFromTopup
         amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
     }
+
+    /**
+     * @dev Off-chain function to calculate `amtToDeductFromTopup` and `amtToRepayOnCompound`
+     * @notice function is non-view but no-harm as CToken.borrowBalanceCurrent() only updates accured interest
+     */
+    function calcAmountToLiquidate(
+        ICToken debtCToken,
+        uint256 underlyingAmtToLiquidate
+    )
+        external returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
+    {
+        uint256 amountToLiquidate = remainingLiquidationAmount;
+        if(! isPartiallyLiquidated()) {
+            amountToLiquidate = getMaxLiquidationAmount(debtCToken);
+        }
+        (amtToDeductFromTopup, amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, amountToLiquidate);
+    }
 }
