@@ -11,7 +11,11 @@ contract BErc20 is BToken {
 
     IERC20 public underlying;
 
-    constructor(address _registry, address _cToken, address _pool) public BToken(_registry, _cToken, _pool) {
+    constructor(
+        address _registry,
+        address _cToken,
+        address _pool
+    ) public BToken(_registry, _cToken, _pool) {
         underlying = ICToken(cToken).underlying();
     }
 
@@ -22,8 +26,12 @@ contract BErc20 is BToken {
     function mint(uint256 mintAmount) external returns (uint256) {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
         underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
-        _avatar.mint(cToken, mintAmount);
+        // TODO tokens can be lost in case CToken returns error
+        // TODO add test
+        uint256 result = _avatar.mint(cToken, mintAmount);
+        // TODO also score should only be updated when mint success
         updateCollScore(msg.sender, cToken, toInt256(mintAmount));
+        return result;
     }
 
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
@@ -37,5 +45,4 @@ contract BErc20 is BToken {
         updateDebtScore(msg.sender, cToken, -toInt256(repayAmount));
         return result;
     }
-
 }

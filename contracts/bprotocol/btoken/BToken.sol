@@ -1,22 +1,21 @@
 pragma solidity 0.5.16;
 
-// interface
+// Interface
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IAvatar } from "../interfaces/IAvatar.sol";
-import { IAvatarCEther } from "../interfaces/IAvatar.sol";
-import { IAvatarCErc20 } from "../interfaces/IAvatar.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 
 import { BTokenScore } from "../scoring/BTokenScore.sol";
 
 // Libs
+import { Exponential } from "../lib/Exponential.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
  * @title BToken is BProtocol token contract which represents the Compound's CToken
  */
-contract BToken is BTokenScore {
+contract BToken is BTokenScore, Exponential {
     using SafeERC20 for IERC20;
 
     // BProtocol Registry contract
@@ -25,54 +24,27 @@ contract BToken is BTokenScore {
     address public cToken;
     // Pool contract
     address public pool;
-    bool public isCEther = false;
-    IERC20 public underlying;
 
-    constructor(address _registry, address _cToken, address _pool) public {
+    constructor(address _registry, address _cToken, address _pool) internal {
         registry = IRegistry(_registry);
         cToken = _cToken;
         pool = _pool;
-        isCEther = _cToken == registry.cEther();
-        if(! isCEther) underlying = ICToken(cToken).underlying();
     }
 
     function avatar() public returns (IAvatar) {
         return IAvatar(registry.getAvatar(msg.sender));
     }
 
-    function _iAvatarCEther() internal returns (IAvatarCEther) {
-        return IAvatarCEther(address(avatar()));
-    }
-
-    function _iAvatarCErc20() internal returns (IAvatarCErc20) {
-        return IAvatarCErc20(address(avatar()));
-    }
-
-    function toUnderlying(uint256 redeemTokens) internal returns (uint256) {
+    function _toUnderlying(uint256 redeemTokens) internal returns (uint256) {
         uint256 exchangeRate = ICToken(cToken).exchangeRateCurrent();
         return mulTrucate(redeemTokens, exchangeRate);
-    }
-
-    // Math functions
-    // ===============
-    function mulTrucate(uint a, uint b) internal pure returns (uint) {
-        return mul_(a, b) / 1e18;
-    }
-
-    function mul_(uint a, uint b) internal pure returns (uint) {
-        if (a == 0 || b == 0) {
-            return 0;
-        }
-        uint c = a * b;
-        require(c / a == b);
-        return c;
     }
 
     // CEther / CErc20
     // ===============
     function redeem(uint256 redeemTokens) external returns (uint256) {
         uint256 result = avatar().redeem(cToken, redeemTokens);
-        uint256 underlyingRedeemAmount = toUnderlying(redeemTokens);
+        uint256 underlyingRedeemAmount = _toUnderlying(redeemTokens);
         updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
         return result;
     }
@@ -104,12 +76,12 @@ contract BToken is BTokenScore {
         external
         payable
     {
-        require(registry.isAvatarExist(targetAvatar), "avatar-not-exists");
-        require(msg.sender == pool, "only-pool-is-authorized");
+        require(registry.isAvatarExist(targetAvatar), "BToken: avatar-not-exists");
+        require(msg.sender == pool, "BToken: only-pool-is-authorized");
 
         uint256 seizedCTokens = IAvatar(targetAvatar).liquidateBorrow.value(msg.value)(cToken, amount, collateral);
         // Convert seizedCToken to underlyingTokens
-        uint256 underlyingSeizedTokens = toUnderlying(seizedCTokens);
+        uint256 underlyingSeizedTokens = _toUnderlying(seizedCTokens);
         updateCollScore(targetAvatar, cToken, -toInt256(underlyingSeizedTokens));
         updateDebtScore(targetAvatar, collateral, -toInt256(amount));
     }
@@ -118,7 +90,7 @@ contract BToken is BTokenScore {
     // =======
     function transfer(address dst, uint256 amount) external returns (bool) {
         bool result = avatar().transfer(cToken, dst, amount);
-        uint256 underlyingRedeemAmount = toUnderlying(amount);
+        uint256 underlyingRedeemAmount = _toUnderlying(amount);
         updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
         return result;
     }
@@ -126,7 +98,7 @@ contract BToken is BTokenScore {
     function transferFrom(address src, address dst, uint256 amount) external returns (bool) {
         bool result = avatar().transferFrom(cToken, src, dst, amount);
 
-        uint256 underlyingRedeemAmount = toUnderlying(amount);
+        uint256 underlyingRedeemAmount = _toUnderlying(amount);
         // If src is an Avatar, deduct coll score
         address srcUser = registry.userOf(src);
         if(srcUser != address(0)) updateCollScore(srcUser, cToken, -toInt256(underlyingRedeemAmount));
