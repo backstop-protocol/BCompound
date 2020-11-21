@@ -18,6 +18,16 @@ contract AbsCToken is Cushion {
         _;
     }
 
+    modifier prePoolOp(ICToken cToken, uint256 repayBorrowAmount) {
+        if(toppedUpAmount > 0) {
+            uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
+            if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
+                _untop();
+            }
+        }
+        _;
+    }
+
     function isValidBToken(address bToken) internal view returns (bool) {
         return bComptroller.isBToken(bToken);
     }
