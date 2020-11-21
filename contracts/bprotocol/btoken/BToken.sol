@@ -44,6 +44,7 @@ contract BToken is BTokenScore, Exponential {
     // ===============
     function redeem(uint256 redeemTokens) external returns (uint256) {
         uint256 result = avatar().redeem(cToken, redeemTokens);
+        require(result == 0, "BToken: redeem-failed");
         uint256 underlyingRedeemAmount = _toUnderlying(redeemTokens);
         updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
         return result;
@@ -51,12 +52,14 @@ contract BToken is BTokenScore, Exponential {
 
     function redeemUnderlying(uint256 redeemAmount) external returns (uint256) {
         uint256 result = avatar().redeemUnderlying(cToken, redeemAmount);
+        require(result == 0, "BToken: redeemUnderlying-failed");
         updateCollScore(msg.sender, cToken, -toInt256(redeemAmount));
         return result;
     }
 
     function borrow(uint256 borrowAmount) external returns (uint256) {
         uint256 result = avatar().borrow(cToken, borrowAmount);
+        require(result == 0, "BToken: borrow-failed");
         updateDebtScore(msg.sender, cToken, toInt256(borrowAmount));
         return result;
     }
@@ -90,6 +93,7 @@ contract BToken is BTokenScore, Exponential {
     // =======
     function transfer(address dst, uint256 amount) external returns (bool) {
         bool result = avatar().transfer(cToken, dst, amount);
+        require(result, "BToken: transfer-failed");
         uint256 underlyingRedeemAmount = _toUnderlying(amount);
         updateCollScore(msg.sender, cToken, -toInt256(underlyingRedeemAmount));
         return result;
@@ -97,6 +101,7 @@ contract BToken is BTokenScore, Exponential {
 
     function transferFrom(address src, address dst, uint256 amount) external returns (bool) {
         bool result = avatar().transferFrom(cToken, src, dst, amount);
+        require(result, "BToken: transferFrom-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(amount);
         // If src is an Avatar, deduct coll score

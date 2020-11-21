@@ -26,10 +26,8 @@ contract BErc20 is BToken {
     function mint(uint256 mintAmount) external returns (uint256) {
         IAvatarCErc20 _avatar = _iAvatarCErc20();
         underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
-        // TODO tokens can be lost in case CToken returns error
-        // TODO add test
         uint256 result = _avatar.mint(cToken, mintAmount);
-        // TODO also score should only be updated when mint success
+        require(result == 0, "BErc20: mint-failed");
         updateCollScore(msg.sender, cToken, toInt256(mintAmount));
         return result;
     }
@@ -42,6 +40,7 @@ contract BErc20 is BToken {
         }
         underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
         uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
+        require(result == 0, "BErc20: repayBorrow-failed");
         updateDebtScore(msg.sender, cToken, -toInt256(repayAmount));
         return result;
     }
