@@ -40,7 +40,7 @@ contract AbsCToken is Cushion {
     // CEther
     // ======
     function mint(ICEther cEther) public payable onlyBToken postPoolOp(false) {
-        cEther.mint.value(msg.value)();
+        cEther.mint.value(msg.value)(); // fails on compound in case of err
     }
 
     function repayBorrow()
@@ -50,7 +50,10 @@ contract AbsCToken is Cushion {
         prePoolOp(cETH, msg.value)
         postPoolOp(false)
     {
-        cETH.repayBorrow.value(msg.value)();
+        uint256 amtToUntop = msg.value >= toppedUpAmount ? toppedUpAmount : msg.value;
+        _untopPartial(amtToUntop);
+        uint256 amtToRepay = sub_(msg.value, amtToUntop);
+        cETH.repayBorrow.value(amtToRepay)(); // fails on compound in case of err
     }
 
     // CToken
@@ -58,6 +61,25 @@ contract AbsCToken is Cushion {
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
         uint256 result = cToken.mint(mintAmount);
         return result;
+    }
+
+    function repayBorrow(ICErc20 cToken, uint256 repayAmount)
+        external
+        onlyBToken
+        prePoolOp(cToken, repayAmount)
+        postPoolOp(false)
+        returns (uint256)
+    {
+        if(cToken == toppedUpCToken) {
+            // when repaying toppedUpCToken
+            uint256 amtToUntop = repayAmount >= toppedUpAmount ? toppedUpAmount : repayAmount;
+            _untopPartial(amtToUntop);
+            uint256 amtToRepay = sub_(repayAmount, amtToUntop);
+            if(amtToRepay > 0) return cToken.repayBorrow(amtToRepay); // in case of err, tx fails at BToken
+            return 0; // no-error
+        } else {
+            return cToken.repayBorrow(repayAmount);
+        }
     }
 
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
@@ -96,17 +118,6 @@ contract AbsCToken is Cushion {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(owner, borrowAmount);
         }
-        return result;
-    }
-
-    function repayBorrow(ICErc20 cToken, uint256 repayAmount)
-        external
-        onlyBToken
-        prePoolOp(cToken, repayAmount)
-        postPoolOp(false)
-        returns (uint256)
-    {
-        uint256 result = cToken.repayBorrow(repayAmount);
         return result;
     }
 
