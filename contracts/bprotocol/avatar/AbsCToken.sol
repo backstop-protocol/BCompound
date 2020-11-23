@@ -33,8 +33,9 @@ contract AbsCToken is Cushion {
     }
 
     function borrowBalanceCurrent(ICToken cToken) public returns (uint256) {
-        uint256 _borrowBalanceCurrent = cToken.borrowBalanceCurrent(address(this));
-        return add_(_borrowBalanceCurrent, toppedUpAmount);
+        uint256 borrowBalanceCurr = cToken.borrowBalanceCurrent(address(this));
+        if(toppedUpCToken == cToken) return add_(borrowBalanceCurr, toppedUpAmount);
+        return borrowBalanceCurr;
     }
 
     // CEther

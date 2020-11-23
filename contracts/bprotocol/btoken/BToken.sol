@@ -43,13 +43,7 @@ contract BToken is BTokenScore, Exponential {
     // CEther / CErc20
     // ===============
     function borrowBalanceCurrent(address _avatar) external returns (uint256) {
-        address toppedUpCToken = IAvatar(_avatar).toppedUpCToken();
-        if(toppedUpCToken == cToken) {
-            uint256 toppedUpAmount = IAvatar(_avatar).toppedUpAmount();
-            return add_(toppedUpAmount, ICToken(cToken).borrowBalanceCurrent(_avatar));
-        } else {
-            return ICToken(cToken).borrowBalanceCurrent(_avatar);
-        }
+        return IAvatar(_avatar).borrowBalanceCurrent(cToken);
     }
 
     function redeem(uint256 redeemTokens) external returns (uint256) {
