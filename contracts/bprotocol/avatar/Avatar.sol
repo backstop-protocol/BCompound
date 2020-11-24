@@ -16,7 +16,7 @@ contract Avatar is AbsComptroller, AbsCToken {
 
     /**
      * @dev Constructor
-     * @param _owner Owner of the Avatar contract
+     * @param _avatarOwner Owner of the Avatar contract
      * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
@@ -24,7 +24,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @param _cETH cETH contract address
      */
     constructor(
-        address _owner,
+        address _avatarOwner,
         address _pool,
         address _bComptroller,
         address _comptroller,
@@ -33,7 +33,7 @@ contract Avatar is AbsComptroller, AbsCToken {
     )
         public
         AvatarBase(
-            _owner,
+            _avatarOwner,
             _pool,
             _bComptroller,
             _comptroller,
@@ -47,9 +47,9 @@ contract Avatar is AbsComptroller, AbsCToken {
     /**
      * @dev Mint cETH using ETH and enter market on Compound
      */
-    function mint(ICEther cEther) public payable {
-        super.mint(cEther);
-        require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
+    function mint() public payable {
+        super.mint();
+        require(_enterMarket(address(cETH)) == 0, "enterMarket-failed");
     }
 
     //override

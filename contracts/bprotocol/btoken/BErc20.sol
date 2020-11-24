@@ -28,7 +28,6 @@ contract BErc20 is BToken {
         underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
         uint256 result = _avatar.mint(cToken, mintAmount);
         require(result == 0, "BErc20: mint-failed");
-        updateCollScore(msg.sender, cToken, toInt256(mintAmount));
         return result;
     }
 
@@ -41,7 +40,6 @@ contract BErc20 is BToken {
         underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
         uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
         require(result == 0, "BErc20: repayBorrow-failed");
-        updateDebtScore(msg.sender, cToken, -toInt256(repayAmount));
         return result;
     }
 }

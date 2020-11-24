@@ -18,13 +18,11 @@ contract BEther is BToken {
 
     function mint() external payable {
         // CEther calls requireNoError() to ensure no failures
-        _iAvatarCEther().mint.value(msg.value)(cToken);
-        updateCollScore(msg.sender, cToken, toInt256(msg.value));
+        _iAvatarCEther().mint.value(msg.value)();
     }
 
     function repayBorrow() external payable {
         // CEther calls requireNoError() to ensure no failures
         _iAvatarCEther().repayBorrow.value(msg.value)();
-        updateDebtScore(msg.sender, cToken, -toInt256(msg.value));
     }
 }

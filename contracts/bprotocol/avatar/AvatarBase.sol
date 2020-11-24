@@ -7,6 +7,7 @@ import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IBComptroller } from "../interfaces/IBComptroller.sol";
+import { IRegistry } from "../interfaces/IRegistry.sol";
 
 import { Exponential } from "../lib/Exponential.sol";
 
@@ -17,8 +18,9 @@ contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
     // Owner of the Avatar
-    address payable public owner;
+    address payable public avatarOwner;
     address payable public pool;
+    IRegistry public registry;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
     IERC20 public comp;
@@ -51,6 +53,7 @@ contract AvatarBase is Exponential {
 
     /**
      * @dev Constructor
+     * @param _avatarOwner Owner of this avatar instance
      * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
@@ -58,7 +61,7 @@ contract AvatarBase is Exponential {
      * @param _cETH cETH contract address
      */
     constructor(
-        address _owner,
+        address _avatarOwner,
         address _pool,
         address _bComptroller,
         address _comptroller,
@@ -67,9 +70,9 @@ contract AvatarBase is Exponential {
     )
         internal
     {
-        // Converting `_owner` address to payable address here, so that we don't need to pass
+        // Converting `_avatarOwner` address to payable address here, so that we don't need to pass
         // `address payable` in inheritance hierarchy
-        owner = address(uint160(_owner));
+        avatarOwner = address(uint160(_avatarOwner));
         pool = address(uint160(_pool));
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);

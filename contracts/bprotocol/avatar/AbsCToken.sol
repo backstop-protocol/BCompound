@@ -8,10 +8,11 @@ import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
 import { Cushion } from "./Cushion.sol";
+import { BTokenScore } from "../scoring/BTokenScore.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AbsCToken is Cushion {
+contract AbsCToken is BTokenScore, Cushion {
 
     modifier onlyBToken() {
         require(isValidBToken(msg.sender), "only-BToken-is-authorized");
@@ -39,10 +40,16 @@ contract AbsCToken is Cushion {
         }
     }
 
+    function _toUnderlying(ICToken cToken, uint256 redeemTokens) internal returns (uint256) {
+        uint256 exchangeRate = cToken.exchangeRateCurrent();
+        return mulTrucate(redeemTokens, exchangeRate);
+    }
+
     // CEther
     // ======
-    function mint(ICEther cEther) public payable onlyBToken postPoolOp(false) {
-        cEther.mint.value(msg.value)(); // fails on compound in case of err
+    function mint() public payable onlyBToken postPoolOp(false) {
+        cETH.mint.value(msg.value)(); // fails on compound in case of err
+        updateCollScore(avatarOwner, address(cETH), toInt256(msg.value));
     }
 
     function repayBorrow()
@@ -53,12 +60,15 @@ contract AbsCToken is Cushion {
     {
         uint256 amtToRepayOnCompound = _untopPartial(cETH, msg.value);
         if(amtToRepayOnCompound > 0) cETH.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
+        updateDebtScore(avatarOwner, address(cETH), -toInt256(msg.value));
     }
 
     // CToken
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
-        return cToken.mint(mintAmount);
+        uint result = cToken.mint(mintAmount);
+        updateCollScore(avatarOwner, address(cToken), toInt256(mintAmount));
+        return result;
     }
 
     function repayBorrow(ICErc20 cToken, uint256 repayAmount)
@@ -69,21 +79,26 @@ contract AbsCToken is Cushion {
     {
         uint256 amtToRepayOnCompound = _untopPartial(cToken, repayAmount);
         if(amtToRepayOnCompound > 0) return cToken.repayBorrow(amtToRepayOnCompound); // in case of err, tx fails at BToken
+        updateDebtScore(avatarOwner, address(cToken), -toInt256(repayAmount));
         return 0; // no-err
     }
 
+    // CEther / CToken
+    // ===============
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
 
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
             // FIXME if we can calculate and send exact amount
-            owner.transfer(address(this).balance);
+            avatarOwner.transfer(address(this).balance);
         } else {
             IERC20 underlying = cToken.underlying();
             uint256 redeemedAmount = underlying.balanceOf(address(this));
-            underlying.safeTransfer(owner, redeemedAmount);
+            underlying.safeTransfer(avatarOwner, redeemedAmount);
         }
+        uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
+        updateCollScore(avatarOwner, address(cToken), -toInt256(underlyingRedeemAmount));
         return result;
     }
 
@@ -91,11 +106,12 @@ contract AbsCToken is Cushion {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
-            owner.transfer(redeemAmount);
+            avatarOwner.transfer(redeemAmount);
         } else {
             IERC20 underlying = cToken.underlying();
-            underlying.safeTransfer(owner, redeemAmount);
+            underlying.safeTransfer(avatarOwner, redeemAmount);
         }
+        updateCollScore(avatarOwner, address(cToken), -toInt256(redeemAmount));
         return result;
     }
 
@@ -103,11 +119,12 @@ contract AbsCToken is Cushion {
         uint256 result = cToken.borrow(borrowAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
-            owner.transfer(borrowAmount);
+            avatarOwner.transfer(borrowAmount);
         } else {
             IERC20 underlying = cToken.underlying();
-            underlying.safeTransfer(owner, borrowAmount);
+            underlying.safeTransfer(avatarOwner, borrowAmount);
         }
+        updateDebtScore(avatarOwner, address(cToken), toInt256(borrowAmount));
         return result;
     }
 
@@ -123,7 +140,12 @@ contract AbsCToken is Cushion {
         require(canLiquidate(), "cannot-liquidate");
         console.log("2. In liquidateBorrow");
 
-        return _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
+        uint256 seizedCTokens = _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
+        // Convert seizedCToken to underlyingTokens
+        uint256 underlyingSeizedTokens = _toUnderlying(debtCToken, seizedCTokens);
+        updateCollScore(avatarOwner, address(debtCToken), -toInt256(underlyingSeizedTokens));
+        updateDebtScore(avatarOwner, address(collCToken), -toInt256(underlyingAmtToLiquidate));
+        return 0;
     }
 
 
@@ -131,11 +153,23 @@ contract AbsCToken is Cushion {
     // ======
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         bool result = cToken.transfer(dst, amount);
+        uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
+        updateCollScore(avatarOwner, address(cToken), -toInt256(underlyingRedeemAmount));
         return result;
     }
 
     function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         bool result = cToken.transferFrom(src, dst, amount);
+
+        uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
+        // If src has an Avatar, deduct coll score
+        address srcAvatar = registry.getAvatar(src);
+        if(srcAvatar != address(0)) updateCollScore(src, address(cToken), -toInt256(underlyingRedeemAmount));
+
+        // if dst has an Avatar, increase coll score
+        address dstAvatar = registry.getAvatar(dst);
+        if(dstAvatar != address(0)) updateCollScore(dst, address(cToken), toInt256(underlyingRedeemAmount));
+
         return result;
     }
 

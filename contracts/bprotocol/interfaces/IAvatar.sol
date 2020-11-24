@@ -22,7 +22,7 @@ contract IAvatar is IERC20 {
 // Workaround for issue https://github.com/ethereum/solidity/issues/526
 // CEther
 contract IAvatarCEther is IAvatar {
-    function mint(address cEther) external payable;
+    function mint() external payable;
     function repayBorrow() external payable;
     function repayBorrowBehalf(address borrower) external payable;
 }
