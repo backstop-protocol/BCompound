@@ -6,6 +6,7 @@ import "@nomiclabs/buidler/console.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+import { IScore } from "../interfaces/IScore.sol";
 
 import { Cushion } from "./Cushion.sol";
 
@@ -142,8 +143,9 @@ contract AbsCToken is Cushion {
         uint256 seizedCTokens = _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
         // Convert seizedCToken to underlyingTokens
         uint256 underlyingSeizedTokens = _toUnderlying(debtCToken, seizedCTokens);
-        _score().updateCollScore(avatarOwner, address(debtCToken), -toInt256(underlyingSeizedTokens));
-        _score().updateDebtScore(avatarOwner, address(collCToken), -toInt256(underlyingAmtToLiquidate));
+        IScore score = _score();
+        score.updateCollScore(avatarOwner, address(debtCToken), -toInt256(underlyingSeizedTokens));
+        score.updateDebtScore(avatarOwner, address(collCToken), -toInt256(underlyingAmtToLiquidate));
         return 0;
     }
 
