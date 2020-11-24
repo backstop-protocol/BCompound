@@ -18,16 +18,6 @@ contract AbsCToken is Cushion {
         _;
     }
 
-    modifier prePoolOp(ICToken cToken, uint256 repayBorrowAmount) {
-        if(toppedUpAmount > 0) {
-            uint256 currentBorrowBalance = cToken.borrowBalanceCurrent(address(this));
-            if(add_(repayBorrowAmount, toppedUpAmount) >= currentBorrowBalance) {
-                _untop();
-            }
-        }
-        _;
-    }
-
     function isValidBToken(address bToken) internal view returns (bool) {
         return bComptroller.isBToken(bToken);
     }
@@ -38,27 +28,48 @@ contract AbsCToken is Cushion {
         return borrowBalanceCurr;
     }
 
+    function _untopPartial(ICToken cToken, uint256 repayAmount) internal returns (uint256 amtToRepayOnCompound) {
+        if(toppedUpAmount > 0 && cToken == toppedUpCToken) {
+            // consume debt from cushion first
+            uint256 amtToUntopFromB = repayAmount >= toppedUpAmount ? toppedUpAmount : repayAmount;
+            super._untopPartial(amtToUntopFromB);
+            amtToRepayOnCompound = sub_(repayAmount, amtToUntopFromB);
+        } else {
+            amtToRepayOnCompound = repayAmount;
+        }
+    }
+
     // CEther
     // ======
     function mint(ICEther cEther) public payable onlyBToken postPoolOp(false) {
-        cEther.mint.value(msg.value)();
+        cEther.mint.value(msg.value)(); // fails on compound in case of err
     }
 
     function repayBorrow()
         external
         payable
         onlyBToken
-        prePoolOp(cETH, msg.value)
         postPoolOp(false)
     {
-        cETH.repayBorrow.value(msg.value)();
+        uint256 amtToRepayOnCompound = _untopPartial(cETH, msg.value);
+        if(amtToRepayOnCompound > 0) cETH.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
     }
 
     // CToken
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
-        uint256 result = cToken.mint(mintAmount);
-        return result;
+        return cToken.mint(mintAmount);
+    }
+
+    function repayBorrow(ICErc20 cToken, uint256 repayAmount)
+        external
+        onlyBToken
+        postPoolOp(false)
+        returns (uint256)
+    {
+        uint256 amtToRepayOnCompound = _untopPartial(cToken, repayAmount);
+        if(amtToRepayOnCompound > 0) return cToken.repayBorrow(amtToRepayOnCompound); // in case of err, tx fails at BToken
+        return 0; // no-err
     }
 
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
@@ -97,17 +108,6 @@ contract AbsCToken is Cushion {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(owner, borrowAmount);
         }
-        return result;
-    }
-
-    function repayBorrow(ICErc20 cToken, uint256 repayAmount)
-        external
-        onlyBToken
-        prePoolOp(cToken, repayAmount)
-        postPoolOp(false)
-        returns (uint256)
-    {
-        uint256 result = cToken.repayBorrow(repayAmount);
         return result;
     }
 

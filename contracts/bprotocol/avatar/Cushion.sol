@@ -94,6 +94,27 @@ contract Cushion is AvatarBase {
         toppedUpAmount = 0;
     }
 
+    function _untopPartial(uint256 amount) internal {
+        require(amount <= toppedUpAmount, "Cushion: partial-untop-not-allowed");
+
+        // 1. when already untopped, return
+        if(!isToppedUp()) return;
+
+        if(address(toppedUpCToken) == address(cETH)) {
+            // 2. Send borrowed ETH to Pool contract
+            // Sending ETH to Pool using `.send()` to avoid DoS attack
+            bool success = pool.send(amount);
+            success; // shh: Not checking return value to avoid DoS attack
+        } else {
+            // 2. Transfer borrowed amount to Pool contract
+            IERC20 underlying = toppedUpCToken.underlying();
+            underlying.safeTransfer(pool, amount);
+        }
+
+        // 3. Udpdate storage for toppedUp details
+        toppedUpAmount = sub_(toppedUpAmount, amount);
+    }
+
     function _doLiquidateBorrow(
         ICToken debtCToken,
         uint256 underlyingAmtToLiquidate,
