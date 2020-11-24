@@ -42,7 +42,8 @@ contract BToken is BTokenScore, Exponential {
 
     // CEther / CErc20
     // ===============
-    function borrowBalanceCurrent(address _avatar) external returns (uint256) {
+    function borrowBalanceCurrent(address account) external returns (uint256) {
+        address _avatar = registry.getAvatar(account);
         return IAvatar(_avatar).borrowBalanceCurrent(cToken);
     }
 
