@@ -34,6 +34,7 @@ export class BProtocol {
     public registry!: t.RegistryInstance;
     public bTokens: Map<string, t.BTokenInstance> = new Map();
     public jar!: string;
+    public score!: string;
 
     // variable to hold all Compound contracts
     public compound!: Compound;
@@ -66,6 +67,7 @@ export class BProtocolEngine {
         // Use 9th account as Pool
         _bProtocol.pool = this.accounts[9];
         _bProtocol.jar = this.accounts[8]; // TODO
+        _bProtocol.score = this.accounts[7]; // TODO
         _bProtocol.bComptroller = await this.deployBComptroller();
         _bProtocol.registry = await this.deployRegistry();
 
@@ -102,7 +104,8 @@ export class BProtocolEngine {
         const priceOracle = this.compoundUtil.getPriceOracle();
         const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
-        return await Registry.new(comptroller, comp, cETH, priceOracle, pool, bComptroller);
+        const bScore = this.bProtocol.score;
+        return await Registry.new(comptroller, comp, cETH, priceOracle, pool, bComptroller, bScore);
     }
 
     public getBProtocol(): BProtocol {

@@ -8,11 +8,10 @@ import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
 import { Cushion } from "./Cushion.sol";
-import { BTokenScore } from "../scoring/BTokenScore.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AbsCToken is BTokenScore, Cushion {
+contract AbsCToken is Cushion {
 
     modifier onlyBToken() {
         require(isValidBToken(msg.sender), "only-BToken-is-authorized");
@@ -49,7 +48,7 @@ contract AbsCToken is BTokenScore, Cushion {
     // ======
     function mint() public payable onlyBToken postPoolOp(false) {
         cETH.mint.value(msg.value)(); // fails on compound in case of err
-        updateCollScore(avatarOwner, address(cETH), toInt256(msg.value));
+        _score().updateCollScore(avatarOwner, address(cETH), toInt256(msg.value));
     }
 
     function repayBorrow()
@@ -60,14 +59,14 @@ contract AbsCToken is BTokenScore, Cushion {
     {
         uint256 amtToRepayOnCompound = _untopPartial(cETH, msg.value);
         if(amtToRepayOnCompound > 0) cETH.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
-        updateDebtScore(avatarOwner, address(cETH), -toInt256(msg.value));
+        _score().updateDebtScore(avatarOwner, address(cETH), -toInt256(msg.value));
     }
 
     // CToken
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
         uint result = cToken.mint(mintAmount);
-        updateCollScore(avatarOwner, address(cToken), toInt256(mintAmount));
+        _score().updateCollScore(avatarOwner, address(cToken), toInt256(mintAmount));
         return result;
     }
 
@@ -79,7 +78,7 @@ contract AbsCToken is BTokenScore, Cushion {
     {
         uint256 amtToRepayOnCompound = _untopPartial(cToken, repayAmount);
         if(amtToRepayOnCompound > 0) return cToken.repayBorrow(amtToRepayOnCompound); // in case of err, tx fails at BToken
-        updateDebtScore(avatarOwner, address(cToken), -toInt256(repayAmount));
+        _score().updateDebtScore(avatarOwner, address(cToken), -toInt256(repayAmount));
         return 0; // no-err
     }
 
@@ -98,7 +97,7 @@ contract AbsCToken is BTokenScore, Cushion {
             underlying.safeTransfer(avatarOwner, redeemedAmount);
         }
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
-        updateCollScore(avatarOwner, address(cToken), -toInt256(underlyingRedeemAmount));
+        _score().updateCollScore(avatarOwner, address(cToken), -toInt256(underlyingRedeemAmount));
         return result;
     }
 
@@ -111,7 +110,7 @@ contract AbsCToken is BTokenScore, Cushion {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(avatarOwner, redeemAmount);
         }
-        updateCollScore(avatarOwner, address(cToken), -toInt256(redeemAmount));
+        _score().updateCollScore(avatarOwner, address(cToken), -toInt256(redeemAmount));
         return result;
     }
 
@@ -124,7 +123,7 @@ contract AbsCToken is BTokenScore, Cushion {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(avatarOwner, borrowAmount);
         }
-        updateDebtScore(avatarOwner, address(cToken), toInt256(borrowAmount));
+        _score().updateDebtScore(avatarOwner, address(cToken), toInt256(borrowAmount));
         return result;
     }
 
@@ -143,8 +142,8 @@ contract AbsCToken is BTokenScore, Cushion {
         uint256 seizedCTokens = _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
         // Convert seizedCToken to underlyingTokens
         uint256 underlyingSeizedTokens = _toUnderlying(debtCToken, seizedCTokens);
-        updateCollScore(avatarOwner, address(debtCToken), -toInt256(underlyingSeizedTokens));
-        updateDebtScore(avatarOwner, address(collCToken), -toInt256(underlyingAmtToLiquidate));
+        _score().updateCollScore(avatarOwner, address(debtCToken), -toInt256(underlyingSeizedTokens));
+        _score().updateDebtScore(avatarOwner, address(collCToken), -toInt256(underlyingAmtToLiquidate));
         return 0;
     }
 
@@ -154,7 +153,7 @@ contract AbsCToken is BTokenScore, Cushion {
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         bool result = cToken.transfer(dst, amount);
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
-        updateCollScore(avatarOwner, address(cToken), -toInt256(underlyingRedeemAmount));
+        _score().updateCollScore(avatarOwner, address(cToken), -toInt256(underlyingRedeemAmount));
         return result;
     }
 
@@ -164,11 +163,11 @@ contract AbsCToken is BTokenScore, Cushion {
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
         // If src has an Avatar, deduct coll score
         address srcAvatar = registry.getAvatar(src);
-        if(srcAvatar != address(0)) updateCollScore(src, address(cToken), -toInt256(underlyingRedeemAmount));
+        if(srcAvatar != address(0)) _score().updateCollScore(src, address(cToken), -toInt256(underlyingRedeemAmount));
 
         // if dst has an Avatar, increase coll score
         address dstAvatar = registry.getAvatar(dst);
-        if(dstAvatar != address(0)) updateCollScore(dst, address(cToken), toInt256(underlyingRedeemAmount));
+        if(dstAvatar != address(0)) _score().updateCollScore(dst, address(cToken), toInt256(underlyingRedeemAmount));
 
         return result;
     }

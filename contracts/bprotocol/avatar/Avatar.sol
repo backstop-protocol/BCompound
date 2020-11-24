@@ -22,6 +22,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @param _comptroller Compound finance Comptroller contract address
      * @param _comp Compound finance COMP token contract address
      * @param _cETH cETH contract address
+     * @param _registry Registry contract address
      */
     constructor(
         address _avatarOwner,
@@ -29,7 +30,8 @@ contract Avatar is AbsComptroller, AbsCToken {
         address _bComptroller,
         address _comptroller,
         address _comp,
-        address _cETH
+        address _cETH,
+        address _registry
     )
         public
         AvatarBase(
@@ -38,7 +40,8 @@ contract Avatar is AbsComptroller, AbsCToken {
             _bComptroller,
             _comptroller,
             _comp,
-            _cETH
+            _cETH,
+            _registry
         )
     {
     }

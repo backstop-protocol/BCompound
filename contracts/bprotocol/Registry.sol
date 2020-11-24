@@ -16,6 +16,7 @@ contract Registry {
     // BProtocol Contracts
     address public pool;
     address public bComptroller;
+    address public score;
 
     // User => Avatar
     mapping (address => address) public u2a;
@@ -31,7 +32,8 @@ contract Registry {
         address _cEther,
         address _priceOracle,
         address _pool,
-        address _bComptroller
+        address _bComptroller,
+        address _score
     )
         public
     {
@@ -41,6 +43,7 @@ contract Registry {
         priceOracle = _priceOracle;
         pool = _pool;
         bComptroller = _bComptroller;
+        score = _score;
     }
 
     function newAvatar() external returns (address) {
@@ -84,7 +87,7 @@ contract Registry {
      * @return Returns the address of the newly deployed Avatar contract
      */
     function _deployNewAvatar(address user) internal returns (address) {
-        return address(new Avatar(user, pool, bComptroller, comptroller, comp, cEther));
+        return address(new Avatar(user, pool, bComptroller, comptroller, comp, cEther, address(this)));
     }
 
     function isAvatarExist(address avatar) public view returns (bool) {

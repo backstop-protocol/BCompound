@@ -8,6 +8,7 @@ import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IBComptroller } from "../interfaces/IBComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
+import { IScore } from "../interfaces/IScore.sol";
 
 import { Exponential } from "../lib/Exponential.sol";
 
@@ -59,6 +60,7 @@ contract AvatarBase is Exponential {
      * @param _comptroller Compound finance Comptroller contract address
      * @param _comp Compound finance COMP token contract address
      * @param _cETH cETH contract address
+     * @param _registry Registry contract address
      */
     constructor(
         address _avatarOwner,
@@ -66,7 +68,8 @@ contract AvatarBase is Exponential {
         address _bComptroller,
         address _comptroller,
         address _comp,
-        address _cETH
+        address _cETH,
+        address _registry
     )
         internal
     {
@@ -78,6 +81,7 @@ contract AvatarBase is Exponential {
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
         cETH = ICEther(_cETH);
+        registry = IRegistry(_registry);
     }
 
     /**
@@ -109,6 +113,16 @@ contract AvatarBase is Exponential {
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
         return address(cToken) == address(cETH);
+    }
+
+    function _score() internal view returns (IScore) {
+        return IScore(registry.score());
+    }
+
+    function toInt256(uint256 value) internal pure returns (int256) {
+        int256 result = int256(value);
+        require(result >= 0, "Cast from uint to int failed");
+        return result;
     }
 
     function isPartiallyLiquidated() public view returns (bool) {
