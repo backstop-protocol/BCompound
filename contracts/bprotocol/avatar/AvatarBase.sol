@@ -7,6 +7,8 @@ import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IBComptroller } from "../interfaces/IBComptroller.sol";
+import { IRegistry } from "../interfaces/IRegistry.sol";
+import { IScore } from "../interfaces/IScore.sol";
 
 import { Exponential } from "../lib/Exponential.sol";
 
@@ -17,8 +19,9 @@ contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
     // Owner of the Avatar
-    address payable public owner;
+    address payable public avatarOwner;
     address payable public pool;
+    IRegistry public registry;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
     IERC20 public comp;
@@ -51,30 +54,34 @@ contract AvatarBase is Exponential {
 
     /**
      * @dev Constructor
+     * @param _avatarOwner Owner of this avatar instance
      * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
      * @param _comp Compound finance COMP token contract address
      * @param _cETH cETH contract address
+     * @param _registry Registry contract address
      */
     constructor(
-        address _owner,
+        address _avatarOwner,
         address _pool,
         address _bComptroller,
         address _comptroller,
         address _comp,
-        address _cETH
+        address _cETH,
+        address _registry
     )
         internal
     {
-        // Converting `_owner` address to payable address here, so that we don't need to pass
+        // Converting `_avatarOwner` address to payable address here, so that we don't need to pass
         // `address payable` in inheritance hierarchy
-        owner = address(uint160(_owner));
+        avatarOwner = address(uint160(_avatarOwner));
         pool = address(uint160(_pool));
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
         cETH = ICEther(_cETH);
+        registry = IRegistry(_registry);
     }
 
     /**
@@ -106,6 +113,16 @@ contract AvatarBase is Exponential {
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
         return address(cToken) == address(cETH);
+    }
+
+    function _score() internal view returns (IScore) {
+        return IScore(registry.score());
+    }
+
+    function toInt256(uint256 value) internal pure returns (int256) {
+        int256 result = int256(value);
+        require(result >= 0, "Cast from uint to int failed");
+        return result;
     }
 
     function isPartiallyLiquidated() public view returns (bool) {
