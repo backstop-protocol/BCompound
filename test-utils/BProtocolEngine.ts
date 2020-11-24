@@ -17,6 +17,7 @@ const Registry: t.RegistryContract = artifacts.require("Registry");
 const BEther: t.BEtherContract = artifacts.require("BEther");
 const BErc20: t.BErc20Contract = artifacts.require("BErc20");
 const Avatar: t.AvatarContract = artifacts.require("Avatar");
+const BTokenScore: t.BTokenScoreContract = artifacts.require("BTokenScore");
 
 // Compound class to store all Compound deployed contracts
 export class Compound {
@@ -34,7 +35,7 @@ export class BProtocol {
     public registry!: t.RegistryInstance;
     public bTokens: Map<string, t.BTokenInstance> = new Map();
     public jar!: string;
-    public score!: string;
+    public score!: t.BTokenScoreInstance;
 
     // variable to hold all Compound contracts
     public compound!: Compound;
@@ -67,10 +68,11 @@ export class BProtocolEngine {
         // Use 9th account as Pool
         _bProtocol.pool = this.accounts[9];
         _bProtocol.jar = this.accounts[8]; // TODO
-        _bProtocol.score = this.accounts[7]; // TODO
         _bProtocol.bComptroller = await this.deployBComptroller();
+        _bProtocol.score = await this.deployScore();
         _bProtocol.registry = await this.deployRegistry();
 
+        await _bProtocol.score.setRegistry(_bProtocol.registry.address);
         await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
 
         _bProtocol.compound = new Compound();
@@ -91,6 +93,10 @@ export class BProtocolEngine {
         return await Pool.new(cETH, this.bProtocol.jar);
     }
 
+    private async deployScore(): Promise<t.BTokenScoreInstance> {
+        return await BTokenScore.new();
+    }
+
     // Deploy BComptroller contract
     private async deployBComptroller(): Promise<t.BComptrollerInstance> {
         return await BComptroller.new(this.bProtocol.pool);
@@ -104,7 +110,7 @@ export class BProtocolEngine {
         const priceOracle = this.compoundUtil.getPriceOracle();
         const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
-        const bScore = this.bProtocol.score;
+        const bScore = this.bProtocol.score.address;
         return await Registry.new(comptroller, comp, cETH, priceOracle, pool, bComptroller, bScore);
     }
 

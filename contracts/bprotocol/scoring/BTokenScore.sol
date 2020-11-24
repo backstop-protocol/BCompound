@@ -14,7 +14,8 @@ contract BTokenScore is ScoringMachine {
         _;
     }
 
-    constructor(address _registry) public {
+    function setRegistry(address _registry) public onlyOwner {
+        require(address(registry) == address(0), "Score: registry-already-set");
         registry = IRegistry(_registry);
     }
 
