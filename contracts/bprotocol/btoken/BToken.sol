@@ -42,6 +42,11 @@ contract BToken is BTokenScore, Exponential {
 
     // CEther / CErc20
     // ===============
+    function borrowBalanceCurrent(address account) external returns (uint256) {
+        address _avatar = registry.getAvatar(account);
+        return IAvatar(_avatar).borrowBalanceCurrent(cToken);
+    }
+
     function redeem(uint256 redeemTokens) external returns (uint256) {
         uint256 result = avatar().redeem(cToken, redeemTokens);
         require(result == 0, "BToken: redeem-failed");
