@@ -63,7 +63,12 @@ contract AbsCToken is Cushion {
         _score().updateDebtScore(address(this), address(cETH), -toInt256(msg.value));
     }
 
-    // CToken
+    function liquidateBorrow(ICToken cTokenCollateral) external payable onlyBToken {
+        _liquidateBorrow(msg.value, cTokenCollateral);
+    }
+
+
+    // CErc20
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
         uint result = cToken.mint(mintAmount);
@@ -83,8 +88,26 @@ contract AbsCToken is Cushion {
         return 0; // no-err
     }
 
-    // CEther / CToken
+    function liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyBToken returns (uint256) {
+        _liquidateBorrow(underlyingAmtToLiquidate, cTokenCollateral);
+        return 0;
+    }
+
+    // CEther / CErc20
     // ===============
+    function _liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) internal returns (uint256) {
+        // 1. Can liquidate?
+        require(canLiquidate(), "cannot-liquidate");
+
+        ICToken cTokenDebt = toppedUpCToken;
+        uint256 seizedCTokens = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidate, cTokenCollateral);
+        // Convert seizedCToken to underlyingTokens
+        uint256 underlyingSeizedTokens = _toUnderlying(cTokenDebt, seizedCTokens);
+        IScore score = _score();
+        score.updateCollScore(address(this), address(cTokenDebt), -toInt256(underlyingSeizedTokens));
+        score.updateDebtScore(address(this), address(cTokenCollateral), -toInt256(underlyingAmtToLiquidate));
+    }
+
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
 
@@ -127,28 +150,6 @@ contract AbsCToken is Cushion {
         _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
         return result;
     }
-
-    function liquidateBorrow(
-        ICToken debtCToken,
-        uint256 underlyingAmtToLiquidate,
-        ICToken collCToken
-    )
-        external payable onlyPool returns (uint256)
-    {
-        console.log("In liquidateBorrow");
-        // 1. Can liquidate?
-        require(canLiquidate(), "cannot-liquidate");
-        console.log("2. In liquidateBorrow");
-
-        uint256 seizedCTokens = _doLiquidateBorrow(debtCToken, underlyingAmtToLiquidate, collCToken);
-        // Convert seizedCToken to underlyingTokens
-        uint256 underlyingSeizedTokens = _toUnderlying(debtCToken, seizedCTokens);
-        IScore score = _score();
-        score.updateCollScore(address(this), address(debtCToken), -toInt256(underlyingSeizedTokens));
-        score.updateDebtScore(address(this), address(collCToken), -toInt256(underlyingAmtToLiquidate));
-        return 0;
-    }
-
 
     // ERC20
     // ======

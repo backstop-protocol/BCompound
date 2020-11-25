@@ -25,4 +25,9 @@ contract BEther is BToken {
         // CEther calls requireNoError() to ensure no failures
         _iAvatarCEther().repayBorrow.value(msg.value)();
     }
+
+    function liquidateBorrow(address borrower, address cTokenCollateral) external payable onlyPool {
+        address borrowerAvatar = registry.avatarOf(borrower);
+        IAvatarCEther(borrowerAvatar).liquidateBorrow.value(msg.value)(cTokenCollateral);
+    }
 }

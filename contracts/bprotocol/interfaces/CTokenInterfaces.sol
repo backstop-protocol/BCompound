@@ -31,14 +31,12 @@ contract CTokenInterface {
 
 }
 
-
 contract ICToken is CTokenInterface {
 
     /*** User Interface ***/
     function redeem(uint redeemTokens) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function borrow(uint borrowAmount) external returns (uint);
-    function liquidateBorrow(address borrower, uint repayAmount, CTokenInterface cTokenCollateral) external returns (uint);
 }
 
 // Workaround for issue https://github.com/ethereum/solidity/issues/526
@@ -47,12 +45,14 @@ contract ICErc20 is ICToken {
     function mint(uint mintAmount) external returns (uint);
     function repayBorrow(uint repayAmount) external returns (uint);
     function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint);
+    function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external returns (uint);
 }
 
 contract ICEther is ICToken {
     function mint() external payable;
     function repayBorrow() external payable;
     function repayBorrowBehalf(address borrower) external payable;
+    function liquidateBorrow(address borrower, address cTokenCollateral) external payable;
 }
 
 contract IPriceOracle {

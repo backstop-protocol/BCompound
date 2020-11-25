@@ -42,4 +42,11 @@ contract BErc20 is BToken {
         require(result == 0, "BErc20: repayBorrow-failed");
         return result;
     }
+
+    function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external onlyPool returns (uint) {
+        address borrowerAvatar = registry.avatarOf(borrower);
+        uint result = IAvatarCErc20(borrowerAvatar).liquidateBorrow(repayAmount, cTokenCollateral);
+        require(result == 0, "BErc20: liquidateBorrow-failed");
+        return result;
+    }
 }

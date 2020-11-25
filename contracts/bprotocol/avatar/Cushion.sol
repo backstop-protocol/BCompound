@@ -126,6 +126,8 @@ contract Cushion is AvatarBase {
         // 1. Is toppedUp OR partially liquidated
         bool isPartiallyLiquidated = isPartiallyLiquidated();
         require(isToppedUp() || isPartiallyLiquidated, "cannot-perform-liquidateBorrow");
+        // TODO below condition means debtCToken always = to toppedUpCToken
+        // TODO if this is true, then dont need below if-else block
         if(isPartiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
         } else {
@@ -151,7 +153,7 @@ contract Cushion is AvatarBase {
                 cETH.repayBorrow.value(amtToRepayOnCompound)();
             } else {
                 // CErc20
-                toppedUpCToken.underlying().safeTransferFrom(msg.sender, address(this), amtToRepayOnCompound);
+                toppedUpCToken.underlying().safeTransferFrom(pool, address(this), amtToRepayOnCompound);
                 require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
         }
