@@ -217,24 +217,20 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
-    it("7. Pool should topup", async () => {
+    it("7. Member should topup via pool", async () => {
+        const member1 = bProtocol.members[0];
         const pool = bProtocol.pool;
 
         // Ensure pool has ZRX balance
-        const zrxBal = await ZRX.balanceOf(pool);
+        const zrxBal = await ZRX.balanceOf(pool.address);
         expect(zrxBal).to.be.bignumber.gt(ZERO);
 
         // Topup
         const TEN_ZRX = ONE_ZRX.mul(new BN(10));
         const topupAmount = TEN_ZRX;
-        // Approve ZRX tokens to Avatar
-        await ZRX.approve(avatarUser1.address, topupAmount, { from: pool });
-        await avatarUser1.methods["topup(address,uint256)"].sendTransaction(
-            cZRX_addr,
-            topupAmount,
-            { from: pool },
-        );
-        const zrxBalAfter = await ZRX.balanceOf(pool);
+        await pool.topup(avatarUser1.address, cZRX_addr, topupAmount, false, { from: member1 });
+
+        const zrxBalAfter = await ZRX.balanceOf(pool.address);
 
         // account liquidity on Compound
         const accLiquidityOnCompound = await comptroller.getAccountLiquidity(avatarUser1.address);
@@ -286,6 +282,7 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("9. Pool should liquidate", async () => {
+        const member1 = bProtocol.members[0];
         const pool = bProtocol.pool;
 
         // validate liquidation incentive
@@ -337,11 +334,17 @@ contract("Pool performs liquidation", async (accounts) => {
                     maxLiquidationAmount,
                 );
                 const amountToRepayOnCompound = result[1];
-                await ZRX.approve(avatarUser1.address, amountToRepayOnCompound, { from: pool });
+                //await ZRX.approve(avatarUser1.address, amountToRepayOnCompound, { from: pool });
 
-                await avatarUser1.liquidateBorrow(cZRX_addr, tokensToLiquidate, cETH_addr, {
-                    from: pool,
-                });
+                await pool.liquidateBorrow(
+                    bZRX.address,
+                    user1,
+                    cETH_addr,
+                    cZRX_addr,
+                    tokensToLiquidate,
+                    amountToRepayOnCompound,
+                    { from: member1 },
+                );
             } else {
                 // console.log("Cannot liquidate further");
 
@@ -357,7 +360,7 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("10. Pool should perform untop", async () => {
-        const pool = bProtocol.pool;
+        const pool = bProtocol.pool.address;
         await avatarUser1.untop({ from: pool });
 
         const toppedUpAmount = await avatarUser1.toppedUpAmount();
