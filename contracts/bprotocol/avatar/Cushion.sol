@@ -153,6 +153,8 @@ contract Cushion is AvatarBase {
                 cETH.repayBorrow.value(amtToRepayOnCompound)();
             } else {
                 // CErc20
+                console.log("in CErc20: amtToRepayOnCompound %s", amtToRepayOnCompound);
+                // take tokens from pool contract
                 toppedUpCToken.underlying().safeTransferFrom(pool, address(this), amtToRepayOnCompound);
                 require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
@@ -192,19 +194,26 @@ contract Cushion is AvatarBase {
     )
         public view returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
     {
+        console.log("underlyingAmtToLiquidate: %s", underlyingAmtToLiquidate);
+        console.log("maxLiquidationAmount: %s", maxLiquidationAmount);
         // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
         (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
         require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
         uint underlyingAmtToLiqScalar = result.mantissa;
+        console.log("underlyingAmtToLiqScalar: %s", underlyingAmtToLiqScalar);
 
         // percent = underlyingAmtToLiqScalar / maxLiquidationAmount
         uint256 percentInScale = div_(underlyingAmtToLiqScalar, maxLiquidationAmount);
+        console.log("percentInScale: %s", percentInScale);
 
         // amtToDeductFromTopup = toppedUpAmount * percentInScale / 1e18
         amtToDeductFromTopup = mulTrucate(toppedUpAmount, percentInScale);
+        console.log("toppedUpAmount: %s", toppedUpAmount);
+        console.log("amtToDeductFromTopup: %s", amtToDeductFromTopup);
 
         // amtToRepayOnCompound = underlyingAmtToLiquidate - amtToDeductFromTopup
         amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
+        console.log("amtToRepayOnCompound: %s", amtToRepayOnCompound);
     }
 
     /**
@@ -221,6 +230,8 @@ contract Cushion is AvatarBase {
         if(! isPartiallyLiquidated()) {
             amountToLiquidate = getMaxLiquidationAmount(debtCToken);
         }
+        console.log("underlyingAmtToLiquidate: %s", underlyingAmtToLiquidate);
+        console.log("amountToLiquidate: %s", amountToLiquidate);
         (amtToDeductFromTopup, amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, amountToLiquidate);
     }
 }

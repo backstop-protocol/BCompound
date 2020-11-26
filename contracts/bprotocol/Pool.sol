@@ -1,5 +1,7 @@
 pragma solidity 0.5.16;
 
+import "@nomiclabs/buidler/console.sol";
+
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -68,16 +70,12 @@ contract Pool is Exponential, Ownable {
         _;
     }
 
-    constructor(
-        address comptroller_,
-        address cEther_,
-        address registry_,
-        address jar_
-    ) public {
-        comptroller = IComptroller(comptroller_);
-        cEther = cEther_;
-        registry = IRegistry(registry_);
-        jar = jar_;
+    function setRegistry(address _registry) public {
+        require(address(registry) == address(0), "Pool: registry-already-set");
+        registry = IRegistry(_registry);
+        comptroller = IComptroller(registry.comptroller());
+        cEther = registry.cEther();
+        jar = registry.jar();
     }
 
     /**
@@ -183,7 +181,7 @@ contract Pool is Exponential, Ownable {
         emit MemberToppedUp(msg.sender, avatar, cToken, amount);
     }
 
-    function uptop(address avatar) external {
+    function untop(address avatar) external {
         require(topped[avatar].toppedBy == msg.sender, "pool: not-member-who-topped");
         _untop(avatar);
     }
@@ -202,7 +200,8 @@ contract Pool is Exponential, Ownable {
         address cTokenCollateral,
         address cTokenDebt,
         uint underlyingAmtToLiquidate,
-        uint amtToRepayOnCompound // use off-chain call Avatar.calcAmountToLiquidate()
+        uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
+        bool resetApprove
     ) external {
         address avatar = registry.avatarOf(borrower);
         TopupInfo memory ti = topped[avatar];
@@ -222,6 +221,9 @@ contract Pool is Exponential, Ownable {
             // TODO `splitAmountToLiquidate` should calculate `underlyingAmtToLiquidate`
             ICEther(bToken).liquidateBorrow.value(amtToRepayOnCompound)(borrower, cTokenCollateral);
         } else {
+            console.log("Pool.liquidateBorrow(): avatar: %s", avatar);
+            console.log("Pool.liquidateBorrow(): amtToRepayOnCompound: %s", amtToRepayOnCompound);
+            if(resetApprove) IERC20(ti.underlying).safeApprove(avatar, 0);
             IERC20(ti.underlying).safeApprove(avatar, amtToRepayOnCompound);
             err = ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral);
             require(err == 0, "Pool: liquidateBorrow-failed");

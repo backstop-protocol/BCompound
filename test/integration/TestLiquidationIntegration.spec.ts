@@ -22,6 +22,11 @@ contract("Pool performs liquidation", async (accounts) => {
     const user1 = accounts[1];
     const user2 = accounts[2];
 
+    let member1: string;
+    let member2: string;
+    let member3: string;
+    let member4: string;
+
     const engine = new BProtocolEngine(accounts);
     const compound = new CompoundUtils();
 
@@ -83,6 +88,11 @@ contract("Pool performs liquidation", async (accounts) => {
         bProtocol = await engine.deployBProtocol();
         comptroller = bProtocol.compound.comptroller;
         priceOracle = bProtocol.compound.priceOracle;
+
+        member1 = bProtocol.members[0];
+        member2 = bProtocol.members[1];
+        member3 = bProtocol.members[2];
+        member4 = bProtocol.members[3];
     });
 
     it("0. should set pre-condition", async () => {
@@ -218,16 +228,20 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("7. Member should topup via pool", async () => {
-        const member1 = bProtocol.members[0];
-        const pool = bProtocol.pool;
+        const pool: t.PoolInstance = bProtocol.pool;
 
-        // Ensure pool has ZRX balance
-        const zrxBal = await ZRX.balanceOf(pool.address);
+        // Ensure member1 has ZRX balance
+        const zrxBal = await ZRX.balanceOf(member1);
         expect(zrxBal).to.be.bignumber.gt(ZERO);
 
-        // Topup
+        // Topup amount
         const TEN_ZRX = ONE_ZRX.mul(new BN(10));
         const topupAmount = TEN_ZRX;
+
+        // member1 deposits to pool
+        await ZRX.approve(pool.address, TEN_ZRX, { from: member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: member1 });
+
         await pool.topup(avatarUser1.address, cZRX_addr, topupAmount, false, { from: member1 });
 
         const zrxBalAfter = await ZRX.balanceOf(pool.address);
@@ -281,8 +295,7 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, expectShortFall);
     });
 
-    it("9. Pool should liquidate", async () => {
-        const member1 = bProtocol.members[0];
+    it("9. Member should liquidate via Pool", async () => {
         const pool = bProtocol.pool;
 
         // validate liquidation incentive
@@ -333,16 +346,36 @@ contract("Pool performs liquidation", async (accounts) => {
                     tokensToLiquidate,
                     maxLiquidationAmount,
                 );
-                const amountToRepayOnCompound = result[1];
-                //await ZRX.approve(avatarUser1.address, amountToRepayOnCompound, { from: pool });
+                const amtToRepayOnCompound = result[1];
 
+                console.log("amtToRepayOnCompound: " + amtToRepayOnCompound.toString());
+
+                // member1 deposit
+                const member1_ZRX_bal = await ZRX.balanceOf(member1);
+                expect(member1_ZRX_bal).to.be.bignumber.gt(amtToRepayOnCompound);
+                await ZRX.approve(pool.address, amtToRepayOnCompound, { from: member1 });
+                await pool.methods["deposit(address,uint256)"](ZRX.address, amtToRepayOnCompound, {
+                    from: member1,
+                });
+                /*
+                let amtToDeductFromTopup;
+                let amtToRepayOnCompound;
+                [
+                    amtToDeductFromTopup,
+                    amtToRepayOnCompound,
+                ] = await avatarUser1.calcAmountToLiquidate.call(cETH_addr, tokensToLiquidate);
+                */
+                const resetApprove: boolean = (
+                    await ZRX.allowance(pool.address, avatarUser1.address)
+                ).gt(new BN(0));
                 await pool.liquidateBorrow(
                     bZRX.address,
                     user1,
                     cETH_addr,
                     cZRX_addr,
                     tokensToLiquidate,
-                    amountToRepayOnCompound,
+                    amtToRepayOnCompound,
+                    resetApprove,
                     { from: member1 },
                 );
             } else {
@@ -359,9 +392,9 @@ contract("Pool performs liquidation", async (accounts) => {
         // expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
-    it("10. Pool should perform untop", async () => {
-        const pool = bProtocol.pool.address;
-        await avatarUser1.untop({ from: pool });
+    it("10. Member should perform untop via Pool", async () => {
+        const pool = bProtocol.pool;
+        await pool.untop(avatarUser1.address, { from: member1 });
 
         const toppedUpAmount = await avatarUser1.toppedUpAmount();
         expect(ZERO).to.be.bignumber.equal(toppedUpAmount);

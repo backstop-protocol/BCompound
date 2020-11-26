@@ -29,7 +29,7 @@ export class Compound {
 // BProtocol Class to store all BProtocol deployed contracts
 export class BProtocol {
     public pool!: t.PoolInstance;
-    public members!: Array<string>;
+    public members: Array<string> = new Array();
     public bComptroller!: t.BComptrollerInstance;
     public registry!: t.RegistryInstance;
     public bTokens: Map<string, t.BTokenInstance> = new Map();
@@ -66,10 +66,11 @@ export class BProtocolEngine {
         _bProtocol.jar = this.accounts[5]; // TODO
 
         _bProtocol.score = await this.deployScore();
-        _bProtocol.registry = await this.deployRegistry();
         _bProtocol.pool = await this.deployPool();
         _bProtocol.bComptroller = await this.deployBComptroller();
+        _bProtocol.registry = await this.deployRegistry();
 
+        await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
         await _bProtocol.score.setRegistry(_bProtocol.registry.address);
         await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
 
@@ -93,12 +94,7 @@ export class BProtocolEngine {
         this.bProtocol.members.push(this.accounts[9]);
         const comptroller = this.compoundUtil.getContracts("Comptroller");
         const cETH = this.compoundUtil.getContracts("cETH");
-        const pool = await Pool.new(
-            comptroller,
-            cETH,
-            this.bProtocol.registry.address,
-            this.bProtocol.jar,
-        );
+        const pool = await Pool.new();
         await pool.setMembers(this.bProtocol.members);
         await pool.setProfitParams(105, 110);
         return pool;
@@ -110,7 +106,7 @@ export class BProtocolEngine {
 
     // Deploy BComptroller contract
     private async deployBComptroller(): Promise<t.BComptrollerInstance> {
-        return await BComptroller.new(this.bProtocol.pool.address);
+        return await BComptroller.new();
     }
 
     // Deploy Registry contract
@@ -122,6 +118,7 @@ export class BProtocolEngine {
         const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
         const bScore = this.bProtocol.score.address;
+        const jar = this.bProtocol.jar;
         return await Registry.new(
             comptroller,
             comp,
@@ -130,6 +127,7 @@ export class BProtocolEngine {
             pool.address,
             bComptroller,
             bScore,
+            jar,
         );
     }
 
