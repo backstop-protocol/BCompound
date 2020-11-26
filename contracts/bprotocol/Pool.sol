@@ -216,10 +216,10 @@ contract Pool is Exponential, Ownable {
         require(err == 0, "Pool: error-in-liquidateCalculateSeizeTokens");
 
         if(_isCEther(cTokenDebt)) {
-            // TODO `amtToRepayOnCompound` sent in ETH, but splitted at `AbsCToken._liquidateBorrow()`
-            // TODO need to ensure that only needed ETH should be sent to bToken -> Avatar
-            // TODO `splitAmountToLiquidate` should calculate `underlyingAmtToLiquidate`
-            ICEther(bToken).liquidateBorrow.value(amtToRepayOnCompound)(borrower, cTokenCollateral);
+            // sending `underlyingAmtToLiquidate` ETH to Avatar
+            // Avatar will split into `amtToRepayOnCompound` and `amtToDeductFromTopup`
+            // Avatar will send back `amtToDeductFromTopup` ETH back to Pool contract
+            ICEther(bToken).liquidateBorrow.value(underlyingAmtToLiquidate)(borrower, cTokenCollateral);
         } else {
             console.log("Pool.liquidateBorrow(): avatar: %s", avatar);
             console.log("Pool.liquidateBorrow(): amtToRepayOnCompound: %s", amtToRepayOnCompound);

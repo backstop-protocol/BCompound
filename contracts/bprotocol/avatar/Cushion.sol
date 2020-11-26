@@ -151,6 +151,11 @@ contract Cushion is AvatarBase {
                 // CEther
                 require(msg.value == amtToRepayOnCompound, "insuffecient-ETH-sent");
                 cETH.repayBorrow.value(amtToRepayOnCompound)();
+                // send back rest of the amount to the Pool contract
+                if(amtToDeductFromTopup > 0 ) {
+                    bool success = pool.send(amtToDeductFromTopup); // avoid DoS attack
+                    success; // shh
+                }
             } else {
                 // CErc20
                 console.log("in CErc20: amtToRepayOnCompound %s", amtToRepayOnCompound);
