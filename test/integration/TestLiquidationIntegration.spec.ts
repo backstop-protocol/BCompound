@@ -342,9 +342,9 @@ contract("Pool performs liquidation", async (accounts) => {
 
                 const toppedUpAmount = await avatarUser1.toppedUpAmount();
 
-                const result = await avatarUser1.splitAmountToLiquidate(
+                const result = await avatarUser1.calcAmountToLiquidate.call(
+                    cZRX_addr,
                     tokensToLiquidate,
-                    maxLiquidationAmount,
                 );
                 const amtToRepayOnCompound = result[1];
 
@@ -357,14 +357,7 @@ contract("Pool performs liquidation", async (accounts) => {
                 await pool.methods["deposit(address,uint256)"](ZRX.address, amtToRepayOnCompound, {
                     from: member1,
                 });
-                /*
-                let amtToDeductFromTopup;
-                let amtToRepayOnCompound;
-                [
-                    amtToDeductFromTopup,
-                    amtToRepayOnCompound,
-                ] = await avatarUser1.calcAmountToLiquidate.call(cETH_addr, tokensToLiquidate);
-                */
+
                 const resetApprove: boolean = (
                     await ZRX.allowance(pool.address, avatarUser1.address)
                 ).gt(new BN(0));
