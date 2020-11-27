@@ -19,13 +19,24 @@ contract Registry {
     address public score;
     address public jar;
 
-    // User => Avatar
-    mapping (address => address) public u2a;
+    // Owner => Avatar
+    mapping (address => address) public ownerToAvatar;
 
-    // Avatar => User
-    mapping (address => address) public a2u;
+    // Avatar => Owner
+    mapping (address => address) public avatarToOwner;
+
+    // An Avatar can have multiple Delegatee
+    // Avatar => Delegatee => bool
+    mapping (address => mapping(address => bool)) public isAvatarHasDelegatee;
+
+    // A Delegatee can have multiple Avatar
+    // Delegatee => Avatar => bool
+    mapping (address => mapping(address => bool)) public isDelegateeHasAvatar;
 
     event NewAvatar(address indexed avatar, address owner);
+    event AvatarTransferOwnership(address indexed avatar, address oldOwner, address newOwner);
+    event Delegate(address indexed delegator, address avatar, address delegatee);
+    event RevokeDelegate(address indexed delegator, address avatar, address delegatee);
 
     constructor(
         address _comptroller,
@@ -63,11 +74,44 @@ contract Registry {
      * @return The existing/new Avatar contract address
      */
     function getAvatar(address user) external returns (address) {
-        address avatar = u2a[user];
+        // TODO find avatar of user/delegatee
+        address avatar = ownerToAvatar[user];
         if(avatar == address(0)) {
             avatar = _newAvatar(user);
         }
         return avatar;
+    }
+
+    function transferAvatarOwnership(address newOwner) external {
+        require(newOwner != address(0), "Registry: newOwner-is-zero-address");
+        address avatar = ownerToAvatar[msg.sender];
+        require(avatar != address(0), "Registry: avatar-not-found");
+
+        delete ownerToAvatar[msg.sender];
+        delete avatarToOwner[avatar];
+
+        ownerToAvatar[newOwner] = avatar;
+        avatarToOwner[avatar] = newOwner;
+        emit AvatarTransferOwnership(avatar, msg.sender, newOwner);
+    }
+
+    function delegateAvatar(address delegatee) external {
+        address avatar = ownerToAvatar[msg.sender];
+        require(avatar != address(0), "Registry: avatar-not-found");
+
+        isAvatarHasDelegatee[avatar][delegatee] = true;
+        isDelegateeHasAvatar[delegatee][avatar] = true;
+        emit Delegate(msg.sender, avatar, delegatee);
+    }
+
+    function revokeDelegateAvatar(address delegatee) external {
+        address avatar = ownerToAvatar[msg.sender];
+        require(avatar != address(0), "Registry: avatar-not-found");
+        require(isAvatarHasDelegatee[avatar][delegatee], "Registry: not-delegated");
+
+        isAvatarHasDelegatee[avatar][delegatee] = false;
+        isDelegateeHasAvatar[delegatee][avatar] = false;
+        emit RevokeDelegate(msg.sender, avatar, delegatee);
     }
 
     /**
@@ -78,8 +122,8 @@ contract Registry {
     function _newAvatar(address user) internal returns (address) {
         require(!isAvatarExistFor(user), "avatar-already-exits-for-user");
         address avatar = _deployNewAvatar(user);
-        u2a[user] = avatar;
-        a2u[avatar] = user;
+        ownerToAvatar[user] = avatar;
+        avatarToOwner[avatar] = user;
         emit NewAvatar(avatar, user);
         return avatar;
     }
@@ -94,18 +138,18 @@ contract Registry {
     }
 
     function isAvatarExist(address avatar) public view returns (bool) {
-        return a2u[avatar] != address(0);
+        return avatarToOwner[avatar] != address(0);
     }
 
     function isAvatarExistFor(address user) public view returns (bool) {
-        return u2a[user] != address(0);
+        return ownerToAvatar[user] != address(0);
     }
 
     function userOf(address avatar) public view returns (address) {
-        return a2u[avatar];
+        return avatarToOwner[avatar];
     }
 
-    function avatarOf(address user) public view returns (address) {
-        return u2a[user];
+    function avatarOf(address owner) public view returns (address) {
+        return avatarToOwner[owner];
     }
 }
