@@ -120,7 +120,7 @@ contract Registry {
      */
     function _newAvatar(address owner) internal returns (address) {
         require(!isAvatarExistFor(owner), "avatar-already-exits-for-owner");
-        address avatar = address(new Avatar(pool, bComptroller, comptroller, comp, cEther, address(this)));
+        address avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
         ownerToAvatar[owner] = avatar;
         avatarToOwner[avatar] = owner;
         emit NewAvatar(avatar, owner);

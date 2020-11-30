@@ -18,7 +18,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
-    address payable public pool;
     IRegistry public registry;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
@@ -36,7 +35,7 @@ contract AvatarBase is Exponential {
     ICToken public liquidationCToken;
 
     modifier onlyPool() {
-        require(msg.sender == pool, "only-pool-is-authorized");
+        require(msg.sender == pool(), "only-pool-is-authorized");
         _;
     }
 
@@ -52,7 +51,6 @@ contract AvatarBase is Exponential {
 
     /**
      * @dev Constructor
-     * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
      * @param _comp Compound finance COMP token contract address
@@ -60,7 +58,6 @@ contract AvatarBase is Exponential {
      * @param _registry Registry contract address
      */
     constructor(
-        address _pool,
         address _bComptroller,
         address _comptroller,
         address _comp,
@@ -69,7 +66,6 @@ contract AvatarBase is Exponential {
     )
         internal
     {
-        pool = address(uint160(_pool));
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
@@ -141,5 +137,9 @@ contract AvatarBase is Exponential {
 
     function avatarOwner() public view returns (address payable) {
         return address(uint160(registry.ownerOf(address(this))));
+    }
+
+    function pool() public view returns (address payable) {
+        return address(uint160(registry.pool()));
     }
 }
