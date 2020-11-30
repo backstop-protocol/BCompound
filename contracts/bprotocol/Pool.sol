@@ -31,7 +31,6 @@ contract Pool is Exponential, Ownable {
     IRegistry public registry;
     address public cEther;
     address[] public members;
-    address public jar;
     // member selection duration for round robin, default 60 mins
     uint public selectionDuration = 60 minutes;
     // member share profit params
@@ -53,7 +52,7 @@ contract Pool is Exponential, Ownable {
     event MemberWithdraw(address indexed member, address underlying, uint amount);
     event MemberToppedUp(address indexed member, address avatar, address cToken, uint amount);
     event MemberUntopped(address indexed member, address avatar);
-    event MemberBite(address indexed member, address avatar, address cToken, uint amount);
+    event MemberBite(address indexed member, address avatar, address cTokenDebt, address cTokenCollateral, uint underlyingAmtToLiquidate);
     event ProfitParamsChanged(uint numerator, uint denominator);
     event MembersSet(address[] members);
     event SelectionDurationChanged(uint oldDuration, uint newDuration);
@@ -75,7 +74,6 @@ contract Pool is Exponential, Ownable {
         registry = IRegistry(_registry);
         comptroller = IComptroller(registry.comptroller());
         cEther = registry.cEther();
-        jar = registry.jar();
     }
 
     /**
@@ -235,11 +233,11 @@ contract Pool is Exponential, Ownable {
         uint jarShare = sub_(seizedTokens, memberShare);
 
         IERC20(cTokenCollateral).safeTransfer(ti.toppedBy, memberShare);
-        IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
+        IERC20(cTokenCollateral).safeTransfer(registry.jar(), jarShare);
 
         bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
         if(! stillToppedUp) delete topped[avatar];
-        emit MemberBite(ti.toppedBy, avatar, cTokenDebt, underlyingAmtToLiquidate);
+        emit MemberBite(ti.toppedBy, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
     }
 
     function membersLength() external view returns (uint) {

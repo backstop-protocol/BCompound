@@ -8,9 +8,8 @@ contract BEther is BToken {
 
     constructor(
         address _registry,
-        address _cToken,
-        address _pool
-    ) public BToken(_registry, _cToken, _pool) {}
+        address _cToken
+    ) public BToken(_registry, _cToken) {}
 
     function _iAvatarCEther() internal returns (IAvatarCEther) {
         return IAvatarCEther(address(avatar()));
