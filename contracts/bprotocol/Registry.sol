@@ -120,20 +120,11 @@ contract Registry {
      */
     function _newAvatar(address owner) internal returns (address) {
         require(!isAvatarExistFor(owner), "avatar-already-exits-for-owner");
-        address avatar = _deployNewAvatar(owner);
+        address avatar = address(new Avatar(pool, bComptroller, comptroller, comp, cEther, address(this)));
         ownerToAvatar[owner] = avatar;
         avatarToOwner[avatar] = owner;
         emit NewAvatar(avatar, owner);
         return avatar;
-    }
-
-    /**
-     * @dev Deploys a new instance of Avatar contract
-     * @param owner Owner address of Avatar contract
-     * @return Returns the address of the newly deployed Avatar contract
-     */
-    function _deployNewAvatar(address owner) internal returns (address) {
-        return address(new Avatar(owner, pool, bComptroller, comptroller, comp, cEther, address(this)));
     }
 
     function isAvatarExist(address avatar) public view returns (bool) {

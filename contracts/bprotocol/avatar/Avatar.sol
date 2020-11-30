@@ -16,7 +16,6 @@ contract Avatar is AbsComptroller, AbsCToken {
 
     /**
      * @dev Constructor
-     * @param _avatarOwner Owner of the Avatar contract
      * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
@@ -25,7 +24,6 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @param _registry Registry contract address
      */
     constructor(
-        address _avatarOwner,
         address _pool,
         address _bComptroller,
         address _comptroller,
@@ -35,7 +33,6 @@ contract Avatar is AbsComptroller, AbsCToken {
     )
         public
         AvatarBase(
-            _avatarOwner,
             _pool,
             _bComptroller,
             _comptroller,

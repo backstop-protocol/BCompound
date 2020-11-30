@@ -18,8 +18,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
-    // Owner of the Avatar
-    address payable public avatarOwner;
     address payable public pool;
     IRegistry public registry;
     IBComptroller public bComptroller;
@@ -54,7 +52,6 @@ contract AvatarBase is Exponential {
 
     /**
      * @dev Constructor
-     * @param _avatarOwner Owner of this avatar instance
      * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
@@ -63,7 +60,6 @@ contract AvatarBase is Exponential {
      * @param _registry Registry contract address
      */
     constructor(
-        address _avatarOwner,
         address _pool,
         address _bComptroller,
         address _comptroller,
@@ -73,9 +69,6 @@ contract AvatarBase is Exponential {
     )
         internal
     {
-        // Converting `_avatarOwner` address to payable address here, so that we don't need to pass
-        // `address payable` in inheritance hierarchy
-        avatarOwner = address(uint160(_avatarOwner));
         pool = address(uint160(_pool));
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);
@@ -144,5 +137,9 @@ contract AvatarBase is Exponential {
         bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
         console.log("In canUntop, result: %s", result);
         return result;
+    }
+
+    function avatarOwner() public view returns (address payable) {
+        return address(uint160(registry.ownerOf(address(this))));
     }
 }

@@ -110,6 +110,7 @@ contract AbsCToken is Cushion {
 
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
+        address payable avatarOwner = avatarOwner();
 
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
@@ -127,6 +128,7 @@ contract AbsCToken is Cushion {
 
     function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
+        address payable avatarOwner = avatarOwner();
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
             avatarOwner.transfer(redeemAmount);
@@ -140,6 +142,7 @@ contract AbsCToken is Cushion {
 
     function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
+        address payable avatarOwner = avatarOwner();
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
             avatarOwner.transfer(borrowAmount);
