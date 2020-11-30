@@ -1,12 +1,23 @@
 pragma solidity 0.5.16;
 
+import "@nomiclabs/buidler/console.sol";
+
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import { IRegistry } from "./interfaces/IRegistry.sol";
 import { ICToken } from "./interfaces/CTokenInterfaces.sol";
-import { ICErc20 } from "./interfaces/CTokenInterfaces.sol";
-import { IAvatar, ICushion, ICushionCEther, ICushionCErc20 } from "./interfaces/IAvatar.sol";
+import { ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
+import {
+    IAvatar,
+    IAvatarCErc20,
+    IAvatarCEther,
+    ICushion,
+    ICushionCEther,
+    ICushionCErc20
+    } from "./interfaces/IAvatar.sol";
+import { IComptroller } from "./interfaces/IComptroller.sol";
 
 import { Exponential } from "./lib/Exponential.sol";
 
@@ -16,9 +27,10 @@ import { Exponential } from "./lib/Exponential.sol";
 contract Pool is Exponential, Ownable {
     using SafeERC20 for IERC20;
     address internal constant ETH_ADDR = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    IComptroller public comptroller;
+    IRegistry public registry;
     address public cEther;
     address[] public members;
-    address public jar;
     // member selection duration for round robin, default 60 mins
     uint public selectionDuration = 60 minutes;
     // member share profit params
@@ -40,7 +52,7 @@ contract Pool is Exponential, Ownable {
     event MemberWithdraw(address indexed member, address underlying, uint amount);
     event MemberToppedUp(address indexed member, address avatar, address cToken, uint amount);
     event MemberUntopped(address indexed member, address avatar);
-    event MemberBite(address indexed member, address avatar, address cToken, uint amount);
+    event MemberBite(address indexed member, address avatar, address cTokenDebt, address cTokenCollateral, uint underlyingAmtToLiquidate);
     event ProfitParamsChanged(uint numerator, uint denominator);
     event MembersSet(address[] members);
     event SelectionDurationChanged(uint oldDuration, uint newDuration);
@@ -57,9 +69,11 @@ contract Pool is Exponential, Ownable {
         _;
     }
 
-    constructor(address cEther_, address jar_) public {
-        cEther = cEther_;
-        jar = jar_;
+    function setRegistry(address _registry) public {
+        require(address(registry) == address(0), "Pool: registry-already-set");
+        registry = IRegistry(_registry);
+        comptroller = IComptroller(registry.comptroller());
+        cEther = registry.cEther();
     }
 
     /**
@@ -165,7 +179,7 @@ contract Pool is Exponential, Ownable {
         emit MemberToppedUp(msg.sender, avatar, cToken, amount);
     }
 
-    function uptop(address avatar) external {
+    function untop(address avatar) external {
         require(topped[avatar].toppedBy == msg.sender, "pool: not-member-who-topped");
         _untop(avatar);
     }
@@ -179,35 +193,51 @@ contract Pool is Exponential, Ownable {
     }
 
     function liquidateBorrow(
-        address avatar,
-        address collCToken,
-        address debtCToken,
+        address bToken,
+        address borrower,
+        address cTokenCollateral,
+        address cTokenDebt,
         uint underlyingAmtToLiquidate,
-        uint amtToRepayOnCompound // use off-chain call Avatar.calcAmountToLiquidate()
+        uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
+        bool resetApprove
     ) external {
+        address avatar = registry.avatarOf(borrower);
         TopupInfo memory ti = topped[avatar];
         require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
 
-        uint eth = 0;
-        if(_isCEther(debtCToken)) {
-            eth = amtToRepayOnCompound;
+        // TODO need to figure out how to find `seizedTokens` with low gas consumption
+        (uint err, uint seizedTokens) = comptroller.liquidateCalculateSeizeTokens(
+            address(cTokenDebt),
+            address(cTokenCollateral),
+            underlyingAmtToLiquidate
+        );
+        require(err == 0, "Pool: error-in-liquidateCalculateSeizeTokens");
+
+        if(_isCEther(cTokenDebt)) {
+            // sending `underlyingAmtToLiquidate` ETH to Avatar
+            // Avatar will split into `amtToRepayOnCompound` and `amtToDeductFromTopup`
+            // Avatar will send back `amtToDeductFromTopup` ETH back to Pool contract
+            ICEther(bToken).liquidateBorrow.value(underlyingAmtToLiquidate)(borrower, cTokenCollateral);
         } else {
+            console.log("Pool.liquidateBorrow(): avatar: %s", avatar);
+            console.log("Pool.liquidateBorrow(): amtToRepayOnCompound: %s", amtToRepayOnCompound);
+            if(resetApprove) IERC20(ti.underlying).safeApprove(avatar, 0);
             IERC20(ti.underlying).safeApprove(avatar, amtToRepayOnCompound);
+            err = ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral);
+            require(err == 0, "Pool: liquidateBorrow-failed");
         }
 
         balance[ti.toppedBy][ti.underlying] = sub_(balance[ti.toppedBy][ti.underlying], amtToRepayOnCompound);
 
-        uint seizedTokens = IAvatar(avatar).liquidateBorrow.value(eth)(debtCToken, underlyingAmtToLiquidate, collCToken);
-
         uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
         uint jarShare = sub_(seizedTokens, memberShare);
 
-        ICToken(collCToken).transfer(ti.toppedBy, memberShare);
-        ICToken(collCToken).transfer(jar, jarShare);
+        IERC20(cTokenCollateral).safeTransfer(ti.toppedBy, memberShare);
+        IERC20(cTokenCollateral).safeTransfer(registry.jar(), jarShare);
 
         bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
         if(! stillToppedUp) delete topped[avatar];
-        emit MemberBite(ti.toppedBy, avatar, debtCToken, underlyingAmtToLiquidate);
+        emit MemberBite(ti.toppedBy, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
     }
 
     function membersLength() external view returns (uint) {

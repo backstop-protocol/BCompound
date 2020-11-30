@@ -28,9 +28,8 @@ export class Compound {
 
 // BProtocol Class to store all BProtocol deployed contracts
 export class BProtocol {
-    // TODO For now fake EOA is a pool
-    public pool!: string;
-    //public pool!: t.PoolInstance;
+    public pool!: t.PoolInstance;
+    public members: Array<string> = new Array();
     public bComptroller!: t.BComptrollerInstance;
     public registry!: t.RegistryInstance;
     public bTokens: Map<string, t.BTokenInstance> = new Map();
@@ -64,14 +63,14 @@ export class BProtocolEngine {
     public async deployBProtocol(): Promise<BProtocol> {
         this.bProtocol = new BProtocol();
         const _bProtocol = this.bProtocol;
-        //_bProtocol.pool = await this.deployPool();
-        // Use 9th account as Pool
-        _bProtocol.pool = this.accounts[9];
-        _bProtocol.jar = this.accounts[8]; // TODO
-        _bProtocol.bComptroller = await this.deployBComptroller();
+        _bProtocol.jar = this.accounts[5]; // TODO
+
         _bProtocol.score = await this.deployScore();
+        _bProtocol.pool = await this.deployPool();
+        _bProtocol.bComptroller = await this.deployBComptroller();
         _bProtocol.registry = await this.deployRegistry();
 
+        await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
         await _bProtocol.score.setRegistry(_bProtocol.registry.address);
         await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
 
@@ -89,8 +88,16 @@ export class BProtocolEngine {
 
     // Deploy Pool contract
     private async deployPool(): Promise<t.PoolInstance> {
+        this.bProtocol.members.push(this.accounts[6]);
+        this.bProtocol.members.push(this.accounts[7]);
+        this.bProtocol.members.push(this.accounts[8]);
+        this.bProtocol.members.push(this.accounts[9]);
+        const comptroller = this.compoundUtil.getContracts("Comptroller");
         const cETH = this.compoundUtil.getContracts("cETH");
-        return await Pool.new(cETH, this.bProtocol.jar);
+        const pool = await Pool.new();
+        await pool.setMembers(this.bProtocol.members);
+        await pool.setProfitParams(105, 110);
+        return pool;
     }
 
     private async deployScore(): Promise<t.BTokenScoreInstance> {
@@ -99,7 +106,7 @@ export class BProtocolEngine {
 
     // Deploy BComptroller contract
     private async deployBComptroller(): Promise<t.BComptrollerInstance> {
-        return await BComptroller.new(this.bProtocol.pool);
+        return await BComptroller.new();
     }
 
     // Deploy Registry contract
@@ -111,7 +118,17 @@ export class BProtocolEngine {
         const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
         const bScore = this.bProtocol.score.address;
-        return await Registry.new(comptroller, comp, cETH, priceOracle, pool, bComptroller, bScore);
+        const jar = this.bProtocol.jar;
+        return await Registry.new(
+            comptroller,
+            comp,
+            cETH,
+            priceOracle,
+            pool.address,
+            bComptroller,
+            bScore,
+            jar,
+        );
     }
 
     public getBProtocol(): BProtocol {

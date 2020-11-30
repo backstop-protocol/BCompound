@@ -17,6 +17,7 @@ contract Registry {
     address public pool;
     address public bComptroller;
     address public score;
+    address public jar;
 
     // User => Avatar
     mapping (address => address) public u2a;
@@ -33,7 +34,8 @@ contract Registry {
         address _priceOracle,
         address _pool,
         address _bComptroller,
-        address _score
+        address _score,
+        address _jar
     )
         public
     {
@@ -44,6 +46,7 @@ contract Registry {
         pool = _pool;
         bComptroller = _bComptroller;
         score = _score;
+        jar = _jar;
     }
 
     function newAvatar() external returns (address) {

@@ -20,13 +20,15 @@ contract BToken is Exponential {
     IRegistry public registry;
     // Compound's CToken this BToken contract is tied to
     address public cToken;
-    // Pool contract
-    address public pool;
 
-    constructor(address _registry, address _cToken, address _pool) internal {
+    modifier onlyPool() {
+        require(msg.sender == registry.pool(), "BToken: only-pool-is-authorized");
+        _;
+    }
+
+    constructor(address _registry, address _cToken) internal {
         registry = IRegistry(_registry);
         cToken = _cToken;
-        pool = _pool;
     }
 
     function avatar() public returns (IAvatar) {
@@ -63,26 +65,6 @@ contract BToken is Exponential {
         return result;
     }
 
-    /**
-     * @dev Liquidate borrow an Avatar
-     * @notice Only Pool contract can call this function
-     * @param targetAvatar Avatar to liquidate
-     * @param amount Underlying amount to liquidate
-     * @param collateral Collateral CToken address
-     */
-    function liquidateBorrow(
-        address targetAvatar,
-        uint256 amount,
-        address collateral
-    )
-        external
-        payable
-    {
-        require(registry.isAvatarExist(targetAvatar), "BToken: avatar-not-exists");
-        require(msg.sender == pool, "BToken: only-pool-is-authorized");
-
-        IAvatar(targetAvatar).liquidateBorrow.value(msg.value)(cToken, amount, collateral);
-    }
 
     // IERC20
     // =======

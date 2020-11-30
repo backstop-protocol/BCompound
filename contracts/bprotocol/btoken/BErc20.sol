@@ -13,9 +13,8 @@ contract BErc20 is BToken {
 
     constructor(
         address _registry,
-        address _cToken,
-        address _pool
-    ) public BToken(_registry, _cToken, _pool) {
+        address _cToken
+    ) public BToken(_registry, _cToken) {
         underlying = ICToken(cToken).underlying();
     }
 
@@ -40,6 +39,13 @@ contract BErc20 is BToken {
         underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
         uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
         require(result == 0, "BErc20: repayBorrow-failed");
+        return result;
+    }
+
+    function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external onlyPool returns (uint) {
+        address borrowerAvatar = registry.avatarOf(borrower);
+        uint result = IAvatarCErc20(borrowerAvatar).liquidateBorrow(repayAmount, cTokenCollateral);
+        require(result == 0, "BErc20: liquidateBorrow-failed");
         return result;
     }
 }
