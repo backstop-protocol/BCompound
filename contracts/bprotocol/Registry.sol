@@ -70,7 +70,7 @@ contract Registry {
 
     /**
      * @dev Get the owner's avatar if exists otherwise create one for him
-     * @param owner Address of the user
+     * @param owner Address of the owner
      * @return The existing/new Avatar contract address
      */
     function getAvatar(address owner) external returns (address) {
@@ -114,37 +114,37 @@ contract Registry {
     }
 
     /**
-     * @dev Create a new Avatar contract for the given user
-     * @param user Address of the user
+     * @dev Create a new Avatar contract for the given owner
+     * @param owner Address of the owner
      * @return The address of the newly deployed Avatar contract
      */
-    function _newAvatar(address user) internal returns (address) {
-        require(!isAvatarExistFor(user), "avatar-already-exits-for-user");
-        address avatar = _deployNewAvatar(user);
-        ownerToAvatar[user] = avatar;
-        avatarToOwner[avatar] = user;
-        emit NewAvatar(avatar, user);
+    function _newAvatar(address owner) internal returns (address) {
+        require(!isAvatarExistFor(owner), "avatar-already-exits-for-owner");
+        address avatar = _deployNewAvatar(owner);
+        ownerToAvatar[owner] = avatar;
+        avatarToOwner[avatar] = owner;
+        emit NewAvatar(avatar, owner);
         return avatar;
     }
 
     /**
      * @dev Deploys a new instance of Avatar contract
-     * @param user Owner address of Avatar contract
+     * @param owner Owner address of Avatar contract
      * @return Returns the address of the newly deployed Avatar contract
      */
-    function _deployNewAvatar(address user) internal returns (address) {
-        return address(new Avatar(user, pool, bComptroller, comptroller, comp, cEther, address(this)));
+    function _deployNewAvatar(address owner) internal returns (address) {
+        return address(new Avatar(owner, pool, bComptroller, comptroller, comp, cEther, address(this)));
     }
 
     function isAvatarExist(address avatar) public view returns (bool) {
         return avatarToOwner[avatar] != address(0);
     }
 
-    function isAvatarExistFor(address user) public view returns (bool) {
-        return ownerToAvatar[user] != address(0);
+    function isAvatarExistFor(address owner) public view returns (bool) {
+        return ownerToAvatar[owner] != address(0);
     }
 
-    function userOf(address avatar) public view returns (address) {
+    function ownerOf(address avatar) public view returns (address) {
         return avatarToOwner[avatar];
     }
 

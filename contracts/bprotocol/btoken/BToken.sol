@@ -140,11 +140,11 @@ contract BToken is Exponential {
     }
 
     function allowance(address owner, address spender) public view returns (uint256) {
-        return ICToken(cToken).allowance(registry.avatars(owner), spender);
+        return ICToken(cToken).allowance(registry.avatarOf(owner), spender);
     }
 
     function balanceOf(address user) public view returns (uint256) {
-        return ICToken(cToken).balanceOf(registry.avatars(user));
+        return ICToken(cToken).balanceOf(registry.avatarOf(user));
     }
 
     function name() public view returns (string memory) {
