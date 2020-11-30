@@ -89,8 +89,7 @@ contract AbsCToken is Cushion {
     }
 
     function liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyBToken returns (uint256) {
-        _liquidateBorrow(underlyingAmtToLiquidate, cTokenCollateral);
-        return 0;
+        return _liquidateBorrow(underlyingAmtToLiquidate, cTokenCollateral);
     }
 
     // CEther / CErc20
@@ -106,6 +105,7 @@ contract AbsCToken is Cushion {
         IScore score = _score();
         score.updateCollScore(address(this), address(cTokenDebt), -toInt256(underlyingSeizedTokens));
         score.updateDebtScore(address(this), address(cTokenCollateral), -toInt256(underlyingAmtToLiquidate));
+        return 0;
     }
 
     function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {

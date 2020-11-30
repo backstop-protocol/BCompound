@@ -20,18 +20,15 @@ contract BToken is Exponential {
     IRegistry public registry;
     // Compound's CToken this BToken contract is tied to
     address public cToken;
-    // Pool contract
-    address public pool;
 
     modifier onlyPool() {
-        require(msg.sender == pool, "BToken: only-pool-is-authorized");
+        require(msg.sender == registry.pool(), "BToken: only-pool-is-authorized");
         _;
     }
 
-    constructor(address _registry, address _cToken, address _pool) internal {
+    constructor(address _registry, address _cToken) internal {
         registry = IRegistry(_registry);
         cToken = _cToken;
-        pool = _pool;
     }
 
     function avatar() public returns (IAvatar) {

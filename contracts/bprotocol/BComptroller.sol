@@ -32,9 +32,9 @@ contract BComptroller {
         bool is_cETH = cToken == registry.cEther();
         address bToken;
         if(is_cETH) {
-            bToken = address(new BEther(address(registry), cToken, registry.pool()));
+            bToken = address(new BEther(address(registry), cToken));
         } else {
-            bToken = address(new BErc20(address(registry), cToken, registry.pool()));
+            bToken = address(new BErc20(address(registry), cToken));
         }
 
         c2b[cToken] = bToken;
