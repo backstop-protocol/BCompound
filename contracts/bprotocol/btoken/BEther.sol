@@ -11,18 +11,30 @@ contract BEther is BToken {
         address _cToken
     ) public BToken(_registry, _cToken) {}
 
-    function _iAvatarCEther() internal returns (IAvatarCEther) {
-        return IAvatarCEther(address(avatar()));
+    function _myAvatarCEther() internal returns (IAvatarCEther) {
+        return IAvatarCEther(address(myAvatar()));
     }
 
+    // mint()
     function mint() external payable {
         // CEther calls requireNoError() to ensure no failures
-        _iAvatarCEther().mint.value(msg.value)();
+        _myAvatarCEther().mint.value(msg.value)();
     }
 
+    function mintOnAvatar(address _avatar) external onlyDelegatee(_avatar) payable {
+        // CEther calls requireNoError() to ensure no failures
+        IAvatarCEther(_avatar).mint.value(msg.value)();
+    }
+
+    // repayBorrow()
     function repayBorrow() external payable {
         // CEther calls requireNoError() to ensure no failures
-        _iAvatarCEther().repayBorrow.value(msg.value)();
+        _myAvatarCEther().repayBorrow.value(msg.value)();
+    }
+
+    function repayBorrowOnAvatar(address _avatar) external onlyDelegatee(_avatar) payable {
+        // CEther calls requireNoError() to ensure no failures
+        IAvatarCEther(_avatar).repayBorrow.value(msg.value)();
     }
 
     function liquidateBorrow(address borrower, address cTokenCollateral) external payable onlyPool {

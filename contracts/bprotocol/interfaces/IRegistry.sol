@@ -13,6 +13,7 @@ interface IRegistry {
     function jar() external view returns (address);
 
     // Avatar functions
+    function isAvatarHasDelegatee(address avatar, address delegatee) external view returns (bool);
     function avatars(address user) external view returns (address);
     function isAvatarExist(address avatar) external view returns (bool);
     function isAvatarExistFor(address user) external view returns (bool);

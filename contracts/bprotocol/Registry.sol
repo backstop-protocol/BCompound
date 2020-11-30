@@ -64,20 +64,19 @@ contract Registry {
         return _newAvatar(msg.sender);
     }
 
-    function newAvatarOnBehalfOf(address user) external returns (address) {
-        return _newAvatar(user);
+    function newAvatarOnBehalfOf(address owner) external returns (address) {
+        return _newAvatar(owner);
     }
 
     /**
-     * @dev Get the user's avatar if exists otherwise create one for him
-     * @param user Address of the user
+     * @dev Get the owner's avatar if exists otherwise create one for him
+     * @param owner Address of the user
      * @return The existing/new Avatar contract address
      */
-    function getAvatar(address user) external returns (address) {
-        // TODO find avatar of user/delegatee
-        address avatar = ownerToAvatar[user];
+    function getAvatar(address owner) external returns (address) {
+        address avatar = ownerToAvatar[owner];
         if(avatar == address(0)) {
-            avatar = _newAvatar(user);
+            avatar = _newAvatar(owner);
         }
         return avatar;
     }
