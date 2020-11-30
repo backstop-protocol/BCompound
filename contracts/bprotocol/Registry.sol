@@ -149,6 +149,6 @@ contract Registry {
     }
 
     function avatarOf(address owner) public view returns (address) {
-        return avatarToOwner[owner];
+        return ownerToAvatar[owner];
     }
 }
