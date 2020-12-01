@@ -135,10 +135,6 @@ contract AvatarBase is Exponential {
         return result;
     }
 
-    function avatarOwner() public view returns (address payable) {
-        return address(uint160(registry.ownerOf(address(this))));
-    }
-
     function pool() public view returns (address payable) {
         return address(uint160(registry.pool()));
     }
