@@ -1,10 +1,12 @@
-import * as t from "types/index";
-import { BProtocolEngine, BProtocol } from "@utils/BProtocolEngine";
-import { CompoundUtils } from "@utils/CompoundUtils";
+import * as b from "../types/index";
+import * as c from "../types/compound/index";
+
+import { BProtocolEngine, BProtocol } from "../test-utils/BProtocolEngine";
+import { CompoundUtils } from "../test-utils/CompoundUtils";
 
 const { expectRevert } = require("@openzeppelin/test-helpers");
 
-const BComptroller: t.BComptrollerContract = artifacts.require("BComptroller");
+const BComptroller: b.BComptrollerContract = artifacts.require("BComptroller");
 
 contract("BComptroller", async (accounts) => {
     const engine = new BProtocolEngine(accounts);
