@@ -63,7 +63,7 @@ contract BToken is Exponential {
     }
 
     function _redeem(address _avatar, uint256 redeemTokens) internal returns (uint256) {
-        uint256 result = IAvatar(_avatar).redeem(cToken, redeemTokens);
+        uint256 result = IAvatar(_avatar).redeem(cToken, redeemTokens, msg.sender);
         require(result == 0, "BToken: redeem-failed");
         return result;
     }
@@ -78,7 +78,7 @@ contract BToken is Exponential {
     }
 
     function _redeemUnderlying(address _avatar, uint256 redeemAmount) internal returns (uint256) {
-        uint256 result = IAvatar(_avatar).redeemUnderlying(cToken, redeemAmount);
+        uint256 result = IAvatar(_avatar).redeemUnderlying(cToken, redeemAmount, msg.sender);
         require(result == 0, "BToken: redeemUnderlying-failed");
         return result;
     }
@@ -93,7 +93,7 @@ contract BToken is Exponential {
     }
 
     function _borrow(address _avatar, uint256 borrowAmount) internal returns (uint256) {
-        uint256 result = IAvatar(_avatar).borrow(cToken, borrowAmount);
+        uint256 result = IAvatar(_avatar).borrow(cToken, borrowAmount, msg.sender);
         require(result == 0, "BToken: borrow-failed");
         return result;
     }
