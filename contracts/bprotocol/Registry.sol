@@ -29,10 +29,6 @@ contract Registry {
     // Avatar => Delegatee => bool
     mapping (address => mapping(address => bool)) public isAvatarHasDelegatee;
 
-    // A Delegatee can have multiple Avatar
-    // Delegatee => Avatar => bool
-    mapping (address => mapping(address => bool)) public isDelegateeHasAvatar;
-
     event NewAvatar(address indexed avatar, address owner);
     event AvatarTransferOwnership(address indexed avatar, address oldOwner, address newOwner);
     event Delegate(address indexed delegator, address avatar, address delegatee);
@@ -99,7 +95,6 @@ contract Registry {
         require(avatar != address(0), "Registry: avatar-not-found");
 
         isAvatarHasDelegatee[avatar][delegatee] = true;
-        isDelegateeHasAvatar[delegatee][avatar] = true;
         emit Delegate(msg.sender, avatar, delegatee);
     }
 
@@ -109,7 +104,6 @@ contract Registry {
         require(isAvatarHasDelegatee[avatar][delegatee], "Registry: not-delegated");
 
         isAvatarHasDelegatee[avatar][delegatee] = false;
-        isDelegateeHasAvatar[delegatee][avatar] = false;
         emit RevokeDelegate(msg.sender, avatar, delegatee);
     }
 
