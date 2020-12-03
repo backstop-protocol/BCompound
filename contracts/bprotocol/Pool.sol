@@ -1,6 +1,6 @@
 pragma solidity 0.5.16;
 
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
