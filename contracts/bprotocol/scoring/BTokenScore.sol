@@ -9,8 +9,8 @@ contract BTokenScore is ScoringMachine {
     string private constant parent = "BTokenScore";
 
     modifier onlyAvatar() {
-        address user = registry.userOf(msg.sender);
-        require(user != address(0), "Score: not-an-avatar");
+        address _owner = registry.ownerOf(msg.sender);
+        require(_owner != address(0), "Score: not-an-avatar");
         _;
     }
 

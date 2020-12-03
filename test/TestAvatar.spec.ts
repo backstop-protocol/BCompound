@@ -1,4 +1,4 @@
-import * as t from "types/index";
+import * as b from "../types/index";
 
 contract("Avatar", async (accounts) => {
     before(async () => {});

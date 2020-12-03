@@ -1,10 +1,11 @@
-import * as t from "types/index";
-import { BProtocolEngine, BProtocol } from "@utils/BProtocolEngine";
-import { CompoundUtils } from "@utils/CompoundUtils";
+import * as b from "../types/index";
+
+import { BProtocolEngine, BProtocol } from "../test-utils/BProtocolEngine";
+import { CompoundUtils } from "../test-utils/CompoundUtils";
 
 const { expectRevert } = require("@openzeppelin/test-helpers");
 
-const BComptroller: t.BComptrollerContract = artifacts.require("BComptroller");
+const BComptroller: b.BComptrollerContract = artifacts.require("BComptroller");
 
 contract("BComptroller", async (accounts) => {
     const engine = new BProtocolEngine(accounts);
@@ -18,7 +19,7 @@ contract("BComptroller", async (accounts) => {
 
     it("should create new BToken for cZRX", async () => {
         const cZRX_addr = compound.getContracts("cZRX");
-        const bToken: t.BErc20Instance = await engine.deployNewBErc20("cZRX");
+        const bToken: b.BErc20Instance = await engine.deployNewBErc20("cZRX");
         expect(await bToken.cToken()).to.be.equal(cZRX_addr);
         expect(await bToken.registry()).to.be.equal(bProtocol.registry.address);
         // TODO validate entries in c2b and b2c

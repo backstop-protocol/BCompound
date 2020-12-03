@@ -18,26 +18,38 @@ contract BErc20 is BToken {
         underlying = ICToken(cToken).underlying();
     }
 
-    function _iAvatarCErc20() internal returns (IAvatarCErc20) {
-        return IAvatarCErc20(address(avatar()));
+    // mint()
+    function mint(uint256 mintAmount) external returns (uint256) {
+        return _mint(myAvatar(), mintAmount);
     }
 
-    function mint(uint256 mintAmount) external returns (uint256) {
-        IAvatarCErc20 _avatar = _iAvatarCErc20();
-        underlying.safeTransferFrom(msg.sender, address(_avatar), mintAmount);
-        uint256 result = _avatar.mint(cToken, mintAmount);
+    function mintOnAvatar(address _avatar, uint256 mintAmount) external onlyDelegatee(_avatar) returns (uint256) {
+        return _mint(_avatar, mintAmount);
+    }
+
+    function _mint(address _avatar, uint256 mintAmount) internal returns (uint256) {
+        underlying.safeTransferFrom(msg.sender, _avatar, mintAmount);
+        uint256 result = IAvatarCErc20(_avatar).mint(cToken, mintAmount);
         require(result == 0, "BErc20: mint-failed");
         return result;
     }
 
+    // repayBorrow()
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
-        IAvatarCErc20 _avatar = _iAvatarCErc20();
+        return _repayBorrow(myAvatar(), repayAmount);
+    }
+
+    function repayBorrowOnAvatar(address _avatar, uint256 repayAmount) external onlyDelegatee(_avatar) returns (uint256) {
+        return _repayBorrow(_avatar, repayAmount);
+    }
+
+    function _repayBorrow(address _avatar, uint256 repayAmount) internal returns (uint256) {
         uint256 actualRepayAmount = repayAmount;
         if(repayAmount == uint256(-1)) {
-            actualRepayAmount = _avatar.borrowBalanceCurrent(cToken);
+            actualRepayAmount = IAvatarCErc20(_avatar).borrowBalanceCurrent(cToken);
         }
-        underlying.safeTransferFrom(msg.sender, address(_avatar), actualRepayAmount);
-        uint256 result = _avatar.repayBorrow(cToken, actualRepayAmount);
+        underlying.safeTransferFrom(msg.sender, _avatar, actualRepayAmount);
+        uint256 result = IAvatarCErc20(_avatar).repayBorrow(cToken, actualRepayAmount);
         require(result == 0, "BErc20: repayBorrow-failed");
         return result;
     }

@@ -1,16 +1,16 @@
-import * as t from "../../types/index";
+import * as b from "../../types/index";
 
-import { BProtocolEngine, BProtocol } from "@utils/BProtocolEngine";
-import { CompoundUtils } from "@utils/CompoundUtils";
+import { BProtocolEngine, BProtocol } from "../../test-utils/BProtocolEngine";
+import { CompoundUtils } from "../../test-utils/CompoundUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
-import { expectedLiquidity, expectMarket } from "@utils/expectUtils";
+import { expectedLiquidity, expectMarket } from "../../test-utils/expectUtils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers");
 
-const DetailedErc20: t.DetailedErc20Contract = artifacts.require("DetailedERC20");
-const CEther: t.CEtherContract = artifacts.require("CEther");
-const CErc20: t.CErc20Contract = artifacts.require("CErc20");
+const ERC20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
+const CEther: b.CEtherContract = artifacts.require("CEther");
+const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -31,25 +31,25 @@ contract("Pool performs liquidation", async (accounts) => {
     const compound = new CompoundUtils();
 
     // Compound Contracts
-    let comptroller: t.ComptrollerInstance;
-    let priceOracle: t.FakePriceOracleInstance;
+    let comptroller: b.ComptrollerInstance;
+    let priceOracle: b.FakePriceOracleInstance;
 
     // BToken Contracts
-    let bETH: t.BEtherInstance;
-    let bZRX: t.BErc20Instance;
+    let bETH: b.BEtherInstance;
+    let bZRX: b.BErc20Instance;
 
     // Avatar Contracts
-    let avatarUser1: t.AvatarInstance;
-    let avatarUser2: t.AvatarInstance;
+    let avatarUser1: b.AvatarInstance;
+    let avatarUser2: b.AvatarInstance;
 
     // CTokens
     let cETH_addr: string;
-    let cETH: t.CEtherInstance;
+    let cETH: b.CEtherInstance;
     let cZRX_addr: string;
-    let cZRX: t.CErc20Instance;
+    let cZRX: b.CErc20Instance;
 
     // ZRX
-    let ZRX: t.DetailedErc20Instance;
+    let ZRX: b.Erc20DetailedInstance;
     let ONE_ZRX: BN;
     let HUNDRED_ZRX: BN;
 
@@ -71,7 +71,7 @@ contract("Pool performs liquidation", async (accounts) => {
         cZRX_addr = compound.getContracts("cZRX");
         cZRX = await CErc20.at(cZRX_addr);
 
-        ZRX = await DetailedErc20.at(compound.getContracts("ZRX"));
+        ZRX = await ERC20Detailed.at(compound.getContracts("ZRX"));
         const decimals_ZRX = await ZRX.decimals();
         ONE_ZRX = new BN(10).pow(new BN(decimals_ZRX));
         HUNDRED_ZRX = ONE_ZRX.mul(new BN(100));
@@ -228,7 +228,7 @@ contract("Pool performs liquidation", async (accounts) => {
     });
 
     it("7. Member should topup via pool", async () => {
-        const pool: t.PoolInstance = bProtocol.pool;
+        const pool: b.PoolInstance = bProtocol.pool;
 
         // Ensure member1 has ZRX balance
         const zrxBal = await ZRX.balanceOf(member1);

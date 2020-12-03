@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 
 // TODO To be removed in mainnet deployment
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
@@ -18,9 +18,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract AvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
-    // Owner of the Avatar
-    address payable public avatarOwner;
-    address payable public pool;
     IRegistry public registry;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
@@ -38,7 +35,7 @@ contract AvatarBase is Exponential {
     ICToken public liquidationCToken;
 
     modifier onlyPool() {
-        require(msg.sender == pool, "only-pool-is-authorized");
+        require(msg.sender == pool(), "only-pool-is-authorized");
         _;
     }
 
@@ -54,8 +51,6 @@ contract AvatarBase is Exponential {
 
     /**
      * @dev Constructor
-     * @param _avatarOwner Owner of this avatar instance
-     * @param _pool Pool contract address
      * @param _bComptroller BComptroller contract address
      * @param _comptroller Compound finance Comptroller contract address
      * @param _comp Compound finance COMP token contract address
@@ -63,8 +58,6 @@ contract AvatarBase is Exponential {
      * @param _registry Registry contract address
      */
     constructor(
-        address _avatarOwner,
-        address _pool,
         address _bComptroller,
         address _comptroller,
         address _comp,
@@ -73,10 +66,6 @@ contract AvatarBase is Exponential {
     )
         internal
     {
-        // Converting `_avatarOwner` address to payable address here, so that we don't need to pass
-        // `address payable` in inheritance hierarchy
-        avatarOwner = address(uint160(_avatarOwner));
-        pool = address(uint160(_pool));
         bComptroller = IBComptroller(_bComptroller);
         comptroller = IComptroller(_comptroller);
         comp = IERC20(_comp);
@@ -144,5 +133,9 @@ contract AvatarBase is Exponential {
         bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
         console.log("In canUntop, result: %s", result);
         return result;
+    }
+
+    function pool() public view returns (address payable) {
+        return address(uint160(registry.pool()));
     }
 }

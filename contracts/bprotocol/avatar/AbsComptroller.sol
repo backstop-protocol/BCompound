@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 
 // TODO To be removed in mainnet deployment
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 import { AvatarBase } from "./AvatarBase.sol";
 

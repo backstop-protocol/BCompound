@@ -1,19 +1,15 @@
-import { task, usePlugin } from "@nomiclabs/buidler/config";
-
+import "hardhat-typechain";
 require("ts-node/register");
-require("tsconfig-paths/register");
-
-usePlugin("@nomiclabs/buidler-truffle5");
-usePlugin("buidler-typechain");
+require("@nomiclabs/hardhat-truffle5");
 
 // You have to export an object to set up your config
 // This object can have the following optional entries:
 // defaultNetwork, networks, solc, and paths.
-// Go to https://buidler.dev/config/ to learn more
+// Go to https://hardhat.dev/config/ to learn more
 export default {
     defaultNetwork: "localhost",
     networks: {
-        buidlerevm: {
+        hardhat: {
             allowUnlimitedContractSize: true,
             accounts: [
                 // 20 accounts with 10^14 ETH each
@@ -143,18 +139,19 @@ export default {
         localhost: { url: "http://localhost:8545" },
     },
     // This is a sample solc configuration that specifies which version of solc to use
-    solc: {
+    solidity: {
         version: "0.5.16",
-        optimizer: {
-            enabled: true,
-            runs: 200,
+        settings: {
+            optimizer: {
+                enabled: true,
+                runs: 200,
+            },
         },
     },
 
     paths: {
         sources: "./contracts",
         tests: "./test",
-        artifacts: "./build/contracts",
     },
 
     typechain: {

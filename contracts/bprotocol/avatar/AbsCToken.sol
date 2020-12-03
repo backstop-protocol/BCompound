@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 
 // TODO To be removed in mainnet deployment
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
@@ -108,44 +108,57 @@ contract AbsCToken is Cushion {
         return 0;
     }
 
-    function redeem(ICToken cToken, uint256 redeemTokens) external onlyBToken postPoolOp(true) returns (uint256) {
+    function redeem(
+        ICToken cToken,
+        uint256 redeemTokens,
+        address payable userOrDelegatee
+    ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
 
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
             // FIXME if we can calculate and send exact amount
-            avatarOwner.transfer(address(this).balance);
+            userOrDelegatee.transfer(address(this).balance);
         } else {
             IERC20 underlying = cToken.underlying();
             uint256 redeemedAmount = underlying.balanceOf(address(this));
-            underlying.safeTransfer(avatarOwner, redeemedAmount);
+            underlying.safeTransfer(userOrDelegatee, redeemedAmount);
         }
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
         _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
         return result;
     }
 
-    function redeemUnderlying(ICToken cToken, uint256 redeemAmount) external onlyBToken postPoolOp(true) returns (uint256) {
+    function redeemUnderlying(
+        ICToken cToken,
+        uint256 redeemAmount,
+        address payable userOrDelegatee
+    ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
+
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
-            avatarOwner.transfer(redeemAmount);
+            userOrDelegatee.transfer(redeemAmount);
         } else {
             IERC20 underlying = cToken.underlying();
-            underlying.safeTransfer(avatarOwner, redeemAmount);
+            underlying.safeTransfer(userOrDelegatee, redeemAmount);
         }
         _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
         return result;
     }
 
-    function borrow(ICToken cToken, uint256 borrowAmount) external onlyBToken postPoolOp(true) returns (uint256) {
+    function borrow(
+        ICToken cToken,
+        uint256 borrowAmount,
+        address payable userOrDelegatee
+    ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
         if(_isCEther(cToken)) {
             // FIXME OZ `Address.sendValue`
-            avatarOwner.transfer(borrowAmount);
+            userOrDelegatee.transfer(borrowAmount);
         } else {
             IERC20 underlying = cToken.underlying();
-            underlying.safeTransfer(avatarOwner, borrowAmount);
+            underlying.safeTransfer(userOrDelegatee, borrowAmount);
         }
         _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
         return result;

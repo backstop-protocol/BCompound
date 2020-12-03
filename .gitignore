@@ -3,6 +3,6 @@ node_modules/
 
 node_modules
 
-#Buidler files
+#hardhat files
 cache
 artifacts

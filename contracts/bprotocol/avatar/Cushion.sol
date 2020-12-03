@@ -1,7 +1,7 @@
 pragma solidity 0.5.16;
 
 // TODO To be removed in mainnet deployment
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
@@ -48,7 +48,7 @@ contract Cushion is AvatarBase {
 
         // 1. Transfer funds from the Pool contract
         IERC20 underlying = cToken.underlying();
-        underlying.safeTransferFrom(pool, address(this), topupAmount);
+        underlying.safeTransferFrom(pool(), address(this), topupAmount);
 
         // 2. Repay borrows from Pool to topup
         require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-failed");
@@ -79,6 +79,7 @@ contract Cushion is AvatarBase {
         // 1. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
 
+        address payable pool = pool();
         if(address(toppedUpCToken) == address(cETH)) {
             // 2. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
@@ -100,6 +101,7 @@ contract Cushion is AvatarBase {
         // 1. when already untopped, return
         if(!isToppedUp()) return;
 
+        address payable pool = pool();
         if(address(toppedUpCToken) == address(cETH)) {
             // 2. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
@@ -145,6 +147,7 @@ contract Cushion is AvatarBase {
         // 3. Liquidator perform repayBorrow
         (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, remainingLiquidationAmount);
 
+        address payable pool = pool();
         if(amtToRepayOnCompound > 0) {
             bool isCEtherDebt = _isCEther(debtCToken);
             if(isCEtherDebt) {
