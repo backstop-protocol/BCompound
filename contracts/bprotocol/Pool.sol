@@ -27,8 +27,10 @@ import { Exponential } from "./lib/Exponential.sol";
 contract Pool is Exponential, Ownable {
     using SafeERC20 for IERC20;
     address internal constant ETH_ADDR = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     IComptroller public comptroller;
     IRegistry public registry;
+    address public jar;
     address public cEther;
     address[] public members;
     // member selection duration for round robin, default 60 mins
@@ -67,6 +69,10 @@ contract Pool is Exponential, Ownable {
         }
         require(member, "pool: not-member");
         _;
+    }
+
+    constructor(address _jar) public {
+        jar = _jar;
     }
 
     function setRegistry(address _registry) public {
@@ -233,7 +239,7 @@ contract Pool is Exponential, Ownable {
         uint jarShare = sub_(seizedTokens, memberShare);
 
         IERC20(cTokenCollateral).safeTransfer(ti.toppedBy, memberShare);
-        IERC20(cTokenCollateral).safeTransfer(registry.jar(), jarShare);
+        IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
 
         bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
         if(! stillToppedUp) delete topped[avatar];

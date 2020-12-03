@@ -1,33 +1,32 @@
 pragma solidity 0.5.16;
 
 import { Avatar } from "./avatar/Avatar.sol";
+import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 
 /**
  * @dev Registry contract to maintain Compound addresses and other details.
  */
-contract Registry {
+contract Registry is Ownable {
 
     // Compound Contracts
     address public comptroller;
     address public comp;
     address public cEther;
-    address public priceOracle;
 
     // BProtocol Contracts
     address public pool;
     address public bComptroller;
     address public score;
-    address public jar;
 
     // Owner => Avatar
-    mapping (address => address) public ownerToAvatar;
+    mapping (address => address) public avatarOf;
 
     // Avatar => Owner
-    mapping (address => address) public avatarToOwner;
+    mapping (address => address) public ownerOf;
 
     // An Avatar can have multiple Delegatee
     // Avatar => Delegatee => bool
-    mapping (address => mapping(address => bool)) public isAvatarHasDelegatee;
+    mapping (address => mapping(address => bool)) public delegate;
 
     event NewAvatar(address indexed avatar, address owner);
     event AvatarTransferOwnership(address indexed avatar, address oldOwner, address newOwner);
@@ -38,102 +37,83 @@ contract Registry {
         address _comptroller,
         address _comp,
         address _cEther,
-        address _priceOracle,
         address _pool,
         address _bComptroller,
-        address _score,
-        address _jar
+        address _score
     )
         public
     {
         comptroller = _comptroller;
         comp = _comp;
         cEther = _cEther;
-        priceOracle = _priceOracle;
         pool = _pool;
         bComptroller = _bComptroller;
         score = _score;
-        jar = _jar;
+    }
+
+    function setPool(address newPool) external onlyOwner {
+        require(newPool != address(0), "Registry: pool-address-is-zero");
+        pool = newPool;
+    }
+
+    function setScore(address newScore) external onlyOwner {
+        require(newScore != address(0), "Registry: score-address-is-zero");
+        score = newScore;
     }
 
     function newAvatar() external returns (address) {
         return _newAvatar(msg.sender);
     }
 
-    function newAvatarOnBehalfOf(address owner) external returns (address) {
-        return _newAvatar(owner);
-    }
-
     /**
      * @dev Get the owner's avatar if exists otherwise create one for him
-     * @param owner Address of the owner
+     * @param _owner Address of the owner
      * @return The existing/new Avatar contract address
      */
-    function getAvatar(address owner) external returns (address) {
-        address avatar = ownerToAvatar[owner];
-        if(avatar == address(0)) {
-            avatar = _newAvatar(owner);
+    function getAvatar(address _owner) external returns (address) {
+        address _avatar = avatarOf[_owner];
+        if(_avatar == address(0)) {
+            _avatar = _newAvatar(_owner);
         }
-        return avatar;
-    }
-
-    function transferAvatarOwnership(address newOwner) external {
-        require(newOwner != address(0), "Registry: newOwner-is-zero-address");
-        address avatar = ownerToAvatar[msg.sender];
-        require(avatar != address(0), "Registry: avatar-not-found");
-
-        delete ownerToAvatar[msg.sender];
-        delete avatarToOwner[avatar];
-
-        ownerToAvatar[newOwner] = avatar;
-        avatarToOwner[avatar] = newOwner;
-        emit AvatarTransferOwnership(avatar, msg.sender, newOwner);
+        return _avatar;
     }
 
     function delegateAvatar(address delegatee) external {
-        address avatar = ownerToAvatar[msg.sender];
-        require(avatar != address(0), "Registry: avatar-not-found");
+        address _avatar = avatarOf[msg.sender];
+        require(_avatar != address(0), "Registry: avatar-not-found");
 
-        isAvatarHasDelegatee[avatar][delegatee] = true;
-        emit Delegate(msg.sender, avatar, delegatee);
+        delegate[_avatar][delegatee] = true;
+        emit Delegate(msg.sender, _avatar, delegatee);
     }
 
     function revokeDelegateAvatar(address delegatee) external {
-        address avatar = ownerToAvatar[msg.sender];
-        require(avatar != address(0), "Registry: avatar-not-found");
-        require(isAvatarHasDelegatee[avatar][delegatee], "Registry: not-delegated");
+        address _avatar = avatarOf[msg.sender];
+        require(_avatar != address(0), "Registry: avatar-not-found");
+        require(delegate[_avatar][delegatee], "Registry: not-delegated");
 
-        isAvatarHasDelegatee[avatar][delegatee] = false;
-        emit RevokeDelegate(msg.sender, avatar, delegatee);
+        delegate[_avatar][delegatee] = false;
+        emit RevokeDelegate(msg.sender, _avatar, delegatee);
     }
 
     /**
      * @dev Create a new Avatar contract for the given owner
-     * @param owner Address of the owner
+     * @param _owner Address of the owner
      * @return The address of the newly deployed Avatar contract
      */
-    function _newAvatar(address owner) internal returns (address) {
-        require(!isAvatarExistFor(owner), "avatar-already-exits-for-owner");
-        address avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
-        ownerToAvatar[owner] = avatar;
-        avatarToOwner[avatar] = owner;
-        emit NewAvatar(avatar, owner);
-        return avatar;
+    function _newAvatar(address _owner) internal returns (address) {
+        require(avatarOf[_owner] == address(0), "Registry: avatar-exits-for-owner");
+        address _avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
+        avatarOf[_owner] = _avatar;
+        ownerOf[_avatar] = _owner;
+        emit NewAvatar(_avatar, _owner);
+        return _avatar;
     }
 
-    function isAvatarExist(address avatar) public view returns (bool) {
-        return avatarToOwner[avatar] != address(0);
+    function doesAvatarExist(address _avatar) public view returns (bool) {
+        return ownerOf[_avatar] != address(0);
     }
 
-    function isAvatarExistFor(address owner) public view returns (bool) {
-        return ownerToAvatar[owner] != address(0);
-    }
-
-    function ownerOf(address avatar) public view returns (address) {
-        return avatarToOwner[avatar];
-    }
-
-    function avatarOf(address owner) public view returns (address) {
-        return ownerToAvatar[owner];
+    function doesAvatarExistFor(address _owner) public view returns (bool) {
+        return avatarOf[_owner] != address(0);
     }
 }
