@@ -32,7 +32,7 @@ export class BProtocol {
     public members: Array<string> = new Array();
     public bComptroller!: t.BComptrollerInstance;
     public registry!: t.RegistryInstance;
-    public bTokens: Map<string, t.BTokenInstance> = new Map();
+    public bTokens: Map<string, t.AbsBTokenInstance> = new Map();
     public jar!: string;
     public score!: t.BTokenScoreInstance;
 
@@ -94,7 +94,7 @@ export class BProtocolEngine {
         this.bProtocol.members.push(this.accounts[9]);
         const comptroller = this.compoundUtil.getContracts("Comptroller");
         const cETH = this.compoundUtil.getContracts("cETH");
-        const pool = await Pool.new();
+        const pool = await Pool.new(this.bProtocol.jar);
         await pool.setMembers(this.bProtocol.members);
         await pool.setProfitParams(105, 110);
         return pool;
@@ -118,7 +118,6 @@ export class BProtocolEngine {
         const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
         const bScore = this.bProtocol.score.address;
-        const jar = this.bProtocol.jar;
         return await Registry.new(
             comptroller,
             comp,
@@ -127,7 +126,6 @@ export class BProtocolEngine {
             pool.address,
             bComptroller,
             bScore,
-            jar,
         );
     }
 
