@@ -3,7 +3,7 @@ pragma solidity 0.5.16;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CTokenInterface {
-    /*** ERC20 ****/
+    /* ERC20 */
     function transfer(address dst, uint amount) external returns (bool);
     function transferFrom(address src, address dst, uint amount) external returns (bool);
     function approve(address spender, uint amount) external returns (bool);
@@ -14,7 +14,8 @@ contract CTokenInterface {
     function symbol() external view returns (string memory);
     function decimals() external view returns (uint8);
 
-    /*** User Interface ***/
+    /* User Interface */
+    function isCToken() external view returns (bool);
     function underlying() external view returns (IERC20);
     function balanceOfUnderlying(address owner) external returns (uint);
     function getAccountSnapshot(address account) external view returns (uint, uint, uint, uint);
@@ -33,7 +34,7 @@ contract CTokenInterface {
 
 contract ICToken is CTokenInterface {
 
-    /*** User Interface ***/
+    /* User Interface */
     function redeem(uint redeemTokens) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
     function borrow(uint borrowAmount) external returns (uint);

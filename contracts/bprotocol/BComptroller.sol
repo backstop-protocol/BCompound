@@ -4,6 +4,7 @@ import { BErc20 } from "./btoken/BErc20.sol";
 import { BEther } from "./btoken/BEther.sol";
 import { IRegistry } from "./interfaces/IRegistry.sol";
 import { IAvatar } from "./interfaces/IAvatar.sol";
+import { CTokenInterface } from "./interfaces/CTokenInterfaces.sol";
 
 contract BComptroller {
 
@@ -28,7 +29,8 @@ contract BComptroller {
 
     function newBToken(address cToken) external returns (address) {
         // FIXME ensure that the cToken is supported on Compound
-        require(!isCToken(cToken), "BToken-with-given-CToken-exists");
+        require(c2b[cToken] == address(0), "BComptroller: BToken-already-exists");
+        require(CTokenInterface(cToken).isCToken(), "BComptroller: not-a-CToken");
         bool is_cETH = cToken == registry.cEther();
         address bToken;
         if(is_cETH) {
@@ -41,10 +43,6 @@ contract BComptroller {
         b2c[bToken] = cToken;
         emit NewBToken(cToken, bToken);
         return bToken;
-    }
-
-    function isCToken(address cToken) public view returns (bool) {
-        return c2b[cToken] != address(0);
     }
 
     function isBToken(address bToken) public view returns (bool) {
