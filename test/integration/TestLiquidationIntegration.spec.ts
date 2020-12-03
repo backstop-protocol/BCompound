@@ -1,5 +1,4 @@
 import * as b from "../../types/index";
-import * as c from "../../types/compound/index";
 
 import { BProtocolEngine, BProtocol } from "../../test-utils/BProtocolEngine";
 import { CompoundUtils } from "../../test-utils/CompoundUtils";
@@ -9,9 +8,9 @@ import { expectedLiquidity, expectMarket } from "../../test-utils/expectUtils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers");
 
-const DetailedErc20: c.DetailedErc20Contract = artifacts.require("DetailedERC20");
-const CEther: c.CEtherContract = artifacts.require("CEther");
-const CErc20: c.CErc20Contract = artifacts.require("CErc20");
+const ERC20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
+const CEther: b.CEtherContract = artifacts.require("CEther");
+const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -32,7 +31,7 @@ contract("Pool performs liquidation", async (accounts) => {
     const compound = new CompoundUtils();
 
     // Compound Contracts
-    let comptroller: c.ComptrollerInstance;
+    let comptroller: b.ComptrollerInstance;
     let priceOracle: b.FakePriceOracleInstance;
 
     // BToken Contracts
@@ -45,12 +44,12 @@ contract("Pool performs liquidation", async (accounts) => {
 
     // CTokens
     let cETH_addr: string;
-    let cETH: c.CEtherInstance;
+    let cETH: b.CEtherInstance;
     let cZRX_addr: string;
-    let cZRX: c.CErc20Instance;
+    let cZRX: b.CErc20Instance;
 
     // ZRX
-    let ZRX: c.DetailedErc20Instance;
+    let ZRX: b.Erc20DetailedInstance;
     let ONE_ZRX: BN;
     let HUNDRED_ZRX: BN;
 
@@ -72,7 +71,7 @@ contract("Pool performs liquidation", async (accounts) => {
         cZRX_addr = compound.getContracts("cZRX");
         cZRX = await CErc20.at(cZRX_addr);
 
-        ZRX = await DetailedErc20.at(compound.getContracts("ZRX"));
+        ZRX = await ERC20Detailed.at(compound.getContracts("ZRX"));
         const decimals_ZRX = await ZRX.decimals();
         ONE_ZRX = new BN(10).pow(new BN(decimals_ZRX));
         HUNDRED_ZRX = ONE_ZRX.mul(new BN(100));

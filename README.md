@@ -10,22 +10,18 @@ Command to compile the `compound-demo` and `compound-protocol` contracts
 
     npm run compile
 
-Run Buidler EVM
+Run Hardhat EVM
 
-    npx buidler node
+    npx hardhat node
 
 Deploy Compound Contracts on ganache. This command will not stop automatically. You need to kill this with [Ctrl+C] once deployment is done.
 
     npm run deploy-compound
 
-Generate TypeChain typings
-
-    npx buidler typechain
-
 Execute tests
 
-    npx buidler test
+    npx run test
 
 Deploy Contracts
 
-    npx buidler run scripts/deploy.js
+    npx hardhat run scripts/deploy.js

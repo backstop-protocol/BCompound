@@ -1,5 +1,4 @@
 import * as b from "../types/index";
-import * as c from "../types/compound/index";
 
 import { BProtocolEngine, BProtocol } from "../test-utils/BProtocolEngine";
 import { CompoundUtils } from "../test-utils/CompoundUtils";
@@ -20,7 +19,7 @@ contract("BComptroller", async (accounts) => {
 
     it("should create new BToken for cZRX", async () => {
         const cZRX_addr = compound.getContracts("cZRX");
-        const bToken: t.BErc20Instance = await engine.deployNewBErc20("cZRX");
+        const bToken: b.BErc20Instance = await engine.deployNewBErc20("cZRX");
         expect(await bToken.cToken()).to.be.equal(cZRX_addr);
         expect(await bToken.registry()).to.be.equal(bProtocol.registry.address);
         // TODO validate entries in c2b and b2c

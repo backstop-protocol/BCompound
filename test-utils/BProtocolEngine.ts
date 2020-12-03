@@ -1,5 +1,4 @@
 import * as b from "../types/index";
-import * as c from "../types/compound/index";
 
 import { CompoundUtils } from "./CompoundUtils";
 import BN from "bn.js";
@@ -7,8 +6,8 @@ import BN from "bn.js";
 const shell = require("shelljs");
 
 // Compound contracts
-const Comp: c.CompContract = artifacts.require("Comp");
-const Comptroller: c.ComptrollerContract = artifacts.require("Comptroller");
+const Comp: b.CompContract = artifacts.require("Comp");
+const Comptroller: b.ComptrollerContract = artifacts.require("Comptroller");
 const FakePriceOracle: b.FakePriceOracleContract = artifacts.require("FakePriceOracle");
 
 // BProtocol contracts
@@ -22,8 +21,8 @@ const BTokenScore: b.BTokenScoreContract = artifacts.require("BTokenScore");
 
 // Compound class to store all Compound deployed contracts
 export class Compound {
-    public comptroller!: c.ComptrollerInstance;
-    public comp!: c.CompInstance;
+    public comptroller!: b.ComptrollerInstance;
+    public comp!: b.CompInstance;
     public priceOracle!: b.FakePriceOracleInstance;
 }
 

@@ -52,13 +52,10 @@
     "compile": "hardhat compile",
     "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
     "test": "hardhat test",
-    "gen-typings": "hardhat typechain",
-    "clean":"rimraf build && rimraf types && rimraf cache && rimraf artifacts",
+    "clean": "rimraf build && rimraf types && rimraf cache && rimraf artifacts",
     "build": "npm run compile && npm run gen-typings",
     "build-all": "npm run clean && npm run build-compound && npm run build",
-    "build-compound": "npm run compile-compound && npm run typechain-compound",
-    "compile-compound": "truffle compile --contracts_directory compound-protocol/tests",
-    "typechain-compound" :"typechain --target=truffle-v5 './build/contracts/*.json' --outDir ./types/compound"
+    "compile-compound": "truffle compile --contracts_directory compound-protocol/tests"
   },
   "repository": {
     "type": "git",
