@@ -22,8 +22,8 @@
     }
   },
   "include": ["/**/*.ts"],
-  "files": ["./buidler.config.ts", 
-    "./buidler-env.d.ts",
-    "node_modules/buidler-typechain/src/type-extensions.d.ts"
+  "files": ["./hardhat.config.ts", 
+    "./hardhat-env.d.ts",
+    "node_modules/hardhat-typechain/src/type-extensions.d.ts"
     ]
 }

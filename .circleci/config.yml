@@ -35,11 +35,8 @@ jobs:
           name: Compile contracts
           command: export NODE_OPTIONS='--max-old-space-size=8192' && npm run compile
       - run:
-          name: Build TypeChain typings
-          command: npx buidler typechain
-      - run:
           name: Run tests
-          command: npx buidler test
+          command: npx hardhat test
       - save_cache:
           key: dependency-cache-{{ checksum "checksum.tmp" }}
           paths:
