@@ -24,7 +24,7 @@ contract AvatarBase is Exponential {
     IERC20 public comp;
     ICEther public cETH;
 
-    /** Storage for topup details */
+    /* Storage for topup details */
     // Topped up cToken
     ICToken public toppedUpCToken;
     // Topped up amount of tokens

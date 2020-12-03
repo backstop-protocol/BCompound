@@ -1,15 +1,15 @@
 pragma solidity 0.5.16;
 
-import { BToken } from "./BToken.sol";
+import { AbsBToken } from "./AbsBToken.sol";
 
 import { IAvatarCEther } from "../interfaces/IAvatar.sol";
 
-contract BEther is BToken {
+contract BEther is AbsBToken {
 
     constructor(
         address _registry,
         address _cToken
-    ) public BToken(_registry, _cToken) {}
+    ) public AbsBToken(_registry, _cToken) {}
 
     function _myAvatarCEther() internal returns (IAvatarCEther) {
         return IAvatarCEther(address(myAvatar()));

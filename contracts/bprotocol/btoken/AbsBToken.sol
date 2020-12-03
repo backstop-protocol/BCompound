@@ -11,9 +11,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 /**
- * @title BToken is BProtocol token contract which represents the Compound's CToken
+ * @title AbsBToken is BProtocol token contract which represents the Compound's CToken
  */
-contract BToken is Exponential {
+contract AbsBToken is Exponential {
     using SafeERC20 for IERC20;
 
     // BProtocol Registry contract
@@ -39,11 +39,6 @@ contract BToken is Exponential {
 
     function myAvatar() public returns (address) {
         return registry.getAvatar(msg.sender);
-    }
-
-    function _toUnderlying(uint256 redeemTokens) internal returns (uint256) {
-        uint256 exchangeRate = ICToken(cToken).exchangeRateCurrent();
-        return mulTrucate(redeemTokens, exchangeRate);
     }
 
     // CEther / CErc20
