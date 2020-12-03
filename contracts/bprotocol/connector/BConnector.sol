@@ -1,18 +1,20 @@
 pragma solidity 0.5.16;
 
+import { IScoreConfig } from "../scoring/IScoreConfig.sol";
+
 /**
  * @notice B.Protocol Compound connector contract, which is used by Jar contract
  */
 contract BConnector {
 
-    IScoringConfig public scoringConfig;
+    IScoreConfig public scoreConfig;
 
     /**
      * @dev Constructor
-     * @param _scoringConfig Address of ScoringConfig contract
+     * @param _scoreConfig Address of ScoringConfig contract
      */
-    constructor(address _scoringConfig) public {
-        scoringConfig = IScoringConfig(_scoringConfig);
+    constructor(address _scoreConfig) public {
+        scoreConfig = IScoreConfig(_scoreConfig);
     }
 
     /**
@@ -21,7 +23,7 @@ contract BConnector {
      * @return The user's total score
      */
     function getUserScore(bytes32 user) external view returns (uint256) {
-        return scoringConfig.getUserScore(toUser(user));
+        return scoreConfig.getUserScore(toUser(user));
     }
     
     /**
@@ -29,7 +31,7 @@ contract BConnector {
      * @return The total global score
      */
     function getGlobalScore() external view returns (uint256) {
-        return scoringConfig.getGlobalScore();
+        return scoreConfig.getGlobalScore();
     }
     
     function toUser(bytes32 user) public pure returns (address) {
@@ -39,12 +41,4 @@ contract BConnector {
         // Extract left most 20 bytes from `bytes32` type and convert to `address` type
         return address(uint160(bytes20(user)));
     }
-}
-
-/**
- * @notice Interface to connect with Compound's ScoringConfig contract
- */
-interface IScoringConfig {
-    function getUserScore(address user) external view returns (uint256);
-    function getGlobalScore() external view returns (uint256);
 }

@@ -1,20 +1,20 @@
 pragma solidity 0.5.16;
 
-import { BToken } from "./BToken.sol";
+import { AbsBToken } from "./AbsBToken.sol";
 
 import { IAvatarCErc20 } from "../interfaces/IAvatar.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract BErc20 is BToken {
+contract BErc20 is AbsBToken {
 
     IERC20 public underlying;
 
     constructor(
         address _registry,
         address _cToken
-    ) public BToken(_registry, _cToken) {
+    ) public AbsBToken(_registry, _cToken) {
         underlying = ICToken(cToken).underlying();
     }
 
