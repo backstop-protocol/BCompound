@@ -106,7 +106,7 @@ export class BProtocolEngine {
 
     // Deploy BComptroller contract
     private async deployBComptroller(): Promise<t.BComptrollerInstance> {
-        return await BComptroller.new();
+        return await BComptroller.new(this.compoundUtil.getComptroller());
     }
 
     // Deploy Registry contract
@@ -114,19 +114,10 @@ export class BProtocolEngine {
         const comptroller = this.compoundUtil.getComptroller();
         const comp = this.compoundUtil.getComp();
         const cETH = this.compoundUtil.getContracts("cETH");
-        const priceOracle = this.compoundUtil.getPriceOracle();
         const pool = this.bProtocol.pool;
         const bComptroller = this.bProtocol.bComptroller.address;
         const bScore = this.bProtocol.score.address;
-        return await Registry.new(
-            comptroller,
-            comp,
-            cETH,
-            priceOracle,
-            pool.address,
-            bComptroller,
-            bScore,
-        );
+        return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, bScore);
     }
 
     public getBProtocol(): BProtocol {

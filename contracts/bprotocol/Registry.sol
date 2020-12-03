@@ -12,7 +12,6 @@ contract Registry is Ownable {
     address public comptroller;
     address public comp;
     address public cEther;
-    address public priceOracle;
 
     // BProtocol Contracts
     address public pool;
@@ -38,7 +37,6 @@ contract Registry is Ownable {
         address _comptroller,
         address _comp,
         address _cEther,
-        address _priceOracle,
         address _pool,
         address _bComptroller,
         address _score
@@ -48,7 +46,6 @@ contract Registry is Ownable {
         comptroller = _comptroller;
         comp = _comp;
         cEther = _cEther;
-        priceOracle = _priceOracle;
         pool = _pool;
         bComptroller = _bComptroller;
         score = _score;

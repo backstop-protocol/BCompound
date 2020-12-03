@@ -16,6 +16,11 @@ contract IAvatar is IERC20 {
 
     // Comptroller functions
     function enterMarket(address cToken) external returns (uint256);
+    function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory);
+    function exitMarket(address cToken) external returns (uint256);
+    function claimComp(address owner) external;
+    function claimComp(address[] calldata cTokens, address owner) external;
+    function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall);
 }
 
 // Workaround for issue https://github.com/ethereum/solidity/issues/526

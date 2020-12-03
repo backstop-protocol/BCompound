@@ -5,8 +5,11 @@ import { BEther } from "./btoken/BEther.sol";
 import { IRegistry } from "./interfaces/IRegistry.sol";
 import { IAvatar } from "./interfaces/IAvatar.sol";
 import { CTokenInterface } from "./interfaces/CTokenInterfaces.sol";
+import { IComptroller } from "./interfaces/IComptroller.sol";
 
 contract BComptroller {
+
+    IComptroller public comptroller;
 
     IRegistry public registry;
 
@@ -18,12 +21,16 @@ contract BComptroller {
 
     event NewBToken(address indexed cToken, address bToken);
 
+    constructor(address _comptroller) public {
+        comptroller = IComptroller(_comptroller);
+    }
+
     /**
      * @dev Registry address set only one time
      * @param _registry Address of the registry contract
      */
     function setRegistry(address _registry) public {
-        require(address(registry) == address(0), "registry-is-already-set");
+        require(address(registry) == address(0), "BComptroller: registry-already-set");
         registry = IRegistry(_registry);
     }
 
@@ -52,5 +59,34 @@ contract BComptroller {
     function enterMarket(address cToken) external returns (uint256) {
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
         return avatar.enterMarket(cToken);
+    }
+
+    function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory) {
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        return avatar.enterMarkets(cTokens);
+    }
+
+    function exitMarket(address cToken) external returns (uint256) {
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        return avatar.exitMarket(cToken);
+    }
+
+    function getAccountLiquidity() external /*view*/ returns (uint err, uint liquidity, uint shortFall) {
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        return avatar.getAccountLiquidity();
+    }
+
+    function claimComp() external {
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        return avatar.claimComp(msg.sender);
+    }
+
+    function claimComp(address[] calldata cTokens) external {
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        return avatar.claimComp(cTokens, msg.sender);
+    }
+
+    function oracle() external view returns (address) {
+        return comptroller.oracle();
     }
 }

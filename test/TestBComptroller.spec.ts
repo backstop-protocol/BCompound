@@ -28,7 +28,7 @@ contract("BComptroller", async (accounts) => {
         const cZRX_addr = compound.getContracts("cZRX");
         await expectRevert(
             bProtocol.bComptroller.newBToken(cZRX_addr),
-            "BToken-with-given-CToken-exists",
+            "BComptroller: BToken-already-exists",
         );
         // TODO validate entries in c2b and b2c
     });

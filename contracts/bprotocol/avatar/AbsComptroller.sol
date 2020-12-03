@@ -69,17 +69,25 @@ contract AbsComptroller is AvatarBase {
         cToken.underlying().safeApprove(address(cToken), 0);
     }
 
-    function claimComp() external onlyBComptroller {
+    function claimComp(address owner) external onlyBComptroller {
         comptroller.claimComp(address(this));
-        comp.safeTransfer(msg.sender, comp.balanceOf(address(this)));
+        comp.safeTransfer(owner, comp.balanceOf(address(this)));
     }
 
-    function claimComp(address[] calldata cTokens) external onlyBComptroller {
+    function claimComp(address[] calldata cTokens, address owner) external onlyBComptroller {
         comptroller.claimComp(address(this), cTokens);
-        comp.safeTransfer(msg.sender, comp.balanceOf(address(this)));
+        comp.safeTransfer(owner, comp.balanceOf(address(this)));
+    }
+
+    function getAccountLiquidity(address oracle) external view returns (uint err, uint liquidity, uint shortFall) {
+        return _getAccountLiquidity(oracle);
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
+        return _getAccountLiquidity(comptroller.oracle());
+    }
+
+    function _getAccountLiquidity(address oracle) internal view returns (uint err, uint liquidity, uint shortFall) {
         // If not topped up, get the account liquidity from Comptroller
         (err, liquidity, shortFall) = comptroller.getAccountLiquidity(address(this));
         if(!isToppedUp()) {
@@ -87,8 +95,7 @@ contract AbsComptroller is AvatarBase {
         }
         require(err == 0, "Error-in-getting-account-liquidity");
 
-        IPriceOracle priceOracle = IPriceOracle(comptroller.oracle());
-        uint256 price = priceOracle.getUnderlyingPrice(toppedUpCToken);
+        uint256 price = IPriceOracle(oracle).getUnderlyingPrice(toppedUpCToken);
         console.log("In getAccountLiquidity, price: %s", price);
         uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
 

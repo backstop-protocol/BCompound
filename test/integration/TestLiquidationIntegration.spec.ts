@@ -223,7 +223,7 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnCompound, ZERO, ZERO, ZERO);
 
         // account liquidity on Avatar
-        const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        const accLiquidityOnAvatar = await avatarUser1.methods["getAccountLiquidity()"]();
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
@@ -252,7 +252,7 @@ contract("Pool performs liquidation", async (accounts) => {
         expectedLiquidity(accLiquidityOnCompound, ZERO, expectedLiquidityInUSD, ZERO);
 
         // account liquidity on Avatar
-        const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        const accLiquidityOnAvatar = await avatarUser1.methods["getAccountLiquidity()"]();
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
     });
 
@@ -291,7 +291,7 @@ contract("Pool performs liquidation", async (accounts) => {
         // account liquidity on Avatar
         // expectShortFall = (borrowedOnCompound + toppedUpValue) - maxBorrowAllowed
         const expectShortFall = borrowedOnCompound.add(toppedUpValue).sub(maxBorrowAllowed);
-        const accLiquidityOnAvatar = await avatarUser1.getAccountLiquidity();
+        const accLiquidityOnAvatar = await avatarUser1.methods["getAccountLiquidity()"]();
         expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, expectShortFall);
     });
 
