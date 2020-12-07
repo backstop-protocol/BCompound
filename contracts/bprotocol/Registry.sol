@@ -81,6 +81,7 @@ contract Registry is Ownable {
     }
 
     function delegateAvatar(address delegatee) external {
+        require(delegatee != address(0), "Registry: delegatee-address-is-zero");
         address _avatar = avatarOf[msg.sender];
         require(_avatar != address(0), "Registry: avatar-not-found");
 

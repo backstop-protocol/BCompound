@@ -209,19 +209,126 @@ contract("Registry", async (accounts) => {
   });
 
   describe("delegateAvatar()", async () => {
-    it("should allow a delegator to delegate avatar to a delegatee");
+    it("should allow a delegator to delegate avatar to a delegatee", async () => {
+      const delegator = a.user1;
+      const delegatee = a.dummy1;
+      const avatar = await registry.avatarOf(delegator);
+      let isDelegated = await registry.delegate(avatar, delegatee);
+      expect(isDelegated).to.be.equal(false);
 
-    it("should fail when avatar does not exist for the delegator");
+      const tx = await registry.delegateAvatar(delegatee, { from: delegator });
+      expectEvent(tx, "Delegate", { delegator: delegator, avatar: avatar, delegatee: delegatee });
 
-    it("should allow delegator to delegate to multiple delegatees");
+      isDelegated = await registry.delegate(avatar, delegatee);
+      expect(isDelegated).to.be.equal(true);
+    });
+
+    it("should fail when avatar does not exist for the delegator", async () => {
+      const delegator = a.user5;
+      const delegatee = a.dummy1;
+      const avatar = await registry.avatarOf(delegator);
+      expect(avatar).to.be.equal(ZERO_ADDRESS);
+
+      let isDelegated = await registry.delegate(avatar, delegatee);
+      expect(isDelegated).to.be.equal(false);
+
+      await expectRevert(
+        registry.delegateAvatar(delegatee, { from: delegator }),
+        "Registry: avatar-not-found",
+      );
+
+      isDelegated = await registry.delegate(avatar, delegatee);
+      expect(isDelegated).to.be.equal(false);
+    });
+
+    it("should fail when delegatee address is zero", async () => {
+      const delegator = a.user1;
+      const delegatee = ZERO_ADDRESS;
+      const avatar = await registry.avatarOf(delegator);
+      let isDelegated = await registry.delegate(avatar, delegatee);
+      expect(isDelegated).to.be.equal(false);
+
+      await expectRevert(
+        registry.delegateAvatar(delegatee, { from: delegator }),
+        "Registry: delegatee-address-is-zero",
+      );
+
+      isDelegated = await registry.delegate(avatar, delegatee);
+      expect(isDelegated).to.be.equal(false);
+    });
+
+    it("should allow delegator to delegate to multiple delegatees", async () => {
+      const delegator = a.user1;
+      const delegatee1 = a.dummy1;
+      const delegatee2 = a.dummy2;
+      const delegatee3 = a.dummy3;
+
+      const avatar = await registry.avatarOf(delegator);
+      expect(await registry.delegate(avatar, delegatee1)).to.be.equal(true);
+      expect(await registry.delegate(avatar, delegatee2)).to.be.equal(false);
+      expect(await registry.delegate(avatar, delegatee3)).to.be.equal(false);
+
+      let tx = await registry.delegateAvatar(delegatee2, { from: delegator });
+      expectEvent(tx, "Delegate", { delegator: delegator, avatar: avatar, delegatee: delegatee2 });
+      expect(await registry.delegate(avatar, delegatee2)).to.be.equal(true);
+
+      tx = await registry.delegateAvatar(delegatee3, { from: delegator });
+      expectEvent(tx, "Delegate", { delegator: delegator, avatar: avatar, delegatee: delegatee3 });
+      expect(await registry.delegate(avatar, delegatee3)).to.be.equal(true);
+
+      expect(await registry.delegate(avatar, delegatee1)).to.be.equal(true);
+      expect(await registry.delegate(avatar, delegatee2)).to.be.equal(true);
+      expect(await registry.delegate(avatar, delegatee3)).to.be.equal(true);
+    });
   });
 
   describe("revokeDelegateAvatar()", async () => {
-    it("should allow a delegator to revoke delegation rights from a delegatee");
+    it("should allow a delegator to revoke delegation rights from a delegatee", async () => {
+      const delegator = a.user1;
+      const delegatee = a.dummy1;
+      const avatar = await registry.avatarOf(delegator);
 
-    it("should fail when avatar does not exists for the delegator");
+      expect(await registry.delegate(avatar, delegatee)).to.be.equal(true);
 
-    it("should fail when delegator not delegated rights to a delegatee");
+      const tx = await registry.revokeDelegateAvatar(delegatee, { from: delegator });
+      expectEvent(tx, "RevokeDelegate", {
+        delegator: delegator,
+        avatar: avatar,
+        delegatee: delegatee,
+      });
+
+      expect(await registry.delegate(avatar, delegatee)).to.be.equal(false);
+    });
+
+    it("should fail when avatar does not exists for the delegator", async () => {
+      const delegator = a.user5;
+      const delegatee = a.dummy1;
+      const avatar = await registry.avatarOf(delegator);
+
+      expect(avatar).to.be.equal(ZERO_ADDRESS);
+
+      await expectRevert(
+        registry.revokeDelegateAvatar(delegatee, { from: delegator }),
+        "Registry: avatar-not-found",
+      );
+
+      expect(await registry.delegate(avatar, delegatee)).to.be.equal(false);
+    });
+
+    it("should fail when delegator not delegated rights to a delegatee", async () => {
+      const delegator = a.user1;
+      const delegatee = a.other;
+      const avatar = await registry.avatarOf(delegator);
+
+      expect(await registry.delegate(avatar, delegatee)).to.be.equal(false);
+
+      await expectRevert(
+        registry.revokeDelegateAvatar(delegatee, { from: delegator }),
+        "Registry: not-delegated",
+      );
+
+      expect(await registry.delegate(avatar, delegatee)).to.be.equal(false);
+    });
   });
 
   describe("doesAvatarExist()", async () => {
