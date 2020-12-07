@@ -24,6 +24,7 @@ export class Compound {
     public comptroller!: b.ComptrollerInstance;
     public comp!: b.CompInstance;
     public priceOracle!: b.FakePriceOracleInstance;
+    public compoundUtil!: CompoundUtils;
 }
 
 // BProtocol Class to store all BProtocol deployed contracts
@@ -78,6 +79,7 @@ export class BProtocolEngine {
         _bProtocol.compound.comptroller = await Comptroller.at(this.compoundUtil.getComptroller());
         _bProtocol.compound.comp = await Comp.at(this.compoundUtil.getComp());
         _bProtocol.compound.priceOracle = await this.deployFakePriceOracle();
+        _bProtocol.compound.compoundUtil = this.compoundUtil;
 
         // console.log("Pool: " + _bProtocol.pool.address);
         // console.log("BComptroller: " + _bProtocol.bComptroller.address);
