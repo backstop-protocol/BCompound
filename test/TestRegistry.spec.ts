@@ -33,6 +33,15 @@ contract("Registry", async (accounts) => {
       expect(await registry.bComptroller()).to.be.not.equal(ZERO_ADDRESS);
       expect(await registry.score()).to.be.not.equal(ZERO_ADDRESS);
 
+      expect(await registry.comptroller()).to.be.equal(bProtocol.compound.comptroller.address);
+      expect(await registry.comp()).to.be.equal(bProtocol.compound.comp.address);
+      expect(await registry.cEther()).to.be.equal(
+        bProtocol.compound.compoundUtil.getContracts("cETH"),
+      );
+      expect(await registry.pool()).to.be.equal(bProtocol.pool.address);
+      expect(await registry.bComptroller()).to.be.equal(bProtocol.bComptroller.address);
+      expect(await registry.score()).to.be.equal(bProtocol.score.address);
+
       //Ownable variables
       expect(await registry.owner()).to.be.equal(a.deployer);
     });
@@ -45,7 +54,7 @@ contract("Registry", async (accounts) => {
       expect(bProtocol.pool.address).to.be.equal(pool);
     });
 
-    it("should allow only owner to set newPool", async () => {
+    it("only owner can call newPool", async () => {
       const oldPool = await registry.pool();
       const newPool = a.dummy1;
       const tx = await registry.setPool(newPool, { from: a.deployer });
@@ -69,7 +78,7 @@ contract("Registry", async (accounts) => {
 
     it("should fail when a non-owner try to set newPool", async () => {
       const oldPool = await registry.pool();
-      const newPool = ZERO_ADDRESS;
+      const newPool = a.dummy1;
       await expectRevert(
         registry.setPool(newPool, { from: a.other }),
         "Ownable: caller is not the owner",
@@ -87,7 +96,7 @@ contract("Registry", async (accounts) => {
       expect(bProtocol.score.address).to.be.equal(score);
     });
 
-    it("should allow only owner to set newScore", async () => {
+    it("only owner can call newScore", async () => {
       const oldScore = await registry.score();
       const newScore = a.dummy1;
       const tx = await registry.setScore(newScore, { from: a.deployer });
@@ -111,7 +120,7 @@ contract("Registry", async (accounts) => {
 
     it("should fail when a non-owner try to set newScore", async () => {
       const oldScore = await registry.score();
-      const newScore = ZERO_ADDRESS;
+      const newScore = a.dummy1;
       await expectRevert(
         registry.setScore(newScore, { from: a.other }),
         "Ownable: caller is not the owner",
@@ -182,16 +191,19 @@ contract("Registry", async (accounts) => {
     });
 
     it("should return avatar if exists for a user", async () => {
-      const avatar1 = await registry.getAvatar(a.user1);
+      const avatar1 = await registry.getAvatar.call(a.user1);
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
 
-      const avatar2 = await registry.getAvatar(a.user2);
+      const avatar2 = await registry.getAvatar.call(a.user2);
       expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar2).to.be.equal(await registry.avatarOf(a.user2));
     });
 
     it("should allow anyone to get avatar of others", async () => {
-      const avatar1 = await registry.getAvatar(a.user1, { from: a.other });
+      const avatar1 = await registry.getAvatar.call(a.user1, { from: a.other });
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
     });
 
     it("should fail when zero address is passed", async () => {
