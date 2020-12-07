@@ -4,7 +4,7 @@ import { Avatar } from "./avatar/Avatar.sol";
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 
 /**
- * @dev Registry contract to maintain Compound addresses and other details.
+ * @dev Registry contract to maintain Compound, BProtocol and avatar address.
  */
 contract Registry is Ownable {
 
@@ -29,9 +29,10 @@ contract Registry is Ownable {
     mapping (address => mapping(address => bool)) public delegate;
 
     event NewAvatar(address indexed avatar, address owner);
-    event AvatarTransferOwnership(address indexed avatar, address oldOwner, address newOwner);
     event Delegate(address indexed delegator, address avatar, address delegatee);
     event RevokeDelegate(address indexed delegator, address avatar, address delegatee);
+    event NewPool(address oldPool, address newPool);
+    event NewScore(address oldScore, address newScore);
 
     constructor(
         address _comptroller,
@@ -53,24 +54,24 @@ contract Registry is Ownable {
 
     function setPool(address newPool) external onlyOwner {
         require(newPool != address(0), "Registry: pool-address-is-zero");
+        address oldPool = pool;
         pool = newPool;
+        emit NewPool(oldPool, newPool);
     }
 
     function setScore(address newScore) external onlyOwner {
         require(newScore != address(0), "Registry: score-address-is-zero");
+        address oldScore = score;
         score = newScore;
+        emit NewScore(oldScore, newScore);
     }
 
     function newAvatar() external returns (address) {
         return _newAvatar(msg.sender);
     }
 
-    /**
-     * @dev Get the owner's avatar if exists otherwise create one for him
-     * @param _owner Address of the owner
-     * @return The existing/new Avatar contract address
-     */
     function getAvatar(address _owner) external returns (address) {
+        require(_owner != address(0), "Registry: owner-address-is-zero");
         address _avatar = avatarOf[_owner];
         if(_avatar == address(0)) {
             _avatar = _newAvatar(_owner);
@@ -79,6 +80,7 @@ contract Registry is Ownable {
     }
 
     function delegateAvatar(address delegatee) external {
+        require(delegatee != address(0), "Registry: delegatee-address-is-zero");
         address _avatar = avatarOf[msg.sender];
         require(_avatar != address(0), "Registry: avatar-not-found");
 
@@ -95,11 +97,6 @@ contract Registry is Ownable {
         emit RevokeDelegate(msg.sender, _avatar, delegatee);
     }
 
-    /**
-     * @dev Create a new Avatar contract for the given owner
-     * @param _owner Address of the owner
-     * @return The address of the newly deployed Avatar contract
-     */
     function _newAvatar(address _owner) internal returns (address) {
         require(avatarOf[_owner] == address(0), "Registry: avatar-exits-for-owner");
         address _avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
