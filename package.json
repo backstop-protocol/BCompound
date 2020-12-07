@@ -48,7 +48,7 @@
   },
   "scripts": {
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
-    "postinstall": "cd compound-protocol && yarn && cd scenario && yarn",
+    "postinstall": "git submodule update --init --recursive && cd compound-protocol && yarn && cd scenario && yarn",
     "compile": "hardhat compile",
     "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
     "test": "hardhat test",
