@@ -17,7 +17,9 @@ contract("Registry", async (accounts) => {
   before(async () => {
     // Deploy Compound
     await engine.deployCompound();
+  });
 
+  beforeEach(async () => {
     // Deploy BProtocol contracts
     bProtocol = await engine.deployBProtocol();
     registry = bProtocol.registry;
@@ -145,6 +147,8 @@ contract("Registry", async (accounts) => {
     });
 
     it("should fail when avatar already exists", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       await expectRevert(registry.newAvatar({ from: a.user1 }), "Registry: avatar-exits-for-owner");
 
       const avatar = await registry.avatarOf(a.user1);
@@ -153,6 +157,8 @@ contract("Registry", async (accounts) => {
     });
 
     it("should create different avatar for each users", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const avatar1 = await registry.avatarOf(a.user1);
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       expect(a.user1).to.be.equal(await registry.ownerOf(avatar1));
@@ -191,6 +197,9 @@ contract("Registry", async (accounts) => {
     });
 
     it("should return avatar if exists for a user", async () => {
+      await registry.newAvatar({ from: a.user1 });
+      await registry.newAvatar({ from: a.user2 });
+
       const avatar1 = await registry.getAvatar.call(a.user1);
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
@@ -201,6 +210,8 @@ contract("Registry", async (accounts) => {
     });
 
     it("should allow anyone to get avatar of others", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const avatar1 = await registry.getAvatar.call(a.user1, { from: a.other });
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
@@ -222,6 +233,8 @@ contract("Registry", async (accounts) => {
 
   describe("delegateAvatar()", async () => {
     it("should allow a delegator to delegate avatar to a delegatee", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const delegator = a.user1;
       const delegatee = a.dummy1;
       const avatar = await registry.avatarOf(delegator);
@@ -270,17 +283,23 @@ contract("Registry", async (accounts) => {
     });
 
     it("should allow delegator to delegate to multiple delegatees", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const delegator = a.user1;
       const delegatee1 = a.dummy1;
       const delegatee2 = a.dummy2;
       const delegatee3 = a.dummy3;
 
       const avatar = await registry.avatarOf(delegator);
-      expect(await registry.delegate(avatar, delegatee1)).to.be.equal(true);
+      expect(await registry.delegate(avatar, delegatee1)).to.be.equal(false);
       expect(await registry.delegate(avatar, delegatee2)).to.be.equal(false);
       expect(await registry.delegate(avatar, delegatee3)).to.be.equal(false);
 
-      let tx = await registry.delegateAvatar(delegatee2, { from: delegator });
+      let tx = await registry.delegateAvatar(delegatee1, { from: delegator });
+      expectEvent(tx, "Delegate", { delegator: delegator, avatar: avatar, delegatee: delegatee1 });
+      expect(await registry.delegate(avatar, delegatee1)).to.be.equal(true);
+
+      tx = await registry.delegateAvatar(delegatee2, { from: delegator });
       expectEvent(tx, "Delegate", { delegator: delegator, avatar: avatar, delegatee: delegatee2 });
       expect(await registry.delegate(avatar, delegatee2)).to.be.equal(true);
 
@@ -294,6 +313,10 @@ contract("Registry", async (accounts) => {
     });
 
     it("should allow a denegatee to receive multiple avatar delegation rights", async () => {
+      await registry.newAvatar({ from: a.user1 });
+      await registry.newAvatar({ from: a.user2 });
+      await registry.newAvatar({ from: a.user3 });
+
       const delegatee = a.dummy4;
       const delegator1 = a.user1;
       const delegator2 = a.user2;
@@ -329,6 +352,9 @@ contract("Registry", async (accounts) => {
     it("should allow a delegator to revoke delegation rights from a delegatee", async () => {
       const delegator = a.user1;
       const delegatee = a.dummy1;
+
+      await registry.newAvatar({ from: a.user1 });
+      await registry.delegateAvatar(delegatee, { from: delegator });
       const avatar = await registry.avatarOf(delegator);
 
       expect(await registry.delegate(avatar, delegatee)).to.be.equal(true);
@@ -359,6 +385,8 @@ contract("Registry", async (accounts) => {
     });
 
     it("should fail when delegator not delegated rights to a delegatee", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const delegator = a.user1;
       const delegatee = a.other;
       const avatar = await registry.avatarOf(delegator);
@@ -376,6 +404,8 @@ contract("Registry", async (accounts) => {
 
   describe("doesAvatarExist()", async () => {
     it("should return true when an avatar exists", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const avatar1 = await registry.avatarOf(a.user1);
       const doesExist = await registry.doesAvatarExist(avatar1);
       expect(doesExist).to.be.equal(true);
@@ -390,6 +420,8 @@ contract("Registry", async (accounts) => {
 
   describe("doesAvatarExistFor()", async () => {
     it("should return true when an avatar exists for a given owner", async () => {
+      await registry.newAvatar({ from: a.user1 });
+
       const doesAvExist = await registry.doesAvatarExistFor(a.user1);
       expect(doesAvExist).to.be.equal(true);
     });
