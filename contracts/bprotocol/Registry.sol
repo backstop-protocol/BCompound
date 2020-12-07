@@ -29,7 +29,6 @@ contract Registry is Ownable {
     mapping (address => mapping(address => bool)) public delegate;
 
     event NewAvatar(address indexed avatar, address owner);
-    event AvatarTransferOwnership(address indexed avatar, address oldOwner, address newOwner);
     event Delegate(address indexed delegator, address avatar, address delegatee);
     event RevokeDelegate(address indexed delegator, address avatar, address delegatee);
     event NewPool(address oldPool, address newPool);
