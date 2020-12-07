@@ -1,11 +1,14 @@
 import * as b from "../types/index";
 import { BProtocolEngine, BProtocol } from "../test-utils/BProtocolEngine";
 import { BAccounts } from "../test-utils/BAccounts";
+import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
+
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
 
 const chai = require("chai");
 const expect = chai.expect;
+let snapshotId: string;
 
 contract("Registry", async (accounts) => {
   let bProtocol: BProtocol;
@@ -17,12 +20,18 @@ contract("Registry", async (accounts) => {
   before(async () => {
     // Deploy Compound
     await engine.deployCompound();
-  });
 
-  beforeEach(async () => {
     // Deploy BProtocol contracts
     bProtocol = await engine.deployBProtocol();
     registry = bProtocol.registry;
+  });
+
+  beforeEach(async () => {
+    snapshotId = await takeSnapshot();
+  });
+
+  afterEach(async () => {
+    await revertToSnapShot(snapshotId);
   });
 
   describe("Registry: constructor", async () => {
