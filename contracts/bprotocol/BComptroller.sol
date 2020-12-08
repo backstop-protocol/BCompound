@@ -25,19 +25,16 @@ contract BComptroller {
         comptroller = IComptroller(_comptroller);
     }
 
-    /**
-     * @dev Registry address set only one time
-     * @param _registry Address of the registry contract
-     */
     function setRegistry(address _registry) public {
         require(address(registry) == address(0), "BComptroller: registry-already-set");
         registry = IRegistry(_registry);
     }
 
     function newBToken(address cToken) external returns (address) {
-        // FIXME ensure that the cToken is supported on Compound
         require(c2b[cToken] == address(0), "BComptroller: BToken-already-exists");
-        require(CTokenInterface(cToken).isCToken(), "BComptroller: not-a-CToken");
+        (bool isListed,) = comptroller.markets(cToken);
+        require(isListed, "BComptroller: cToken-not-listed-on-compound");
+
         bool is_cETH = cToken == registry.cEther();
         address bToken;
         if(is_cETH) {

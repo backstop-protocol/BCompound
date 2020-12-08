@@ -26,4 +26,9 @@ export class CompoundUtils {
     this.loanJson();
     return this.compound.Contracts[key];
   }
+
+  public getTokens(key: string): string {
+    this.loanJson();
+    return this.compound.Tokens[key].address;
+  }
 }
