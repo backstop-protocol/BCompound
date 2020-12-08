@@ -7,9 +7,7 @@ const BComptroller = artifacts.require("BComptroller");
 const BToken = artifacts.require("BToken");
 
 const fs = require("fs");
-const rawdata = fs.readFileSync(
-  "./compound-protocol/networks/development.json"
-);
+const rawdata = fs.readFileSync("./compound-protocol/networks/development.json");
 const dev_json = JSON.parse(rawdata);
 
 async function main() {
@@ -34,7 +32,7 @@ async function main() {
     cETH_addr,
     priceOracle_addr,
     pool.address,
-    bComptroller.address
+    bComptroller.address,
   );
 
   await bComptroller.setRegistry(registry.address);
