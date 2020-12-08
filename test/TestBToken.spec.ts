@@ -1,7 +1,7 @@
 import * as b from "../types/index";
 
 contract("BToken", async (accounts) => {
-    before(async () => {});
+  before(async () => {});
 
-    it("");
+  it("");
 });
