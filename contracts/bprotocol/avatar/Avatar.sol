@@ -54,8 +54,8 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @dev Mint cToken for ERC20 and enter market on Compound
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
-        uint256 result = super.mint(cToken, mintAmount);
         require(_enterMarket(address(cToken)) == 0, "enterMarket-failed");
+        uint256 result = super.mint(cToken, mintAmount);
         return result;
     }
 }

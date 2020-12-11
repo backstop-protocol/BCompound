@@ -12,7 +12,7 @@ contract BEther is AbsBToken {
     ) public AbsBToken(_registry, _cToken) {}
 
     function _myAvatarCEther() internal returns (IAvatarCEther) {
-        return IAvatarCEther(address(myAvatar()));
+        return IAvatarCEther(address(_myAvatar()));
     }
 
     // mint()

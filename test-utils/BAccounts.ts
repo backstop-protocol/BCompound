@@ -11,6 +11,11 @@ export class BAccounts {
   public user4: string;
   public user5: string;
 
+  public member1: string;
+  public member2: string;
+  public member3: string;
+  public member4: string;
+
   public other: string;
 
   public dummy1: string;
@@ -29,11 +34,14 @@ export class BAccounts {
     this.user4 = _accounts[4];
     this.user5 = _accounts[5];
 
-    // TODO member
+    this.member1 = _accounts[6];
+    this.member2 = _accounts[7];
+    this.member3 = _accounts[8];
+    this.member4 = _accounts[9];
     //TODO also integrate with BProtocol class
 
     // other
-    this.other = _accounts[9];
+    this.other = _accounts[10];
 
     // dummy
     this.dummy1 = _accounts[16];
