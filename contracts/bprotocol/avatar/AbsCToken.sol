@@ -115,17 +115,18 @@ contract AbsCToken is Cushion {
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
 
+        uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
+        _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
+
+        // Do the fund transfer at last
         if(_isCEther(cToken)) {
-            // FIXME OZ `Address.sendValue`
-            // FIXME if we can calculate and send exact amount
-            userOrDelegatee.transfer(address(this).balance);
+            bool success = userOrDelegatee.send(address(this).balance);
+            success; //shh: Avoiding DoS attack
         } else {
             IERC20 underlying = cToken.underlying();
             uint256 redeemedAmount = underlying.balanceOf(address(this));
             underlying.safeTransfer(userOrDelegatee, redeemedAmount);
         }
-        uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
-        _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
         return result;
     }
 
@@ -136,14 +137,16 @@ contract AbsCToken is Cushion {
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
 
+        _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
+
+        // Do the fund transfer at last
         if(_isCEther(cToken)) {
-            // FIXME OZ `Address.sendValue`
-            userOrDelegatee.transfer(redeemAmount);
+            bool success = userOrDelegatee.send(redeemAmount);
+            success; //shh: Avoiding DoS attack
         } else {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(userOrDelegatee, redeemAmount);
         }
-        _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
         return result;
     }
 
