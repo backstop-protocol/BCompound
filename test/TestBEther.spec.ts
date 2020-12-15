@@ -32,7 +32,7 @@ contract("BEther", async (accounts) => {
   let compoundUtil: CompoundUtils;
 
   before(async () => {
-    // await engine.deployCompound();
+    await engine.deployCompound();
     bProtocol = await engine.deployBProtocol();
 
     bComptroller = bProtocol.bComptroller;
@@ -63,7 +63,7 @@ contract("BEther", async (accounts) => {
       cETH_addr = compoundUtil.getContracts("cETH");
       cETH = await CEther.at(cETH_addr);
 
-      bETH = await engine.deployNewBEther("cETH");
+      bETH = await engine.deployNewBEther();
       bETH_addr = bETH.address;
     });
 

@@ -33,7 +33,7 @@ contract("BErc20", async (accounts) => {
   let compoundUtil: CompoundUtils;
 
   before(async () => {
-    // await engine.deployCompound();
+    await engine.deployCompound();
     bProtocol = await engine.deployBProtocol();
 
     bComptroller = bProtocol.bComptroller;
