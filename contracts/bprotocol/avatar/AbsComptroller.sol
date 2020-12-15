@@ -41,8 +41,9 @@ contract AbsComptroller is AvatarBase {
     }
 
     function exitMarket(ICToken cToken) external onlyBComptroller postPoolOp(true) returns (uint256) {
-        comptroller.exitMarket(address(cToken));
+        uint result = comptroller.exitMarket(address(cToken));
         _disableCToken(cToken);
+        return result;
     }
 
     /**

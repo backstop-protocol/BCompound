@@ -25,19 +25,16 @@ contract BComptroller {
         comptroller = IComptroller(_comptroller);
     }
 
-    /**
-     * @dev Registry address set only one time
-     * @param _registry Address of the registry contract
-     */
     function setRegistry(address _registry) public {
         require(address(registry) == address(0), "BComptroller: registry-already-set");
         registry = IRegistry(_registry);
     }
 
     function newBToken(address cToken) external returns (address) {
-        // FIXME ensure that the cToken is supported on Compound
         require(c2b[cToken] == address(0), "BComptroller: BToken-already-exists");
-        require(CTokenInterface(cToken).isCToken(), "BComptroller: not-a-CToken");
+        (bool isListed,) = comptroller.markets(cToken);
+        require(isListed, "BComptroller: cToken-not-listed-on-compound");
+
         bool is_cETH = cToken == registry.cEther();
         address bToken;
         if(is_cETH) {
@@ -57,22 +54,26 @@ contract BComptroller {
     }
 
     function enterMarket(address cToken) external returns (uint256) {
+        require(c2b[cToken] != address(0), "BComptroller: BToken-not-exist-for-cToken");
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
         return avatar.enterMarket(cToken);
     }
 
     function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory) {
+        for(uint i = 0; i < cTokens.length; i++) {
+            require(c2b[cTokens[i]] != address(0), "BComptroller: BToken-not-exist-for-cToken");
+        }
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
         return avatar.enterMarkets(cTokens);
     }
 
     function exitMarket(address cToken) external returns (uint256) {
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        IAvatar avatar = IAvatar(registry.avatarOf(msg.sender));
         return avatar.exitMarket(cToken);
     }
 
-    function getAccountLiquidity() external /*view*/ returns (uint err, uint liquidity, uint shortFall) {
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+    function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
+        IAvatar avatar = IAvatar(registry.avatarOf(msg.sender));
         return avatar.getAccountLiquidity();
     }
 
