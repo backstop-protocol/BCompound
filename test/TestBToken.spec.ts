@@ -143,8 +143,6 @@ contract("BToken", async (accounts) => {
       it("");
     });
 
-    // BToken
-
     describe("BErc20.borrowBalanceCurrent()", async () => {
       it("");
     });
@@ -289,7 +287,52 @@ contract("BToken", async (accounts) => {
     });
 
     describe("BErc20.redeemUnderlyingOnAvatar()", async () => {
-      it("");
+      const delegator = a.user1;
+      const delegatee = a.other;
+      let avatar1: string;
+
+      beforeEach(async () => {
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: delegator });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: delegator });
+
+        await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
+        avatar1 = await bProtocol.registry.avatarOf(delegator);
+      });
+
+      it("delegatee should redeem all underlying tokens of the user", async () => {
+        const underlyingBalance = await bZRX.balanceOfUnderlying.call(delegator);
+
+        expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+
+        const err = await bZRX.redeemUnderlyingOnAvatar.call(avatar1, underlyingBalance, {
+          from: delegatee,
+        });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bZRX.redeemUnderlyingOnAvatar(avatar1, underlyingBalance, { from: delegatee });
+
+        expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+      });
+
+      it("delegatee should reedeem some underlying tokens of the user", async () => {
+        const underlyingBalance = await bZRX.balanceOfUnderlying.call(delegator);
+        const halfUnderlyingBal = underlyingBalance.div(new BN(2));
+
+        expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+
+        let err = await bZRX.redeemUnderlyingOnAvatar.call(avatar1, halfUnderlyingBal, {
+          from: delegatee,
+        });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bZRX.redeemUnderlyingOnAvatar(avatar1, halfUnderlyingBal, { from: delegatee });
+
+        err = await bZRX.redeemUnderlyingOnAvatar.call(avatar1, halfUnderlyingBal, {
+          from: delegatee,
+        });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bZRX.redeemUnderlyingOnAvatar(avatar1, halfUnderlyingBal, { from: delegatee });
+
+        expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+      });
     });
 
     describe("BErc20.borrow()", async () => {
