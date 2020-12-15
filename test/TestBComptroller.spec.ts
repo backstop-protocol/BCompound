@@ -155,7 +155,7 @@ contract("BComptroller", async (accounts) => {
         expect(await bComptroller.b2c(bETH_addr)).to.be.equal(cETH_addr);
       });
 
-      it("should not have underlying storage", async () => {
+      it("should not have 'underlying' contract public variable", async () => {
         const cETH_addr = compoundUtil.getContracts("cETH");
         const bETH_BEther = await engine.deployNewBEther();
         expect(await bETH_BEther.cToken()).to.be.equal(cETH_addr);
@@ -218,6 +218,8 @@ contract("BComptroller", async (accounts) => {
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(ZERO_ADDRESS);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
+      const err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
@@ -232,6 +234,8 @@ contract("BComptroller", async (accounts) => {
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(ZERO_ADDRESS);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
+      const err = await bComptroller.enterMarket.call(cETH_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
@@ -248,6 +252,8 @@ contract("BComptroller", async (accounts) => {
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
+      const err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
@@ -264,6 +270,8 @@ contract("BComptroller", async (accounts) => {
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
+      const err = await bComptroller.enterMarket.call(cETH_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
@@ -278,10 +286,14 @@ contract("BComptroller", async (accounts) => {
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
+      let err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
 
+      err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
@@ -295,6 +307,8 @@ contract("BComptroller", async (accounts) => {
 
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
+      const err = await bComptroller.enterMarket.call(cETH_addr, { from: a.user1 });
+      expect(err).to.be.bignumber.equal(ZERO);
       await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
@@ -333,6 +347,11 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
+      const errArr = await bComptroller.enterMarkets.call([cZRX_addr, cETH_addr], {
+        from: a.user1,
+      });
+      await Promise.all(errArr.map((e) => expect(e).to.be.bignumber.equal(ZERO)));
+
       await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
@@ -354,6 +373,10 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
+      const errArr = await bComptroller.enterMarkets.call([cZRX_addr, cETH_addr], {
+        from: a.user1,
+      });
+      await Promise.all(errArr.map((e) => expect(e).to.be.bignumber.equal(ZERO)));
       await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
@@ -370,6 +393,10 @@ contract("BComptroller", async (accounts) => {
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
+      const errArr = await bComptroller.enterMarkets.call([cZRX_addr, cZRX_addr], {
+        from: a.user1,
+      });
+      await Promise.all(errArr.map((e) => expect(e).to.be.bignumber.equal(ZERO)));
       await bComptroller.enterMarkets([cZRX_addr, cZRX_addr], { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
