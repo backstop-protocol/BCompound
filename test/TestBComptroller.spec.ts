@@ -155,7 +155,7 @@ contract("BComptroller", async (accounts) => {
         expect(await bComptroller.b2c(bETH_addr)).to.be.equal(cETH_addr);
       });
 
-      it("should not have underlying storage", async () => {
+      it("should not have 'underlying' contract public variable", async () => {
         const cETH_addr = compoundUtil.getContracts("cETH");
         const bETH_BEther = await engine.deployNewBEther("cETH");
         expect(await bETH_BEther.cToken()).to.be.equal(cETH_addr);
