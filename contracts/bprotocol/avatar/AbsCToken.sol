@@ -156,14 +156,18 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
+        if(result != 0) return result;
+
+        _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
+
+        // send funds at last
         if(_isCEther(cToken)) {
-            // FIXME OZ `Address.sendValue`
-            userOrDelegatee.transfer(borrowAmount);
+            bool success = userOrDelegatee.send(borrowAmount);
+            success; //shh: avoid DoS attack
         } else {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(userOrDelegatee, borrowAmount);
         }
-        _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
         return result;
     }
 

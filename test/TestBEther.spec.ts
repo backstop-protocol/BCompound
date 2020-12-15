@@ -12,9 +12,7 @@ const { balance, expectEvent, expectRevert } = require("@openzeppelin/test-helpe
 const Erc20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
 
 const CEther: b.CEtherContract = artifacts.require("CEther");
-const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 
-const BErc20: b.BErc20Contract = artifacts.require("BErc20");
 const BEther: b.BEtherContract = artifacts.require("BEther");
 
 const chai = require("chai");
