@@ -2,11 +2,11 @@ Get the latest submodules:
 
     git submodule update --init --recursive
 
-Install the dependencies required for `compound-demo` and `compound-protocol`. Below command requires `npm` and `yarn` (compound-protocol uses yarn) installed:
+Install the dependencies required for `BCompound` and `compound-protocol`. Below command requires `npm` and `yarn` (compound-protocol uses yarn) installed:
 
     npm install
 
-Compiles the `compound-demo` and `compound-protocol` contracts:
+Compiles the `BCompound` and `compound-protocol` contracts:
 
     npx hardhat compile
 
