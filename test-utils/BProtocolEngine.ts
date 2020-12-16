@@ -1,5 +1,4 @@
 import * as b from "../types/index";
-import fs, { exists } from "fs";
 
 import { CompoundUtils } from "./CompoundUtils";
 import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
