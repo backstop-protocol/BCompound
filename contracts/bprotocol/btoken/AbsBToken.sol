@@ -95,6 +95,15 @@ contract AbsBToken is Exponential {
         return result;
     }
 
+    // other functions
+    function exchangeRateCurrent() public returns (uint256) {
+        return ICToken(cToken).exchangeRateCurrent();
+    }
+
+    function exchangeRateStored() public view returns (uint) {
+        return ICToken(cToken).exchangeRateStored();
+    }
+
     // IERC20
     // =======
     // transfer()

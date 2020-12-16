@@ -174,9 +174,11 @@ contract AbsCToken is Cushion {
     // ERC20
     // ======
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
-        bool result = cToken.transfer(dst, amount);
+        address dstAvatar = registry.getAvatar(dst);
+        bool result = cToken.transfer(dstAvatar, amount);
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
         _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
+        _score().updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
         return result;
     }
 
