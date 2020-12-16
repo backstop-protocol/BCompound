@@ -54,6 +54,11 @@ export class BProtocolEngine {
 
   // Deploy Compound contracts
   public async deployCompound() {
+    const code = await web3.eth.getCode(this.compoundUtil.getComptroller());
+    const isDeployed = code !== "0x";
+
+    if (isDeployed) return;
+
     const deployCommand = "npm run deploy-compound";
 
     console.log("Executing command:" + deployCommand);
