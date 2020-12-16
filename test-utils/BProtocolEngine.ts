@@ -1,6 +1,7 @@
 import * as b from "../types/index";
 
 import { CompoundUtils } from "./CompoundUtils";
+import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
 import BN from "bn.js";
 
 const shell = require("shelljs");
@@ -57,12 +58,20 @@ export class BProtocolEngine {
     const code = await web3.eth.getCode(this.compoundUtil.getComptroller());
     const isDeployed = code !== "0x";
 
-    if (isDeployed) return;
+    if (isDeployed) {
+      await revertToSnapShot(process.env.SNAPSHOT_ID || "");
+      console.log("Reverted to snapshotId: " + process.env.SNAPSHOT_ID);
+      process.env.SNAPSHOT_ID = await takeSnapshot();
+      console.log("Snapshot Taken: snapshotId: " + process.env.SNAPSHOT_ID);
+      return; // no need to deploy compound
+    }
 
     const deployCommand = "npm run deploy-compound";
 
     console.log("Executing command:" + deployCommand);
     const log = shell.exec(deployCommand, { async: false });
+    process.env.SNAPSHOT_ID = await takeSnapshot();
+    console.log("Snapshot Taken: snapshotId: " + process.env.SNAPSHOT_ID);
   }
 
   // Deploy BProtocol contracts
