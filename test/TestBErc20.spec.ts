@@ -554,7 +554,6 @@ contract("BErc20", async (accounts) => {
 
       it("should transfer cTokens to another user (not have avatar)", async () => {
         let avatar2 = await bProtocol.registry.avatarOf(a.user2);
-
         expect(avatar2).to.be.equal(ZERO_ADDRESS);
 
         const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
@@ -572,7 +571,6 @@ contract("BErc20", async (accounts) => {
         expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(
           user1_expected_cZRX_Bal.sub(ONE_cZRX),
         );
-
         expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
       });
 
@@ -580,7 +578,6 @@ contract("BErc20", async (accounts) => {
         await bProtocol.registry.newAvatar({ from: a.user2 });
 
         const avatar2 = await bProtocol.registry.avatarOf(a.user2);
-
         expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
 
         const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
@@ -588,16 +585,13 @@ contract("BErc20", async (accounts) => {
         );
         expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
         expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
-        expect(await cZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
 
         await bZRX.transfer(a.user2, ONE_cZRX, { from: a.user1 });
 
         expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(
           user1_expected_cZRX_Bal.sub(ONE_cZRX),
         );
-        // NOTICE: Checking balance with cZRX, as a.user2 does not have Avatar
         expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
-        expect(await cZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
       });
     });
 
