@@ -636,9 +636,119 @@ contract("BErc20", async (accounts) => {
       });
     });
 
-    // describe("BErc20.transferOnAvatar()", async () => {
-    //   it("");
-    // });
+    describe("BErc20.transferOnAvatar()", async () => {
+      let delegator = a.user1;
+      let delegatee = a.user2;
+      let nonDelegatee = a.other;
+
+      let delegator_expected_cZRX_Bal: BN;
+
+      let avatar1: string;
+      let avatar2: string;
+
+      beforeEach(async () => {
+        await bProtocol.registry.newAvatar({ from: delegator });
+        avatar1 = await bProtocol.registry.avatarOf(delegator);
+        expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+
+        await bProtocol.registry.newAvatar({ from: delegatee });
+        avatar2 = await bProtocol.registry.avatarOf(delegatee);
+        expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+
+        await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
+        expect(await bProtocol.registry.delegate(avatar1, delegatee)).to.be.equal(true);
+
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: delegator });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: delegator });
+
+        delegator_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
+          await bZRX.exchangeRateCurrent.call(),
+        );
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("delegatee should transfer cTokens to user3 (not have an avatar) on behalf of delegator", async () => {
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+
+        await bZRX.transferOnAvatar(avatar1, a.user3, ONE_cZRX, { from: delegatee });
+
+        // avatar3 created
+        const avatar3 = await bProtocol.registry.avatarOf(a.user3);
+        expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(
+          delegator_expected_cZRX_Bal.sub(ONE_cZRX),
+        );
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cZRX);
+      });
+
+      it("delegatee should transfer cTokens to user3 (already have an avatar) on behalf of delegator", async () => {
+        await bProtocol.registry.newAvatar({ from: a.user3 });
+        const avatar3 = await bProtocol.registry.avatarOf(a.user3);
+        expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+        await bZRX.transferOnAvatar(avatar1, a.user3, ONE_cZRX, { from: delegatee });
+
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(
+          delegator_expected_cZRX_Bal.sub(ONE_cZRX),
+        );
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cZRX);
+      });
+
+      it("delegatee tx should fail when try to transfer to delegator's own avatar", async () => {
+        await expectRevert(
+          bZRX.transferOnAvatar(avatar1, avatar1, ONE_cZRX, { from: delegatee }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("delegatee tx should fail when try to transfer to delegatess's own avatar", async () => {
+        const delegateeAvatar = await bProtocol.registry.avatarOf(delegatee);
+        await expectRevert(
+          bZRX.transferOnAvatar(avatar1, delegateeAvatar, ONE_cZRX, { from: delegatee }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("delegatee tx should fail when transfer to user3's avatar address on behalf of delegator", async () => {
+        await bProtocol.registry.newAvatar({ from: a.user3 });
+        const avatar3 = await bProtocol.registry.avatarOf(a.user3);
+        expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+        await expectRevert(
+          bZRX.transferOnAvatar(avatar1, avatar3, ONE_cZRX, { from: delegatee }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should fail when non-delegatee try to transfer token", async () => {
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(
+          bZRX.transferOnAvatar(avatar1, a.other, ONE_cZRX, { from: nonDelegatee }),
+          "BToken: delegatee-not-authorized",
+        );
+
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+      });
+    });
 
     // describe("BErc20.transferFrom()", async () => {
     //   it("");
