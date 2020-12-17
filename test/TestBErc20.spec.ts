@@ -33,7 +33,7 @@ contract("BErc20", async (accounts) => {
   let compoundUtil: CompoundUtils;
 
   before(async () => {
-    // await engine.deployCompound();
+    await engine.deployCompound();
     bProtocol = await engine.deployBProtocol();
 
     bComptroller = bProtocol.bComptroller;
@@ -544,15 +544,17 @@ contract("BErc20", async (accounts) => {
 
     // //     // ERC20
     describe("BErc20.transfer()", async () => {
+      let avatar1: string;
+
       beforeEach(async () => {
         await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
         await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
 
-        const avatar1 = await bProtocol.registry.avatarOf(a.user1);
+        avatar1 = await bProtocol.registry.avatarOf(a.user1);
         expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       });
 
-      it("should transfer cTokens to another user (not have avatar)", async () => {
+      it("should transfer cTokens to another user (not have an avatar)", async () => {
         let avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.equal(ZERO_ADDRESS);
 
@@ -574,9 +576,8 @@ contract("BErc20", async (accounts) => {
         expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
       });
 
-      it("should transfer cTokens to another avatar", async () => {
+      it("should transfer cTokens to another user (already have an avatar)", async () => {
         await bProtocol.registry.newAvatar({ from: a.user2 });
-
         const avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
 
@@ -592,6 +593,46 @@ contract("BErc20", async (accounts) => {
           user1_expected_cZRX_Bal.sub(ONE_cZRX),
         );
         expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
+      });
+
+      it("should fail when transfer to user's own avatar", async () => {
+        const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
+          await bZRX.exchangeRateCurrent.call(),
+        );
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+
+        await expectRevert(
+          bZRX.transfer(avatar1, ONE_cZRX, { from: a.user1 }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+      });
+
+      it("should fail when transfer to another user's avatar address", async () => {
+        await bProtocol.registry.newAvatar({ from: a.user2 });
+        const avatar2 = await bProtocol.registry.avatarOf(a.user2);
+        expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+
+        const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
+          await bZRX.exchangeRateCurrent.call(),
+        );
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+        expect(await cZRX.balanceOf(avatar2)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(
+          bZRX.transfer(avatar2, ONE_cZRX, { from: a.user1 }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+        expect(await cZRX.balanceOf(avatar2)).to.be.bignumber.equal(ZERO);
       });
     });
 

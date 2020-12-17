@@ -99,6 +99,8 @@ contract Registry is Ownable {
 
     function _newAvatar(address _owner) internal returns (address) {
         require(avatarOf[_owner] == address(0), "Registry: avatar-exits-for-owner");
+        // _owner should not be an avatar address
+        require(ownerOf[_owner] == address(0), "Registry: cannot-create-an-avatar-of-avatar");
         address _avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
         avatarOf[_owner] = _avatar;
         ownerOf[_avatar] = _owner;
