@@ -1,27 +1,27 @@
-If the submodule `compound-protocol` is not updated, run this command to get the updated submodule code.
+Get the latest submodules:
 
     git submodule update --init --recursive
 
-Install the dependencies required for `compound-demo` and `compound-protocol`
+Install the dependencies required for `BCompound` and `compound-protocol`. Below command requires `npm` and `yarn` (compound-protocol uses yarn) installed:
 
     npm install
 
-Command to compile the `compound-demo` and `compound-protocol` contracts
+Compiles the `BCompound` and `compound-protocol` contracts:
 
-    npm run compile
+    npx hardhat compile
 
-Run Hardhat EVM
+Generate TypeChain typings:
+
+    npx hardhat typechain
+
+Run Hardhat EVM (in separate shell window):
 
     npx hardhat node
 
-Deploy Compound Contracts on ganache. This command will not stop automatically. You need to kill this with [Ctrl+C] once deployment is done.
+The tests automaticallt deploys Compound Contracts on ganache / hardhat-HRE. Below command requires `solc` command installed, if not installed, run `sudo snap install solc` (only for ubuntu). The `solc` version should be `0.5.16`. You can use `solc-select` (https://github.com/crytic/solc-select):
 
-    npm run deploy-compound
+    npx hardhat test
 
-Execute tests
-
-    npx run test
-
-Deploy Contracts
+Deploy Contracts on Kovan / Mainnet:
 
     npx hardhat run scripts/deploy.js
