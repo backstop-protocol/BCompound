@@ -183,22 +183,20 @@ contract AbsCToken is Cushion {
     }
 
     function transferFrom(ICToken cToken, address src, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
-        bool result = cToken.transferFrom(src, dst, amount);
+        address srcAvatar = registry.getAvatar(src);
+        address dstAvatar = registry.getAvatar(dst);
+
+        bool result = cToken.transferFrom(srcAvatar, dstAvatar, amount);
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
-        // If src has an Avatar, deduct coll score
-        address srcAvatar = registry.getAvatar(src);
-        if(srcAvatar != address(0)) _score().updateCollScore(srcAvatar, address(cToken), -toInt256(underlyingRedeemAmount));
-
-        // if dst has an Avatar, increase coll score
-        address dstAvatar = registry.getAvatar(dst);
-        if(dstAvatar != address(0)) _score().updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
-
+        _score().updateCollScore(srcAvatar, address(cToken), -toInt256(underlyingRedeemAmount));
+        _score().updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
         return result;
     }
 
     function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
-        return cToken.approve(spender, amount);
+        address spenderAvatar = registry.getAvatar(spender);
+        return cToken.approve(spenderAvatar, amount);
     }
 
     /**
