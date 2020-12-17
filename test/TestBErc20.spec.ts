@@ -752,13 +752,211 @@ contract("BErc20", async (accounts) => {
     //   });
     // });
 
-    // describe("BErc20.transferFrom()", async () => {
-    //   it("");
-    // });
+    describe("BErc20.transferFrom()", async () => {
+      let owner = a.user1;
+      let spender = a.user2;
 
-    // describe("BErc20.transferFromOnAvatar()", async () => {
-    //   it("");
-    // });
+      let ownerAvatar: string;
+      let spenderAvatar: string;
+
+      let owner_expected_cZRX_Bal: BN;
+
+      beforeEach(async () => {
+        await bProtocol.registry.newAvatar({ from: owner });
+        ownerAvatar = await bProtocol.registry.avatarOf(owner);
+        expect(ownerAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+        await bProtocol.registry.newAvatar({ from: spender });
+        spenderAvatar = await bProtocol.registry.avatarOf(spender);
+        expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+        owner_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
+          await bZRX.exchangeRateCurrent.call(),
+        );
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: owner });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: owner });
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+
+        await bZRX.approve(spender, TEN_cZRX, { from: owner });
+        expect(await bZRX.allowance(owner, spender)).to.be.bignumber.equal(TEN_cZRX);
+      });
+
+      it("spender should transfer tokens from owner to user3", async () => {
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+
+        await bZRX.transferFrom(owner, a.user3, ONE_cZRX, { from: spender });
+
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(
+          owner_expected_cZRX_Bal.sub(ONE_cZRX),
+        );
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cZRX);
+      });
+
+      it("spender should transfer tokens from owner to himself", async () => {
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+
+        await bZRX.transferFrom(owner, spender, ONE_cZRX, { from: spender });
+
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(
+          owner_expected_cZRX_Bal.sub(ONE_cZRX),
+        );
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ONE_cZRX);
+      });
+
+      it("should fail when spender try to transfer tokens from owner to user3's avatar", async () => {
+        await bProtocol.registry.newAvatar({ from: a.user3 });
+        const avatar3 = await bProtocol.registry.avatarOf(a.user3);
+
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(
+          bZRX.transferFrom(owner, avatar3, ONE_cZRX, { from: spender }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should fail when spender try to transfer tokens from owner to spender's avatar", async () => {
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(
+          bZRX.transferFrom(owner, spenderAvatar, ONE_cZRX, { from: spender }),
+          "Registry: cannot-create-an-avatar-of-avatar",
+        );
+
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should fail transfer tokens from owner to owner", async () => {
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+
+        // failed at Compound, as it doesn't allow sending tokens to self
+        await expectRevert(
+          bZRX.transferFrom(owner, owner, ONE_cZRX, { from: spender }),
+          "BToken: transferFrom-failed",
+        );
+
+        expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+        expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      });
+    });
+
+    describe("BErc20.transferFromOnAvatar()", async () => {
+      let delegator = a.user1;
+      let delegatee = a.user2;
+      let spender = a.user3;
+
+      let delegatorAvatar: string;
+      let delegateeAvatar: string;
+      let spenderAvatar: string;
+
+      let delegator_expected_cZRX_Bal: BN;
+
+      beforeEach(async () => {
+        await bProtocol.registry.newAvatar({ from: delegator });
+        delegatorAvatar = await bProtocol.registry.avatarOf(delegator);
+        expect(delegatorAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+        await bProtocol.registry.newAvatar({ from: delegatee });
+        delegateeAvatar = await bProtocol.registry.avatarOf(delegatee);
+        expect(delegateeAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+        delegator_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
+          await bZRX.exchangeRateCurrent.call(),
+        );
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: delegator });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: delegator });
+        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+
+        await bZRX.approve(spender, TEN_cZRX, { from: delegatee });
+        expect(await bZRX.allowance(delegatee, spender)).to.be.bignumber.equal(TEN_cZRX);
+
+        await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
+      });
+
+      //   it("delegatee spender should transfer tokens from owner to user3", async () => {
+      //     expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      //     expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+
+      //     await bZRX.transferFrom(delegator, a.user3, ONE_cZRX, { from: spender });
+
+      //     expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(
+      //       delegator_expected_cZRX_Bal.sub(ONE_cZRX),
+      //     );
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      //     expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cZRX);
+      //   });
+
+      //   it("spender should transfer tokens from owner to himself", async () => {
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+
+      //     await bZRX.transferFrom(owner, spender, ONE_cZRX, { from: spender });
+
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(
+      //       owner_expected_cZRX_Bal.sub(ONE_cZRX),
+      //     );
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ONE_cZRX);
+      //   });
+
+      //   it("should fail when spender try to transfer tokens from owner to user3's avatar", async () => {
+      //     await bProtocol.registry.newAvatar({ from: a.user3 });
+      //     const avatar3 = await bProtocol.registry.avatarOf(a.user3);
+
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      //     expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+
+      //     await expectRevert(
+      //       bZRX.transferFrom(owner, avatar3, ONE_cZRX, { from: spender }),
+      //       "Registry: cannot-create-an-avatar-of-avatar",
+      //     );
+
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      //     expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+      //   });
+
+      //   it("should fail when spender try to transfer tokens from owner to spender's avatar", async () => {
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+
+      //     await expectRevert(
+      //       bZRX.transferFrom(owner, spenderAvatar, ONE_cZRX, { from: spender }),
+      //       "Registry: cannot-create-an-avatar-of-avatar",
+      //     );
+
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      //   });
+
+      //   it("should fail transfer tokens from owner to owner", async () => {
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+
+      //     // failed at Compound, as it doesn't allow sending tokens to self
+      //     await expectRevert(
+      //       bZRX.transferFrom(owner, owner, ONE_cZRX, { from: spender }),
+      //       "BToken: transferFrom-failed",
+      //     );
+
+      //     expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
+      //     expect(await bZRX.balanceOf(spender)).to.be.bignumber.equal(ZERO);
+      //   });
+    });
 
     // describe("BErc20.approve()", async () => {
     //   let owner = a.user1;
@@ -881,48 +1079,72 @@ contract("BErc20", async (accounts) => {
     //   });
     // });
 
-    describe("BErc20.allowance()", async () => {
-      let owner = a.user1;
-      let spender = a.user2;
+    // describe("BErc20.allowance()", async () => {
+    //   let owner = a.user1;
+    //   let spender = a.user2;
 
-      let ownerAvatar: string;
-      let spenderAvatar: string;
+    //   let ownerAvatar: string;
+    //   let spenderAvatar: string;
 
-      beforeEach(async () => {
-        await bProtocol.registry.newAvatar({ from: owner });
-        ownerAvatar = await bProtocol.registry.avatarOf(owner);
-        expect(ownerAvatar).to.be.not.equal(ZERO_ADDRESS);
+    //   beforeEach(async () => {
+    //     await bProtocol.registry.newAvatar({ from: owner });
+    //     ownerAvatar = await bProtocol.registry.avatarOf(owner);
+    //     expect(ownerAvatar).to.be.not.equal(ZERO_ADDRESS);
 
-        await bProtocol.registry.newAvatar({ from: spender });
-        spenderAvatar = await bProtocol.registry.avatarOf(spender);
-        expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
+    //     await bProtocol.registry.newAvatar({ from: spender });
+    //     spenderAvatar = await bProtocol.registry.avatarOf(spender);
+    //     expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
 
-        await bZRX.approve(spender, TEN_cZRX, { from: owner });
-      });
+    //     await bZRX.approve(spender, TEN_cZRX, { from: owner });
+    //   });
 
-      it("should get allowance", async () => {
-        let allowance = await bZRX.allowance(owner, spender);
-        expect(allowance).to.be.bignumber.equal(TEN_cZRX);
+    //   it("should get allowance", async () => {
+    //     let allowance = await bZRX.allowance(owner, spender);
+    //     expect(allowance).to.be.bignumber.equal(TEN_cZRX);
 
-        allowance = await cZRX.allowance(ownerAvatar, spenderAvatar);
-        expect(allowance).to.be.bignumber.equal(TEN_cZRX);
-      });
+    //     allowance = await cZRX.allowance(ownerAvatar, spenderAvatar);
+    //     expect(allowance).to.be.bignumber.equal(TEN_cZRX);
+    //   });
 
-      it("should get zero when no allowance", async () => {
-        await bProtocol.registry.newAvatar({ from: a.other });
-        const otherAvatar = await bProtocol.registry.avatarOf(a.other);
-        expect(otherAvatar).to.be.not.equal(ZERO_ADDRESS);
+    //   it("should get zero when no allowance", async () => {
+    //     await bProtocol.registry.newAvatar({ from: a.other });
+    //     const otherAvatar = await bProtocol.registry.avatarOf(a.other);
+    //     expect(otherAvatar).to.be.not.equal(ZERO_ADDRESS);
 
-        let allowance = await bZRX.allowance(owner, a.other);
-        expect(allowance).to.be.bignumber.equal(ZERO);
+    //     let allowance = await bZRX.allowance(owner, a.other);
+    //     expect(allowance).to.be.bignumber.equal(ZERO);
 
-        allowance = await cZRX.allowance(ownerAvatar, otherAvatar);
-        expect(allowance).to.be.bignumber.equal(ZERO);
-      });
-    });
+    //     allowance = await cZRX.allowance(ownerAvatar, otherAvatar);
+    //     expect(allowance).to.be.bignumber.equal(ZERO);
+    //   });
+    // });
 
     // describe("BErc20.balanceOf()", async () => {
-    //   it("");
+    //   let avatar1: string;
+    //   let avatar2: string;
+
+    //   beforeEach(async () => {
+    //     await bProtocol.registry.newAvatar({ from: a.user1 });
+    //     avatar1 = await bProtocol.registry.avatarOf(a.user1);
+    //     expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+
+    //     await bProtocol.registry.newAvatar({ from: a.user2 });
+    //     avatar2 = await bProtocol.registry.avatarOf(a.user2);
+    //     expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+    //   });
+
+    //   it("should get balance of user", async () => {
+    //     expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+
+    //     await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+    //     await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+
+    //     const expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
+    //       await bZRX.exchangeRateCurrent.call(),
+    //     );
+
+    //     expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(expected_cZRX_Bal);
+    //   });
     // });
 
     // describe("BErc20.name()", async () => {
