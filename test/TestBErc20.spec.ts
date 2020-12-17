@@ -760,7 +760,128 @@ contract("BErc20", async (accounts) => {
     //   it("");
     // });
 
-    describe("BErc20.approve()", async () => {
+    // describe("BErc20.approve()", async () => {
+    //   let owner = a.user1;
+    //   let spender = a.user2;
+
+    //   let ownerAvatar: string;
+    //   let spenderAvatar: string;
+
+    //   beforeEach(async () => {
+    //     await bProtocol.registry.newAvatar({ from: a.user1 });
+    //     ownerAvatar = await bProtocol.registry.avatarOf(a.user1);
+    //     expect(ownerAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+    //     await bProtocol.registry.newAvatar({ from: a.user2 });
+    //     spenderAvatar = await bProtocol.registry.avatarOf(a.user2);
+    //     expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
+    //   });
+
+    //   it("user should approve another user (have an avatar)", async () => {
+    //     expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+
+    //     const result = await bZRX.approve.call(spender, TEN_cZRX, { from: owner });
+    //     expect(result).to.be.equal(true);
+    //     await bZRX.approve(spender, TEN_cZRX, { from: owner });
+
+    //     expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(TEN_cZRX);
+    //   });
+
+    //   it("user should approve another user (does not have an avatar)", async () => {
+    //     let otherAvatar = await bProtocol.registry.avatarOf(a.other);
+    //     expect(otherAvatar).to.be.equal(ZERO_ADDRESS);
+
+    //     const result = await bZRX.approve.call(a.other, TEN_cZRX, { from: owner });
+    //     expect(result).to.be.equal(true);
+    //     await bZRX.approve(a.other, TEN_cZRX, { from: owner });
+
+    //     otherAvatar = await bProtocol.registry.avatarOf(a.other);
+    //     expect(otherAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+    //     expect(await cZRX.allowance(ownerAvatar, otherAvatar)).to.be.bignumber.equal(TEN_cZRX);
+    //   });
+
+    //   it("should fail when user try to give approval to an avatar", async () => {
+    //     expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+
+    //     await expectRevert(
+    //       bZRX.approve(spenderAvatar, TEN_cZRX, { from: owner }),
+    //       "Registry: cannot-create-an-avatar-of-avatar",
+    //     );
+
+    //     expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+    //   });
+    // });
+
+    // describe("BErc20.approveOnAvatar()", async () => {
+    //   let delegator = a.user1;
+    //   let delegatee = a.user2;
+    //   let spender = a.user3;
+
+    //   let delegatorAvatar: string;
+    //   let delegateeAvatar: string;
+    //   let spenderAvatar: string;
+
+    //   beforeEach(async () => {
+    //     await bProtocol.registry.newAvatar({ from: delegator });
+    //     delegatorAvatar = await bProtocol.registry.avatarOf(delegator);
+    //     expect(delegatorAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+    //     await bProtocol.registry.newAvatar({ from: delegatee });
+    //     delegateeAvatar = await bProtocol.registry.avatarOf(delegatee);
+    //     expect(delegateeAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+    //     await bProtocol.registry.newAvatar({ from: spender });
+    //     spenderAvatar = await bProtocol.registry.avatarOf(spender);
+    //     expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+    //     await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
+    //     expect(await bProtocol.registry.delegate(delegatorAvatar, delegatee)).to.be.equal(true);
+    //   });
+
+    //   it("delegatee should approve another user (have an avatar) on behalf of delegator", async () => {
+    //     expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+
+    //     const result = await bZRX.approveOnAvatar.call(delegatorAvatar, spender, TEN_cZRX, {
+    //       from: delegatee,
+    //     });
+    //     expect(result).to.be.equal(true);
+    //     await bZRX.approveOnAvatar(delegatorAvatar, spender, TEN_cZRX, { from: delegatee });
+
+    //     expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(
+    //       TEN_cZRX,
+    //     );
+    //   });
+
+    //   it("delegatee should approve another user (does not have an avatar) on behalf of delegator", async () => {
+    //     let otherAvatar = await bProtocol.registry.avatarOf(a.other);
+    //     expect(otherAvatar).to.be.equal(ZERO_ADDRESS);
+
+    //     const result = await bZRX.approveOnAvatar.call(delegatorAvatar, a.other, TEN_cZRX, {
+    //       from: delegatee,
+    //     });
+    //     expect(result).to.be.equal(true);
+    //     await bZRX.approveOnAvatar(delegatorAvatar, a.other, TEN_cZRX, { from: delegatee });
+
+    //     otherAvatar = await bProtocol.registry.avatarOf(a.other);
+    //     expect(otherAvatar).to.be.not.equal(ZERO_ADDRESS);
+
+    //     expect(await cZRX.allowance(delegatorAvatar, otherAvatar)).to.be.bignumber.equal(TEN_cZRX);
+    //   });
+
+    //   it("delegatee tx should fail when user try to give approval to an avatar on behalf of delegator", async () => {
+    //     expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+
+    //     await expectRevert(
+    //       bZRX.approveOnAvatar(delegatorAvatar, spenderAvatar, TEN_cZRX, { from: delegatee }),
+    //       "Registry: cannot-create-an-avatar-of-avatar",
+    //     );
+
+    //     expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+    //   });
+    // });
+
+    describe("BErc20.allowance()", async () => {
       let owner = a.user1;
       let spender = a.user2;
 
@@ -768,122 +889,37 @@ contract("BErc20", async (accounts) => {
       let spenderAvatar: string;
 
       beforeEach(async () => {
-        await bProtocol.registry.newAvatar({ from: a.user1 });
-        ownerAvatar = await bProtocol.registry.avatarOf(a.user1);
+        await bProtocol.registry.newAvatar({ from: owner });
+        ownerAvatar = await bProtocol.registry.avatarOf(owner);
         expect(ownerAvatar).to.be.not.equal(ZERO_ADDRESS);
-
-        await bProtocol.registry.newAvatar({ from: a.user2 });
-        spenderAvatar = await bProtocol.registry.avatarOf(a.user2);
-        expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
-      });
-
-      it("user should approve another user (have an avatar)", async () => {
-        expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
-
-        const result = await bZRX.approve.call(spender, TEN_cZRX, { from: owner });
-        expect(result).to.be.equal(true);
-        await bZRX.approve(spender, TEN_cZRX, { from: owner });
-
-        expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(TEN_cZRX);
-      });
-
-      it("user should approve another user (does not have an avatar)", async () => {
-        let otherAvatar = await bProtocol.registry.avatarOf(a.other);
-        expect(otherAvatar).to.be.equal(ZERO_ADDRESS);
-
-        const result = await bZRX.approve.call(a.other, TEN_cZRX, { from: owner });
-        expect(result).to.be.equal(true);
-        await bZRX.approve(a.other, TEN_cZRX, { from: owner });
-
-        otherAvatar = await bProtocol.registry.avatarOf(a.other);
-        expect(otherAvatar).to.be.not.equal(ZERO_ADDRESS);
-
-        expect(await cZRX.allowance(ownerAvatar, otherAvatar)).to.be.bignumber.equal(TEN_cZRX);
-      });
-
-      it("should fail when user try to give approval to an avatar", async () => {
-        expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
-
-        await expectRevert(
-          bZRX.approve(spenderAvatar, TEN_cZRX, { from: owner }),
-          "Registry: cannot-create-an-avatar-of-avatar",
-        );
-
-        expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
-      });
-    });
-
-    describe("BErc20.approveOnAvatar()", async () => {
-      let delegator = a.user1;
-      let delegatee = a.user2;
-      let spender = a.user3;
-
-      let delegatorAvatar: string;
-      let delegateeAvatar: string;
-      let spenderAvatar: string;
-
-      beforeEach(async () => {
-        await bProtocol.registry.newAvatar({ from: delegator });
-        delegatorAvatar = await bProtocol.registry.avatarOf(delegator);
-        expect(delegatorAvatar).to.be.not.equal(ZERO_ADDRESS);
-
-        await bProtocol.registry.newAvatar({ from: delegatee });
-        delegateeAvatar = await bProtocol.registry.avatarOf(delegatee);
-        expect(delegateeAvatar).to.be.not.equal(ZERO_ADDRESS);
 
         await bProtocol.registry.newAvatar({ from: spender });
         spenderAvatar = await bProtocol.registry.avatarOf(spender);
         expect(spenderAvatar).to.be.not.equal(ZERO_ADDRESS);
 
-        await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
-        expect(await bProtocol.registry.delegate(delegatorAvatar, delegatee)).to.be.equal(true);
+        await bZRX.approve(spender, TEN_cZRX, { from: owner });
       });
 
-      it("delegatee should approve another user (have an avatar) on behalf of delegator", async () => {
-        expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+      it("should get allowance", async () => {
+        let allowance = await bZRX.allowance(owner, spender);
+        expect(allowance).to.be.bignumber.equal(TEN_cZRX);
 
-        const result = await bZRX.approveOnAvatar.call(delegatorAvatar, spender, TEN_cZRX, {
-          from: delegatee,
-        });
-        expect(result).to.be.equal(true);
-        await bZRX.approveOnAvatar(delegatorAvatar, spender, TEN_cZRX, { from: delegatee });
-
-        expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(
-          TEN_cZRX,
-        );
+        allowance = await cZRX.allowance(ownerAvatar, spenderAvatar);
+        expect(allowance).to.be.bignumber.equal(TEN_cZRX);
       });
 
-      it("delegatee should approve another user (does not have an avatar) on behalf of delegator", async () => {
-        let otherAvatar = await bProtocol.registry.avatarOf(a.other);
-        expect(otherAvatar).to.be.equal(ZERO_ADDRESS);
-
-        const result = await bZRX.approveOnAvatar.call(delegatorAvatar, a.other, TEN_cZRX, {
-          from: delegatee,
-        });
-        expect(result).to.be.equal(true);
-        await bZRX.approveOnAvatar(delegatorAvatar, a.other, TEN_cZRX, { from: delegatee });
-
-        otherAvatar = await bProtocol.registry.avatarOf(a.other);
+      it("should get zero when no allowance", async () => {
+        await bProtocol.registry.newAvatar({ from: a.other });
+        const otherAvatar = await bProtocol.registry.avatarOf(a.other);
         expect(otherAvatar).to.be.not.equal(ZERO_ADDRESS);
 
-        expect(await cZRX.allowance(delegatorAvatar, otherAvatar)).to.be.bignumber.equal(TEN_cZRX);
-      });
+        let allowance = await bZRX.allowance(owner, a.other);
+        expect(allowance).to.be.bignumber.equal(ZERO);
 
-      it("delegatee tx should fail when user try to give approval to an avatar on behalf of delegator", async () => {
-        expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
-
-        await expectRevert(
-          bZRX.approveOnAvatar(delegatorAvatar, spenderAvatar, TEN_cZRX, { from: delegatee }),
-          "Registry: cannot-create-an-avatar-of-avatar",
-        );
-
-        expect(await cZRX.allowance(delegatorAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+        allowance = await cZRX.allowance(ownerAvatar, otherAvatar);
+        expect(allowance).to.be.bignumber.equal(ZERO);
       });
     });
-
-    // describe("BErc20.allowance()", async () => {
-    //   it("");
-    // });
 
     // describe("BErc20.balanceOf()", async () => {
     //   it("");
