@@ -43,6 +43,7 @@ contract Avatar is AbsComptroller, AbsCToken {
     //override
     /**
      * @dev Mint cETH using ETH and enter market on Compound
+     * @notice onlyBToken can call this function, as `super.mint()` is protected with `onlyBToken` modifier
      */
     function mint() public payable {
         super.mint();
@@ -52,6 +53,7 @@ contract Avatar is AbsComptroller, AbsCToken {
     //override
     /**
      * @dev Mint cToken for ERC20 and enter market on Compound
+     * @notice onlyBToken can call this function, as `super.mint()` is protected with `onlyBToken` modifier
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
         require(_enterMarket(address(cToken)) == 0, "enterMarket-failed");

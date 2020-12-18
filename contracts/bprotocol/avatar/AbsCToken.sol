@@ -83,9 +83,15 @@ contract AbsCToken is Cushion {
         returns (uint256)
     {
         uint256 amtToRepayOnCompound = _untopPartial(cToken, repayAmount);
-        if(amtToRepayOnCompound > 0) return cToken.repayBorrow(amtToRepayOnCompound); // in case of err, tx fails at BToken
-        _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
-        return 0; // no-err
+        uint256 result = 0;
+        if(amtToRepayOnCompound > 0) {
+            IERC20 underlying = cToken.underlying();
+            underlying.safeApprove(address(cToken), 0);
+            underlying.safeApprove(address(cToken), repayAmount);
+            result = cToken.repayBorrow(amtToRepayOnCompound);
+            _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
+        }
+        return result; // in case of err, tx fails at BToken
     }
 
     function liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyBToken returns (uint256) {
