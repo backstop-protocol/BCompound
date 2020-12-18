@@ -237,6 +237,8 @@ contract("BErc20", async (accounts) => {
         );
 
         await BAT.approve(bBAT_addr, ONE_BAT, { from: a.user1 });
+        const result = await bBAT.repayBorrow.call(ONE_BAT, { from: a.user1 });
+        expect(result).to.be.bignumber.equal(ZERO);
         await bBAT.repayBorrow(ONE_BAT, { from: a.user1 });
 
         expect(await BAT.balanceOf(a.user1)).to.be.bignumber.equal(HUNDRED_BAT.sub(ONE_BAT));
@@ -262,6 +264,8 @@ contract("BErc20", async (accounts) => {
         );
 
         await BAT.approve(bBAT_addr, HUNDRED_BAT, { from: a.user1 });
+        const result = await bBAT.repayBorrow.call(HUNDRED_BAT, { from: a.user1 });
+        expect(result).to.be.bignumber.equal(ZERO);
         await bBAT.repayBorrow(HUNDRED_BAT, { from: a.user1 });
 
         expect(await BAT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
@@ -333,7 +337,183 @@ contract("BErc20", async (accounts) => {
     });
 
     describe("BErc20.repayBorrowOnAvatar()", async () => {
-      it("");
+      let delegator = a.user1;
+      let delegatee = a.user4;
+
+      let delegatorAvatar: string;
+      let avatar2: string;
+      let avatar3: string;
+
+      beforeEach(async () => {
+        // user1 deposit ZRX
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        delegatorAvatar = await bProtocol.registry.avatarOf(a.user1);
+
+        // user2 deposit BAT
+        await BAT.approve(bBAT_addr, ONE_THOUSAND_BAT, { from: a.user2 });
+        await bBAT.mint(ONE_THOUSAND_BAT, { from: a.user2 });
+        avatar2 = await bProtocol.registry.avatarOf(a.user2);
+
+        // user3 deposit ETH
+        await bETH.mint({ from: a.user3, value: TEN_ETH });
+        avatar3 = await bProtocol.registry.avatarOf(a.user3);
+
+        await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
+        expect(await bProtocol.registry.delegate(delegatorAvatar, delegatee)).to.be.equal(true);
+      });
+
+      it("delegatee should repay some borrowed ERC20 tokens on behalf of delegator", async () => {
+        expect(await BAT.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(cBAT_addr)).to.be.bignumber.equal(ONE_THOUSAND_BAT);
+
+        await bBAT.borrow(HUNDRED_BAT, { from: delegator });
+        let borrowBal = await bBAT.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(HUNDRED_BAT);
+
+        expect(await BAT.balanceOf(delegator)).to.be.bignumber.equal(HUNDRED_BAT);
+        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(cBAT_addr)).to.be.bignumber.equal(
+          ONE_THOUSAND_BAT.sub(HUNDRED_BAT),
+        );
+
+        // transfer some BAT to delegatee
+        await BAT.transfer(delegatee, ONE_BAT, { from: a.deployer });
+
+        await BAT.approve(bBAT_addr, ONE_BAT, { from: delegatee });
+        const result = await bBAT.repayBorrowOnAvatar.call(delegatorAvatar, ONE_BAT, {
+          from: delegatee,
+        });
+        expect(result).to.be.bignumber.equal(ZERO);
+        await bBAT.repayBorrowOnAvatar(delegatorAvatar, ONE_BAT, { from: delegatee });
+
+        expect(await BAT.balanceOf(delegator)).to.be.bignumber.equal(HUNDRED_BAT);
+        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(cBAT_addr)).to.be.bignumber.equal(
+          ONE_THOUSAND_BAT.sub(HUNDRED_BAT).add(ONE_BAT),
+        );
+
+        borrowBal = await bBAT.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(HUNDRED_BAT.sub(ONE_BAT));
+      });
+
+      it("delegatee should repay all amount on behalf of delegator", async () => {
+        expect(await BAT.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(cBAT_addr)).to.be.bignumber.equal(ONE_THOUSAND_BAT);
+
+        await bBAT.borrow(HUNDRED_BAT, { from: delegator });
+        let borrowBal = await bBAT.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(HUNDRED_BAT);
+
+        expect(await BAT.balanceOf(delegator)).to.be.bignumber.equal(HUNDRED_BAT);
+        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(cBAT_addr)).to.be.bignumber.equal(
+          ONE_THOUSAND_BAT.sub(HUNDRED_BAT),
+        );
+
+        // transfer some BAT to delegatee
+        await BAT.transfer(delegatee, HUNDRED_BAT, { from: a.deployer });
+
+        await BAT.approve(bBAT_addr, HUNDRED_BAT, { from: delegatee });
+        const result = await bBAT.repayBorrowOnAvatar.call(delegatorAvatar, HUNDRED_BAT, {
+          from: delegatee,
+        });
+        expect(result).to.be.bignumber.equal(ZERO);
+        await bBAT.repayBorrowOnAvatar(delegatorAvatar, HUNDRED_BAT, { from: delegatee });
+
+        expect(await BAT.balanceOf(delegator)).to.be.bignumber.equal(HUNDRED_BAT);
+        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await BAT.balanceOf(cBAT_addr)).to.be.bignumber.equal(ONE_THOUSAND_BAT);
+
+        borrowBal = await bBAT.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(ZERO);
+      });
+
+      it("delegatee should repay some borrowed ETH on behalf of delegator", async () => {
+        const delegatorEthBal = await balance.current(delegator);
+        const delegateeEthBal = await balance.current(delegatee);
+
+        expect(await balance.current(delegator)).to.be.bignumber.equal(delegatorEthBal);
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
+
+        let tx = await bETH.borrow(ONE_ETH, { from: delegator, gasPrice: 1 });
+        const delegatorTxFee = new BN(tx.receipt.gasUsed);
+
+        let borrowBal = await bETH.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(ONE_ETH);
+
+        expect(await balance.current(delegator)).to.be.bignumber.equal(
+          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+        );
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH.sub(ONE_ETH));
+
+        tx = await bETH.repayBorrowOnAvatar(delegatorAvatar, {
+          from: delegatee,
+          value: HALF_ETH,
+          gasPrice: 1,
+        });
+        const delegateeTxFee = new BN(tx.receipt.gasUsed);
+
+        expect(await balance.current(delegator)).to.be.bignumber.equal(
+          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+        );
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(
+          delegateeEthBal.sub(delegateeTxFee).sub(HALF_ETH),
+        );
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          TEN_ETH.sub(ONE_ETH).add(HALF_ETH),
+        );
+
+        borrowBal = await bETH.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(HALF_ETH);
+      });
+
+      it("delegatee should repay all borrowed ETH on behalf of delegator", async () => {
+        const delegatorEthBal = await balance.current(delegator);
+        const delegateeEthBal = await balance.current(delegatee);
+
+        expect(await balance.current(delegator)).to.be.bignumber.equal(delegatorEthBal);
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
+
+        let tx = await bETH.borrow(ONE_ETH, { from: delegator, gasPrice: 1 });
+        const delegatorTxFee = new BN(tx.receipt.gasUsed);
+
+        let borrowBal = await bETH.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(ONE_ETH);
+
+        expect(await balance.current(delegator)).to.be.bignumber.equal(
+          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+        );
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH.sub(ONE_ETH));
+
+        tx = await bETH.repayBorrowOnAvatar(delegatorAvatar, {
+          from: delegatee,
+          value: ONE_ETH,
+          gasPrice: 1,
+        });
+        const delegateeTxFee = new BN(tx.receipt.gasUsed);
+
+        expect(await balance.current(delegator)).to.be.bignumber.equal(
+          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+        );
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(
+          delegateeEthBal.sub(delegateeTxFee).sub(ONE_ETH),
+        );
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
+
+        borrowBal = await bETH.borrowBalanceCurrent.call(delegator);
+        expect(borrowBal).to.be.bignumber.equal(ZERO);
+      });
+
+      it("TODO: delegatee should repay some amount when topped up on behalf of delegator");
+
+      it("TODO: delegatee should repay all amount when topped up on behalf of delegator");
     });
 
     describe("BErc20.liquidateBorrow()", async () => {
