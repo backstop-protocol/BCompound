@@ -20,7 +20,6 @@ jobs:
           name: Update submodule
           command: |
             cd ./compound-protocol
-            git checkout bprotocol
 
       - run:
           name: Generate checksum
