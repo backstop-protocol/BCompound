@@ -17,11 +17,6 @@ jobs:
           name: Get compound-protocol
           command: git submodule update --init --recursive
       - run:
-          name: Update submodule
-          command: |
-            cd ./compound-protocol
-
-      - run:
           name: Generate checksum
           command: shasum package.json compound-protocol/package.json > checksum.tmp
       - restore_cache:
@@ -32,7 +27,10 @@ jobs:
             npm install
       - run:
           name: Compile contracts
-          command: export NODE_OPTIONS='--max-old-space-size=8192' && npm run compile
+          command: npx hardhat compile
+      - run:
+          name: Generate TypeChain typings
+          command: npx hardhat typechain
       - run:
           name: Run tests
           command: sh runtest.sh
