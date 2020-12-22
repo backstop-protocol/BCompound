@@ -36,7 +36,7 @@ jobs:
           command: export NODE_OPTIONS='--max-old-space-size=8192' && npm run compile
       - run:
           name: Run tests
-          command: npx hardhat test
+          command: sh runtest.sh
       - save_cache:
           key: dependency-cache-{{ checksum "checksum.tmp" }}
           paths:
