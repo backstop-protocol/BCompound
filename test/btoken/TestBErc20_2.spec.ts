@@ -191,7 +191,7 @@ contract("BErc20", async (accounts) => {
 
         await expectRevert(
           bZRX.borrow(ONE_THOUSAND_ZRX, { from: a.other }),
-          "BToken: borrow-failed",
+          "AbsCToken: borrow-failed",
         );
       });
     });
@@ -251,7 +251,7 @@ contract("BErc20", async (accounts) => {
 
         await expectRevert(
           bBAT.borrowOnAvatar(avatar1, ONE_THOUSAND_BAT, { from: delegatee }),
-          "BToken: borrow-failed",
+          "AbsCToken: borrow-failed",
         );
 
         expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
