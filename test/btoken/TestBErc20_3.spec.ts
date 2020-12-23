@@ -229,7 +229,7 @@ contract("BErc20", async (accounts) => {
         // failed at Compound, as it doesn't allow sending tokens to self
         await expectRevert(
           bZRX.transferFrom(owner, owner, ONE_cZRX, { from: spender }),
-          "BToken: transferFrom-failed",
+          "AbsCToken: transferFrom-failed",
         );
 
         expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
@@ -413,7 +413,7 @@ contract("BErc20", async (accounts) => {
           bZRX.transferFromOnAvatar(spenderAvatar, owner, owner, ONE_cZRX, {
             from: spenderDelegatee,
           }),
-          "BToken: transferFrom-failed",
+          "AbsCToken: transferFrom-failed",
         );
 
         expect(await bZRX.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cZRX_Bal);
