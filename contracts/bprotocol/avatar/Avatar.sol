@@ -7,6 +7,8 @@ import { AbsCToken } from "./AbsCToken.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /**
  * @title An Avatar contract deployed per account. The contract holds cTokens and directly interacts
  *        with Compound finance.
@@ -57,6 +59,8 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
         require(_enterMarket(address(cToken)) == 0, "enterMarket-failed");
+        IERC20 underlying = cToken.underlying();
+        underlying.safeApprove(address(cToken), mintAmount);
         uint256 result = super.mint(cToken, mintAmount);
         return result;
     }

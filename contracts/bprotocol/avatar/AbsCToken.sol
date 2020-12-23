@@ -86,7 +86,7 @@ contract AbsCToken is Cushion {
         uint256 result = 0;
         if(amtToRepayOnCompound > 0) {
             IERC20 underlying = cToken.underlying();
-            underlying.safeApprove(address(cToken), 0);
+            // use resetApprove() in case ERC20.approve() has front-running attack protection
             underlying.safeApprove(address(cToken), repayAmount);
             result = cToken.repayBorrow(amtToRepayOnCompound);
             _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
@@ -203,6 +203,10 @@ contract AbsCToken is Cushion {
     function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
         address spenderAvatar = registry.getAvatar(spender);
         return cToken.approve(spenderAvatar, amount);
+    }
+
+    function resetApprove(IERC20 underlying, address cToken) public onlyBToken {
+        underlying.safeApprove(cToken, 0);
     }
 
     /**

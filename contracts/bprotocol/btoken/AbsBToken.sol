@@ -145,6 +145,10 @@ contract AbsBToken is Exponential {
         return IAvatar(_avatar).approve(cToken, spender, amount);
     }
 
+    function resetApprove(address underlying, address _cToken) public {
+        return IAvatar(_myAvatar()).resetApprove(underlying, _cToken);
+    }
+
     function allowance(address owner, address spender) public view returns (uint256) {
         return ICToken(cToken).allowance(registry.avatarOf(owner), registry.avatarOf(spender));
     }
