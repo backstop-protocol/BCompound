@@ -72,6 +72,7 @@ contract AbsCToken is Cushion {
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
         uint result = cToken.mint(mintAmount);
+        require(result == 0, "AbsCToken: mint-failed");
         _score().updateCollScore(address(this), address(cToken), toInt256(mintAmount));
         return result;
     }
@@ -89,6 +90,7 @@ contract AbsCToken is Cushion {
             // use resetApprove() in case ERC20.approve() has front-running attack protection
             underlying.safeApprove(address(cToken), repayAmount);
             result = cToken.repayBorrow(amtToRepayOnCompound);
+            require(result == 0, "AbsCToken: repayBorrow-failed");
             _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
         }
         return result; // in case of err, tx fails at BToken
@@ -120,14 +122,14 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
+        require(result == 0, "AbsCToken: redeem-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
         _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
 
         // Do the fund transfer at last
         if(_isCEther(cToken)) {
-            bool success = userOrDelegatee.send(address(this).balance);
-            success; //shh: Avoiding DoS attack
+            userOrDelegatee.transfer(address(this).balance);
         } else {
             IERC20 underlying = cToken.underlying();
             uint256 redeemedAmount = underlying.balanceOf(address(this));
@@ -142,13 +144,13 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
+        require(result == 0, "AbsCToken: redeemUnderlying-failed");
 
         _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
 
         // Do the fund transfer at last
         if(_isCEther(cToken)) {
-            bool success = userOrDelegatee.send(redeemAmount);
-            success; //shh: Avoiding DoS attack
+            userOrDelegatee.transfer(redeemAmount);
         } else {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(userOrDelegatee, redeemAmount);
@@ -162,14 +164,13 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
-        if(result != 0) return result;
+        require(result == 0, "AbsCToken: borrow-failed");
 
         _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
 
         // send funds at last
         if(_isCEther(cToken)) {
-            bool success = userOrDelegatee.send(borrowAmount);
-            success; //shh: avoid DoS attack
+            userOrDelegatee.transfer(borrowAmount);
         } else {
             IERC20 underlying = cToken.underlying();
             underlying.safeTransfer(userOrDelegatee, borrowAmount);
@@ -182,6 +183,8 @@ contract AbsCToken is Cushion {
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         address dstAvatar = registry.getAvatar(dst);
         bool result = cToken.transfer(dstAvatar, amount);
+        require(result, "AbsCToken: transfer-failed");
+
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
         _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
         _score().updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
@@ -193,6 +196,7 @@ contract AbsCToken is Cushion {
         address dstAvatar = registry.getAvatar(dst);
 
         bool result = cToken.transferFrom(srcAvatar, dstAvatar, amount);
+        require(result, "AbsCToken: transferFrom-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
         _score().updateCollScore(srcAvatar, address(cToken), -toInt256(underlyingRedeemAmount));
