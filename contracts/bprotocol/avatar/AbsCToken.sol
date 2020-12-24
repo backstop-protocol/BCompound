@@ -122,6 +122,7 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
+        console.log("result: %s", result);
         require(result == 0, "AbsCToken: redeem-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
