@@ -64,6 +64,10 @@ contract("BErc20", async (accounts) => {
     const FIVE_HUNDRED_BAT = new BN(500).mul(ONE_BAT);
     const ONE_THOUSAND_BAT = new BN(1000).mul(ONE_BAT);
 
+    const ONE_USDT = new BN(10).pow(new BN(6));
+    const ONE_THOUSAND_USDT = new BN(1000).mul(ONE_USDT);
+    const FIVE_HUNDRED_USDT = new BN(500).mul(ONE_USDT);
+
     // ZRX
     let ZRX_addr: string;
     let ZRX: b.Erc20DetailedInstance;
@@ -83,6 +87,16 @@ contract("BErc20", async (accounts) => {
 
     let cBAT_addr: string;
     let cBAT: b.CErc20Instance;
+
+    // USDT
+    let USDT_addr: string;
+    let USDT: b.Erc20DetailedInstance;
+
+    let bUSDT_addr: string;
+    let bUSDT: b.BErc20Instance;
+
+    let cUSDT_addr: string;
+    let cUSDT: b.CErc20Instance;
 
     // ETH
     let bETH_addr: string;
@@ -112,6 +126,16 @@ contract("BErc20", async (accounts) => {
       cBAT_addr = compoundUtil.getContracts("cBAT");
       cBAT = await CErc20.at(cBAT_addr);
 
+      // USDT
+      bUSDT = await engine.deployNewBErc20("cUSDT");
+      bUSDT_addr = bUSDT.address;
+
+      USDT_addr = compoundUtil.getTokens("USDT");
+      USDT = await Erc20Detailed.at(USDT_addr);
+
+      cUSDT_addr = compoundUtil.getContracts("cUSDT");
+      cUSDT = await CErc20.at(cUSDT_addr);
+
       // ETH:: deploy BEther
       bETH = await engine.deployNewBEther();
       bETH_addr = bETH.address;
@@ -130,6 +154,9 @@ contract("BErc20", async (accounts) => {
 
       await BAT.transfer(a.user2, ONE_THOUSAND_BAT, { from: a.deployer });
       expect(await BAT.balanceOf(a.user2)).to.be.bignumber.equal(ONE_THOUSAND_BAT);
+
+      // NOTICE: Fix the Price oracle issue on Compound deployment
+      await comptroller._setPriceOracle(compoundUtil.getContracts("PriceOracle"));
     });
 
     describe("BErc20.borrow()", async () => {
@@ -176,6 +203,15 @@ contract("BErc20", async (accounts) => {
         expect(await balance.current(a.user1)).to.be.bignumber.equal(
           ethBalBefore.add(ONE_ETH).sub(txFee),
         );
+      });
+
+      it("should fail when try to borrow USDT", async () => {
+        // user1 try to borrow USDT, he has ZRX collateral
+        expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(bUSDT.borrow(ONE_USDT, { from: a.user1 }), "AbsCToken: borrow-failed");
+
+        expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
       });
 
       it("should fail borrow when user not have enough collateral", async () => {
@@ -246,6 +282,17 @@ contract("BErc20", async (accounts) => {
         );
       });
 
+      it("delegatee tx should fail when try to borrow USDT on behalf of user", async () => {
+        expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(
+          bUSDT.borrowOnAvatar(avatar1, ONE_USDT, { from: delegatee }),
+          "AbsCToken: borrow-failed",
+        );
+
+        expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+      });
+
       it("delegatee tx should fail when user not have enough collateral", async () => {
         expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
 
@@ -281,7 +328,7 @@ contract("BErc20", async (accounts) => {
         expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       });
 
-      it("should transfer cTokens to another user (not have an avatar)", async () => {
+      it("should transfer cZRX to another user (not have an avatar)", async () => {
         let avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.equal(ZERO_ADDRESS);
 
@@ -303,7 +350,7 @@ contract("BErc20", async (accounts) => {
         expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
       });
 
-      it("should transfer cTokens to another user (already have an avatar)", async () => {
+      it("should transfer cZRX to another user (already have an avatar)", async () => {
         await bProtocol.registry.newAvatar({ from: a.user2 });
         const avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
