@@ -15,8 +15,6 @@ const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 
 const BErc20: b.BErc20Contract = artifacts.require("BErc20");
 
-const SimplePriceOracle: b.SimplePriceOracleContract = artifacts.require("SimplePriceOracle");
-
 const chai = require("chai");
 const expect = chai.expect;
 const ONE_ETH = new BN(10).pow(new BN(18));
