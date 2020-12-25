@@ -155,6 +155,9 @@ contract("BErc20", async (accounts) => {
       await BAT.transfer(a.user2, ONE_THOUSAND_BAT, { from: a.deployer });
       expect(await BAT.balanceOf(a.user2)).to.be.bignumber.equal(ONE_THOUSAND_BAT);
 
+      await USDT.transfer(a.user4, ONE_THOUSAND_USDT, { from: a.deployer });
+      expect(await USDT.balanceOf(a.user4)).to.be.bignumber.equal(ONE_THOUSAND_USDT);
+
       // NOTICE: Fix the Price oracle issue on Compound deployment
       await comptroller._setPriceOracle(compoundUtil.getContracts("PriceOracle"));
     });
@@ -163,6 +166,7 @@ contract("BErc20", async (accounts) => {
       let avatar1: string;
       let avatar2: string;
       let avatar3: string;
+      let avatar4: string;
 
       beforeEach(async () => {
         // user1 deposit ZRX
@@ -178,6 +182,11 @@ contract("BErc20", async (accounts) => {
         // user3 deposit ETH
         await bETH.mint({ from: a.user3, value: TEN_ETH });
         avatar3 = await bProtocol.registry.avatarOf(a.user3);
+
+        // user4 deposit USDT
+        await USDT.approve(bUSDT_addr, ONE_THOUSAND_USDT, { from: a.user4 });
+        await bUSDT.mint(ONE_THOUSAND_USDT, { from: a.user4 });
+        avatar4 = await bProtocol.registry.avatarOf(a.user4);
       });
 
       it("should borrow BAT", async () => {
@@ -205,13 +214,26 @@ contract("BErc20", async (accounts) => {
         );
       });
 
-      it("should fail when try to borrow USDT", async () => {
-        // user1 try to borrow USDT, he has ZRX collateral
+      it("should fail when USDT is collatral and borrow ZRX", async () => {
+        await USDT.transfer(a.other, ONE_THOUSAND_USDT, { from: a.deployer });
+
+        await USDT.approve(bUSDT_addr, ONE_THOUSAND_USDT, { from: a.other });
+        await bUSDT.mint(ONE_THOUSAND_USDT, { from: a.other });
+
+        expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(bZRX.borrow(ONE_ZRX, { from: a.other }), "AbsCToken: borrow-failed");
+
+        expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should borrow USDT", async () => {
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
 
-        await expectRevert(bUSDT.borrow(ONE_USDT, { from: a.user1 }), "AbsCToken: borrow-failed");
+        await bUSDT.borrow(ONE_USDT, { from: a.user1 });
 
-        expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+        expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ONE_USDT);
       });
 
       it("should fail borrow when user not have enough collateral", async () => {
@@ -234,11 +256,12 @@ contract("BErc20", async (accounts) => {
 
     describe("BErc20.borrowOnAvatar()", async () => {
       const delegator = a.user1;
-      const delegatee = a.user4;
+      const delegatee = a.user5;
       const nonDelegatee = a.other;
       let avatar1: string;
       let avatar2: string;
       let avatar3: string;
+      let avatar4: string;
 
       beforeEach(async () => {
         // user1 deposit ZRX
@@ -254,6 +277,11 @@ contract("BErc20", async (accounts) => {
         // user3 deposit ETH
         await bETH.mint({ from: a.user3, value: TEN_ETH });
         avatar3 = await bProtocol.registry.avatarOf(a.user3);
+
+        // user4 deposit USDT
+        await USDT.approve(bUSDT_addr, ONE_THOUSAND_USDT, { from: a.user4 });
+        await bUSDT.mint(ONE_THOUSAND_USDT, { from: a.user4 });
+        avatar4 = await bProtocol.registry.avatarOf(a.user4);
 
         // delegate
         await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
@@ -282,15 +310,12 @@ contract("BErc20", async (accounts) => {
         );
       });
 
-      it("delegatee tx should fail when try to borrow USDT on behalf of user", async () => {
+      it("delegatee should borrow USDT on behalf of user", async () => {
         expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
 
-        await expectRevert(
-          bUSDT.borrowOnAvatar(avatar1, ONE_USDT, { from: delegatee }),
-          "AbsCToken: borrow-failed",
-        );
+        await bUSDT.borrowOnAvatar(avatar1, ONE_USDT, { from: delegatee });
 
-        expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_USDT);
       });
 
       it("delegatee tx should fail when user not have enough collateral", async () => {
