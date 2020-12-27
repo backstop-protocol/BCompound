@@ -70,7 +70,7 @@ contract Registry is Ownable {
         return _newAvatar(msg.sender);
     }
 
-    function getAvatar(address _owner) external returns (address) {
+    function getAvatar(address _owner) public returns (address) {
         require(_owner != address(0), "Registry: owner-address-is-zero");
         address _avatar = avatarOf[_owner];
         if(_avatar == address(0)) {
@@ -79,7 +79,7 @@ contract Registry is Ownable {
         return _avatar;
     }
 
-    function delegateAvatar(address delegatee) external {
+    function delegateAvatar(address delegatee) public {
         require(delegatee != address(0), "Registry: delegatee-address-is-zero");
         address _avatar = avatarOf[msg.sender];
         require(_avatar != address(0), "Registry: avatar-not-found");
@@ -88,13 +88,22 @@ contract Registry is Ownable {
         emit Delegate(msg.sender, _avatar, delegatee);
     }
 
-    function revokeDelegateAvatar(address delegatee) external {
+    function revokeDelegateAvatar(address delegatee) public {
         address _avatar = avatarOf[msg.sender];
         require(_avatar != address(0), "Registry: avatar-not-found");
         require(delegate[_avatar][delegatee], "Registry: not-delegated");
 
         delegate[_avatar][delegatee] = false;
         emit RevokeDelegate(msg.sender, _avatar, delegatee);
+    }
+
+    function delegateAndExecuteOnce(address payable delegatee, bytes calldata data) payable external {
+        // make sure there is an avatar
+        getAvatar(msg.sender);
+        delegateAvatar(delegatee);
+        (bool succ, ) = delegatee.call.value(msg.value)(data);
+        require(succ, "delegateAndExecuteOnce-failed");
+        revokeDelegateAvatar(delegatee);
     }
 
     function _newAvatar(address _owner) internal returns (address) {
