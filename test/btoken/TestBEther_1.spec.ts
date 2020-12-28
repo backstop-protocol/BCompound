@@ -196,6 +196,7 @@ contract("BEther", async (accounts) => {
         await bETH.mintOnAvatar(avtOfDelegator, { from: delegatee, value: ONE_ETH });
 
         expect(await cETH.balanceOfUnderlying.call(avtOfDelegator)).to.be.bignumber.equal(ONE_ETH);
+        expect(await bETH.balanceOfUnderlying.call(delegator)).to.be.bignumber.equal(ONE_ETH);
       });
     });
 
@@ -406,6 +407,7 @@ contract("BEther", async (accounts) => {
         avatar1 = await bProtocol.registry.avatarOf(a.user1);
 
         expect(await cETH.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ONE_ETH);
+        expect(await bETH.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ONE_ETH);
       });
 
       it("user can redeem all cETH", async () => {
@@ -414,12 +416,10 @@ contract("BEther", async (accounts) => {
         expect(err).to.be.bignumber.equal(ZERO);
 
         const userETH_BalBeforeRedeem = await balance.current(a.user1);
-        const tx = await bETH.redeem(cTokensAmount, { from: a.user1, gasPrice: 0 });
+        await bETH.redeem(cTokensAmount, { from: a.user1, gasPrice: 0 });
         const userETH_BalAfterRedeem = await balance.current(a.user1);
-        const txFee = new BN(tx.receipt.gasUsed);
-        expect(userETH_BalAfterRedeem).to.be.bignumber.equal(
-          userETH_BalBeforeRedeem.add(ONE_ETH).sub(txFee),
-        );
+
+        expect(userETH_BalAfterRedeem).to.be.bignumber.equal(userETH_BalBeforeRedeem.add(ONE_ETH));
 
         expect(await cETH.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
         expect(await bETH.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
