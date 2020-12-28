@@ -16,7 +16,6 @@ contract Import is Exponential {
     address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     Registry public registry;
     BComptroller public bComptroller;
-    address public cETH;
     address public bETH;
 
     constructor(Registry _registery, BComptroller _bComptroller) public {
@@ -26,7 +25,7 @@ contract Import is Exponential {
         registry = _registery;
         bComptroller = _bComptroller;
 
-        cETH = registry.cEther();
+        address cETH = registry.cEther();
         bETH = bComptroller.c2b(cETH);
     }
 
@@ -34,9 +33,6 @@ contract Import is Exponential {
                           address[] memory debtUnderlying,
                           uint[] memory originalDebt,
                           address account) internal {
-        // repay all debt
-        originalDebt = new uint[](cTokenDebt.length);
-
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
           address cDebt = cTokenDebt[i];
           uint debt = originalDebt[i];
@@ -58,7 +54,8 @@ contract Import is Exponential {
         for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
           ICToken cColl = ICToken(cTokenCollateral[i]);
           uint collBalance = cColl.balanceOf(account);
-          IERC20(address(cColl)).safeTransferFrom(account, address(this), collBalance);
+          require(cColl.transferFrom(account, address(this), collBalance), "transferFrom-failed");
+          //IERC20(address(cColl)).safeTransferFrom(account, address(this), collBalance);
           require(0 == cColl.redeem(collBalance), "redeem-failed");
 
           address bColl = bComptroller.c2b(cTokenCollateral[i]);
@@ -71,26 +68,16 @@ contract Import is Exponential {
             token.safeApprove(bColl, tokenBalance);
             require(0 == BErc20(bColl).mintOnAvatar(avatar, tokenBalance), "mint-failed");
           }
-
-          // token to cToken exchange rate might change by some epsilon
-          uint newCBalance = BErc20(bColl).balanceOf(address(this));
-          require(BErc20(bColl).transfer(account, newCBalance), "transfer-failed");
         }
     }
 
     function borrowDebtOnB(address[] memory cTokenDebt,
-                           address[] memory debtUnderlying,
                            uint[]    memory originalDebt,
                            address avatar) internal {
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
           uint debt = originalDebt[i];
           address bTokenDebt = bComptroller.c2b(cTokenDebt[i]);
-          if(debtUnderlying[i] == ETH) {
-            BEther(bTokenDebt).borrowOnAvatar(avatar, debt);
-          }
-          else {
-            BErc20(bTokenDebt).borrowOnAvatar(avatar, debt);
-          }
+          require(0 == BErc20(bTokenDebt).borrowOnAvatar(avatar, debt), "borrowOnAvatar-failed");
         }
     }
 
@@ -103,26 +90,27 @@ contract Import is Exponential {
 
         require(cTokenCollateral.length == collateralUnderlying.length, "collateral-length-missmatch");
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
-        for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
-          require(cTokenCollateral[i] != cETH, "ETH-should-not-be-input-collateral");
-        }
-        // check that flashloan return is not 1% bigger than current balance
+        require(mul_(ethFlashLoan, 100) <= mul_(address(this).balance, 101), "flashloan-fees-over-1%");
 
         address account = tx.origin;
         address avatar = registry.getAvatar(account);
 
-        uint cOriginalCEthBalance = ICEther(cETH).balanceOf(address(this));
-        ICEther(cETH).mint.value(address(this).balance)();
-        if(cOriginalCEthBalance > 0) {
-          ICEther(cETH).redeem(cOriginalCEthBalance);
-          BEther(bETH).mintOnAvatar.value(address(this).balance)(avatar);
-        }
+        // mint ETH on B
+        uint ethBalance = address(this).balance;
+        BEther(bETH).mintOnAvatar.value(ethBalance)(avatar);
 
         uint[] memory originalDebt = new uint[](cTokenDebt.length);
-
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
           originalDebt[i] = ICToken(cTokenDebt[i]).borrowBalanceCurrent(account);
         }
+
+        // borrow the original debt
+        borrowDebtOnB(cTokenDebt,
+                      originalDebt,
+                      avatar);
+
+        // repay all debt
+        repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
 
         // redeem all non ETH collateral, deposit it in B
         redeemAndDepositCollateral(cTokenCollateral,
@@ -130,16 +118,7 @@ contract Import is Exponential {
                                    account,
                                    avatar);
 
-        // borrow the original debt, plus the flash loan fees
-        borrowDebtOnB(cTokenDebt,
-                      debtUnderlying,
-                      originalDebt,
-                      avatar);
-
-        // repay all debt
-        repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
-
-        ICEther(cETH).redeem(ICEther(cETH).balanceOf(address(this)));
+        BEther(bETH).redeemUnderlyingOnAvatar(avatar, ethBalance);
         if(address(this).balance < ethFlashLoan) {
           BEther(bETH).borrowOnAvatar(avatar, ethFlashLoan - address(this).balance);
         }
@@ -192,12 +171,56 @@ contract FlashLoanImport {
     function() external payable {}
 }
 
+// user will call this contract
+// this contract will be upgraded over time, depending on available flash loan
+// sources
+contract FlashLoanImportWithFees {
+    using SafeERC20 for IERC20;
+    address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    function flashImport(address[] calldata cTokenCollateral,
+                         address[] calldata collateralUnderlying,
+                         address[] calldata cTokenDebt,
+                         address[] calldata debtUnderlying,
+                         address payable importer,
+                         uint            ethAmountToFlashBorrow,
+                         address payable flash) external {
+        require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
+
+        if(address(this).balance < ethAmountToFlashBorrow) {
+          // this will invoke a recursive call
+          return FlashLoanLike(flash).borrow(ETH, ethAmountToFlashBorrow, msg.data);
+        }
+
+        // now balance is sufficient
+        importer.transfer(ethAmountToFlashBorrow);
+
+        Import(importer).importAccount(cTokenCollateral,
+                                       collateralUnderlying,
+                                       cTokenDebt,
+                                       debtUnderlying,
+                                       ethAmountToFlashBorrow + 1000);
+
+        flash.transfer(ethAmountToFlashBorrow + 1000);
+    }
+
+    // accept ETH transfers
+    function() external payable {}
+}
+
+
 contract FlashLoanStub {
     function borrow(address /*_token*/, uint256 _amount, bytes calldata _data) external {
-      (bool succ, ) = msg.sender.call.value(_amount)("");
+      uint balanceBefore = address(this).balance;
+      (bool succ, bytes memory res) = msg.sender.call.value(_amount)("");
       require(succ, "eth-transfer-failed");
-      (succ, ) = msg.sender.call(_data);
-      require(succ, "flash-call-failed");
+      (succ, res) = msg.sender.call(_data);
+      require(succ, string(res));
+      require(address(this).balance >= balanceBefore, "flash-loan-didnt-repay");
+    }
+
+    function deposit() external payable {
+      // do nothing
     }
 
     function() external payable {}

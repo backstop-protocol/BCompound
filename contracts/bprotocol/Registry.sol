@@ -97,12 +97,12 @@ contract Registry is Ownable {
         emit RevokeDelegate(msg.sender, _avatar, delegatee);
     }
 
-    function delegateAndExecuteOnce(address payable delegatee, bytes calldata data) payable external {
+    function delegateAndExecuteOnce(address delegatee, address payable target, bytes calldata data) payable external {
         // make sure there is an avatar
         getAvatar(msg.sender);
         delegateAvatar(delegatee);
-        (bool succ, ) = delegatee.call.value(msg.value)(data);
-        require(succ, "delegateAndExecuteOnce-failed");
+        (bool succ, bytes memory err) = target.call.value(msg.value)(data);
+        require(succ, string(err));
         revokeDelegateAvatar(delegatee);
     }
 
