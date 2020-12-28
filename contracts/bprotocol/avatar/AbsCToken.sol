@@ -211,8 +211,9 @@ contract AbsCToken is Cushion {
         return cToken.approve(spenderAvatar, amount);
     }
 
-    function resetApprove(IERC20 underlying, address cToken) public onlyBToken {
-        underlying.safeApprove(cToken, 0);
+    function resetApprove(ICToken cToken) public {
+        require(msg.sender == registry.ownerOf(address(this)), "AbsCToken: sender-is-not-owner");
+        cToken.underlying().safeApprove(address(cToken), 0);
     }
 
     /**

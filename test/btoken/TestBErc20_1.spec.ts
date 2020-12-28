@@ -7,7 +7,7 @@ import BN from "bn.js";
 import { toWei } from "web3-utils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
-const { balance, expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
+const { balance, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
 
 const Erc20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
 
@@ -187,6 +187,9 @@ contract("BErc20", async (accounts) => {
         expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
 
         expect(await cZRX.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
+          ONE_THOUSAND_ZRX,
+        );
+        expect(await bZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
           ONE_THOUSAND_ZRX,
         );
       });

@@ -21,9 +21,6 @@ contract IAvatar is IERC20 {
     function claimComp(address owner) external;
     function claimComp(address[] calldata cTokens, address owner) external;
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall);
-
-    // other functions
-    function resetApprove(address underlying, address cToken) external;
 }
 
 // Workaround for issue https://github.com/ethereum/solidity/issues/526

@@ -193,8 +193,6 @@ contract("BEther", async (accounts) => {
 
         await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
 
-        await bETH.mintOnAvatar.call(avtOfDelegator, { from: delegatee, value: ONE_ETH });
-
         await bETH.mintOnAvatar(avtOfDelegator, { from: delegatee, value: ONE_ETH });
 
         expect(await cETH.balanceOfUnderlying.call(avtOfDelegator)).to.be.bignumber.equal(ONE_ETH);
@@ -227,21 +225,17 @@ contract("BEther", async (accounts) => {
         expect(await balance.current(a.user1)).to.be.bignumber.equal(user1EthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
 
-        let tx = await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 1 });
-        const txFee1 = new BN(tx.receipt.gasUsed);
+        await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 0 });
         let borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
         expect(borrowBal).to.be.bignumber.equal(ONE_ETH);
 
-        expect(await balance.current(a.user1)).to.be.bignumber.equal(
-          user1EthBal.sub(txFee1).add(ONE_ETH),
-        );
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(user1EthBal.add(ONE_ETH));
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH.sub(ONE_ETH));
 
-        tx = await bETH.repayBorrow({ from: a.user1, value: HALF_ETH, gasPrice: 1 });
-        const txFee2 = new BN(tx.receipt.gasUsed);
+        await bETH.repayBorrow({ from: a.user1, value: HALF_ETH, gasPrice: 0 });
 
         expect(await balance.current(a.user1)).to.be.bignumber.equal(
-          user1EthBal.sub(txFee1).add(ONE_ETH).sub(txFee2).sub(HALF_ETH),
+          user1EthBal.add(ONE_ETH).sub(HALF_ETH),
         );
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
           TEN_ETH.sub(ONE_ETH).add(HALF_ETH),
@@ -256,22 +250,16 @@ contract("BEther", async (accounts) => {
         expect(await balance.current(a.user1)).to.be.bignumber.equal(user1EthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
 
-        let tx = await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 1 });
-        const txFee1 = new BN(tx.receipt.gasUsed);
+        await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 0 });
         let borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
         expect(borrowBal).to.be.bignumber.equal(ONE_ETH);
 
-        expect(await balance.current(a.user1)).to.be.bignumber.equal(
-          user1EthBal.sub(txFee1).add(ONE_ETH),
-        );
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(user1EthBal.add(ONE_ETH));
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH.sub(ONE_ETH));
 
-        tx = await bETH.repayBorrow({ from: a.user1, value: ONE_ETH, gasPrice: 1 });
-        const txFee2 = new BN(tx.receipt.gasUsed);
+        await bETH.repayBorrow({ from: a.user1, value: ONE_ETH, gasPrice: 0 });
 
-        expect(await balance.current(a.user1)).to.be.bignumber.equal(
-          user1EthBal.sub(txFee1).sub(txFee2),
-        );
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(user1EthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
 
         borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
@@ -318,30 +306,28 @@ contract("BEther", async (accounts) => {
         expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
 
-        let tx = await bETH.borrow(ONE_ETH, { from: delegator, gasPrice: 1 });
-        const delegatorTxFee = new BN(tx.receipt.gasUsed);
+        await bETH.borrow(ONE_ETH, { from: delegator, gasPrice: 0 });
 
         let borrowBal = await bETH.borrowBalanceCurrent.call(delegator);
         expect(borrowBal).to.be.bignumber.equal(ONE_ETH);
 
         expect(await balance.current(delegator)).to.be.bignumber.equal(
-          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+          delegatorEthBal.add(ONE_ETH),
         );
         expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH.sub(ONE_ETH));
 
-        tx = await bETH.repayBorrowOnAvatar(delegatorAvatar, {
+        await bETH.repayBorrowOnAvatar(delegatorAvatar, {
           from: delegatee,
           value: HALF_ETH,
-          gasPrice: 1,
+          gasPrice: 0,
         });
-        const delegateeTxFee = new BN(tx.receipt.gasUsed);
 
         expect(await balance.current(delegator)).to.be.bignumber.equal(
-          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+          delegatorEthBal.add(ONE_ETH),
         );
         expect(await balance.current(delegatee)).to.be.bignumber.equal(
-          delegateeEthBal.sub(delegateeTxFee).sub(HALF_ETH),
+          delegateeEthBal.sub(HALF_ETH),
         );
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
           TEN_ETH.sub(ONE_ETH).add(HALF_ETH),
@@ -359,30 +345,28 @@ contract("BEther", async (accounts) => {
         expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
 
-        let tx = await bETH.borrow(ONE_ETH, { from: delegator, gasPrice: 1 });
-        const delegatorTxFee = new BN(tx.receipt.gasUsed);
+        await bETH.borrow(ONE_ETH, { from: delegator, gasPrice: 0 });
 
         let borrowBal = await bETH.borrowBalanceCurrent.call(delegator);
         expect(borrowBal).to.be.bignumber.equal(ONE_ETH);
 
         expect(await balance.current(delegator)).to.be.bignumber.equal(
-          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+          delegatorEthBal.add(ONE_ETH),
         );
         expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeEthBal);
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH.sub(ONE_ETH));
 
-        tx = await bETH.repayBorrowOnAvatar(delegatorAvatar, {
+        await bETH.repayBorrowOnAvatar(delegatorAvatar, {
           from: delegatee,
           value: ONE_ETH,
-          gasPrice: 1,
+          gasPrice: 0,
         });
-        const delegateeTxFee = new BN(tx.receipt.gasUsed);
 
         expect(await balance.current(delegator)).to.be.bignumber.equal(
-          delegatorEthBal.add(ONE_ETH).sub(delegatorTxFee),
+          delegatorEthBal.add(ONE_ETH),
         );
         expect(await balance.current(delegatee)).to.be.bignumber.equal(
-          delegateeEthBal.sub(delegateeTxFee).sub(ONE_ETH),
+          delegateeEthBal.sub(ONE_ETH),
         );
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(TEN_ETH);
 
@@ -414,13 +398,10 @@ contract("BEther", async (accounts) => {
       beforeEach(async () => {
         const userETH_BalBefore = await balance.current(a.user1);
 
-        const tx = await bETH.mint({ from: a.user1, value: ONE_ETH, gasPrice: 1 });
-        let txFee = new BN(tx.receipt.gasUsed);
+        await bETH.mint({ from: a.user1, value: ONE_ETH, gasPrice: 0 });
 
         const userETH_BalAfterMint = await balance.current(a.user1);
-        expect(userETH_BalAfterMint).to.be.bignumber.equal(
-          userETH_BalBefore.sub(ONE_ETH).sub(txFee),
-        );
+        expect(userETH_BalAfterMint).to.be.bignumber.equal(userETH_BalBefore.sub(ONE_ETH));
 
         avatar1 = await bProtocol.registry.avatarOf(a.user1);
 
@@ -433,7 +414,7 @@ contract("BEther", async (accounts) => {
         expect(err).to.be.bignumber.equal(ZERO);
 
         const userETH_BalBeforeRedeem = await balance.current(a.user1);
-        const tx = await bETH.redeem(cTokensAmount, { from: a.user1, gasPrice: 1 });
+        const tx = await bETH.redeem(cTokensAmount, { from: a.user1, gasPrice: 0 });
         const userETH_BalAfterRedeem = await balance.current(a.user1);
         const txFee = new BN(tx.receipt.gasUsed);
         expect(userETH_BalAfterRedeem).to.be.bignumber.equal(
@@ -441,6 +422,7 @@ contract("BEther", async (accounts) => {
         );
 
         expect(await cETH.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
       });
 
       it("user can redeem some of his cETH", async () => {
@@ -450,24 +432,22 @@ contract("BEther", async (accounts) => {
         expect(err).to.be.bignumber.equal(ZERO);
 
         let userETH_BalBeforeRedeem = await balance.current(a.user1);
-        let tx = await bETH.redeem(halfCTokensAmount, { from: a.user1, gasPrice: 1 });
+        await bETH.redeem(halfCTokensAmount, { from: a.user1, gasPrice: 0 });
         let userETH_BalAfterRedeem = await balance.current(a.user1);
-        let txFee = new BN(tx.receipt.gasUsed);
-        expect(userETH_BalAfterRedeem).to.be.bignumber.equal(
-          userETH_BalBeforeRedeem.add(HALF_ETH).sub(txFee),
-        );
+
+        expect(userETH_BalAfterRedeem).to.be.bignumber.equal(userETH_BalBeforeRedeem.add(HALF_ETH));
 
         expect(await cETH.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(HALF_ETH);
+        expect(await bETH.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(HALF_ETH);
 
         userETH_BalBeforeRedeem = await balance.current(a.user1);
-        tx = await bETH.redeem(halfCTokensAmount, { from: a.user1, gasPrice: 1 });
+        await bETH.redeem(halfCTokensAmount, { from: a.user1, gasPrice: 0 });
         userETH_BalAfterRedeem = await balance.current(a.user1);
-        txFee = new BN(tx.receipt.gasUsed);
-        expect(userETH_BalAfterRedeem).to.be.bignumber.equal(
-          userETH_BalBeforeRedeem.add(HALF_ETH).sub(txFee),
-        );
+
+        expect(userETH_BalAfterRedeem).to.be.bignumber.equal(userETH_BalBeforeRedeem.add(HALF_ETH));
 
         expect(await cETH.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
       });
     });
 
@@ -493,16 +473,16 @@ contract("BEther", async (accounts) => {
         const err = await bETH.redeemOnAvatar.call(avatar1, cTokensAmount, { from: delegatee });
         expect(err).to.be.bignumber.equal(ZERO);
 
-        const tx = await bETH.redeemOnAvatar(avatar1, cTokensAmount, {
+        await bETH.redeemOnAvatar(avatar1, cTokensAmount, {
           from: delegatee,
-          gasPrice: 1,
+          gasPrice: 0,
         });
-        const txFee = new BN(tx.receipt.gasUsed);
 
         expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await balance.current(delegator)).to.be.bignumber.equal(delegatorEthBalBeforeRedeem);
         expect(await balance.current(delegatee)).to.be.bignumber.equal(
-          delegateeEthBalBeforeRedeem.add(ONE_ETH).sub(txFee),
+          delegateeEthBalBeforeRedeem.add(ONE_ETH),
         );
       });
 
@@ -515,32 +495,32 @@ contract("BEther", async (accounts) => {
 
         let err = await bETH.redeemOnAvatar.call(avatar1, halfCTokensAmount, { from: delegatee });
         expect(err).to.be.bignumber.equal(ZERO);
-        let tx = await bETH.redeemOnAvatar(avatar1, halfCTokensAmount, {
+        await bETH.redeemOnAvatar(avatar1, halfCTokensAmount, {
           from: delegatee,
-          gasPrice: 1,
+          gasPrice: 0,
         });
-        let txFee = new BN(tx.receipt.gasUsed);
 
         expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(halfCTokensAmount);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(halfCTokensAmount);
         expect(await balance.current(delegator)).to.be.bignumber.equal(delegatorEthBalBeforeRedeem);
         expect(await balance.current(delegatee)).to.be.bignumber.equal(
-          delegateeEthBalBeforeRedeem.add(HALF_ETH).sub(txFee),
+          delegateeEthBalBeforeRedeem.add(HALF_ETH),
         );
 
         delegatorEthBalBeforeRedeem = await balance.current(delegator);
         delegateeEthBalBeforeRedeem = await balance.current(delegatee);
         err = await bETH.redeemOnAvatar.call(avatar1, halfCTokensAmount, { from: delegatee });
         expect(err).to.be.bignumber.equal(ZERO);
-        tx = await bETH.redeemOnAvatar(avatar1, halfCTokensAmount, {
+        await bETH.redeemOnAvatar(avatar1, halfCTokensAmount, {
           from: delegatee,
-          gasPrice: 1,
+          gasPrice: 0,
         });
-        txFee = new BN(tx.receipt.gasUsed);
 
         expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await balance.current(delegator)).to.be.bignumber.equal(delegatorEthBalBeforeRedeem);
         expect(await balance.current(delegatee)).to.be.bignumber.equal(
-          delegateeEthBalBeforeRedeem.add(HALF_ETH).sub(txFee),
+          delegateeEthBalBeforeRedeem.add(HALF_ETH),
         );
       });
     });
