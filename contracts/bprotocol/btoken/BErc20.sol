@@ -56,8 +56,9 @@ contract BErc20 is AbsBToken {
     }
 
     // liquidateBorrow()
-    function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external onlyPool returns (uint) {
+    function liquidateBorrow(address borrower, uint repayAmount, address bTokenCollateral) external onlyPool returns (uint) {
         address borrowerAvatar = registry.avatarOf(borrower);
+        address cTokenCollateral = AbsBToken(bTokenCollateral).cToken();
         uint result = IAvatarCErc20(borrowerAvatar).liquidateBorrow(repayAmount, cTokenCollateral);
         require(result == 0, "BErc20: liquidateBorrow-failed");
         return result;

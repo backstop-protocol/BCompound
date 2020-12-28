@@ -37,8 +37,9 @@ contract BEther is AbsBToken {
         IAvatarCEther(_avatar).repayBorrow.value(msg.value)();
     }
 
-    function liquidateBorrow(address borrower, address cTokenCollateral) external payable onlyPool {
+    function liquidateBorrow(address borrower, address bTokenCollateral) external payable onlyPool {
         address borrowerAvatar = registry.avatarOf(borrower);
+        address cTokenCollateral = AbsBToken(bTokenCollateral).cToken();
         IAvatarCEther(borrowerAvatar).liquidateBorrow.value(msg.value)(cTokenCollateral);
     }
 }

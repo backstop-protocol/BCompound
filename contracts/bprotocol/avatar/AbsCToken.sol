@@ -3,6 +3,7 @@ pragma solidity 0.5.16;
 // TODO To be removed in mainnet deployment
 import "hardhat/console.sol";
 
+import { IBToken } from "../interfaces/IBToken.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
@@ -23,7 +24,8 @@ contract AbsCToken is Cushion {
         return bComptroller.isBToken(bToken);
     }
 
-    function borrowBalanceCurrent(ICToken cToken) public returns (uint256) {
+    function borrowBalanceCurrent(IBToken bToken) public returns (uint256) {
+        ICToken cToken = ICToken(bToken.cToken());
         uint256 borrowBalanceCurr = cToken.borrowBalanceCurrent(address(this));
         if(toppedUpCToken == cToken) return add_(borrowBalanceCurr, toppedUpAmount);
         return borrowBalanceCurr;
@@ -211,9 +213,10 @@ contract AbsCToken is Cushion {
         return cToken.approve(spenderAvatar, amount);
     }
 
-    function resetApprove(ICToken cToken) public {
+    function resetApprove(IBToken bToken) public {
         require(msg.sender == registry.ownerOf(address(this)), "AbsCToken: sender-is-not-owner");
-        cToken.underlying().safeApprove(address(cToken), 0);
+        address cToken = bToken.cToken();
+        ICToken(cToken).underlying().safeApprove(cToken, 0);
     }
 
     /**
