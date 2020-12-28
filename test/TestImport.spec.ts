@@ -15,6 +15,8 @@ const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 
 const BErc20: b.BErc20Contract = artifacts.require("BErc20");
 
+const Import: b.ImportContract = artifacts.require("Import");
+
 const chai = require("chai");
 const expect = chai.expect;
 const ONE_ETH = new BN(10).pow(new BN(18));
@@ -189,7 +191,9 @@ contract("BErc20", async (accounts) => {
         expect(await cBAT.borrow.call(HUNDRED_BAT, { from: a.user1 })).to.be.bignumber.equal(ZERO);
         await cBAT.borrow(HUNDRED_BAT, { from: a.user1 });
 
-        expect(await cZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+        expect(await cZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ONE_THOUSAND_ZRX,
+        );
         expect(await cBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(HUNDRED_BAT);
       });
 
@@ -198,7 +202,7 @@ contract("BErc20", async (accounts) => {
         let bFlashLoanImport: b.FlashLoanImportInstance;
         let bFlashLoanStub: b.FlashLoanStubInstance;
 
-        bImport = zelda
+        bImport = await Import.new(bProtocol.registry.address, bProtocol.bComptroller.address);
       });
     });
   });
