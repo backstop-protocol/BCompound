@@ -197,6 +197,7 @@ contract("BErc20", async (accounts) => {
         expect(err).to.be.bignumber.equal(ZERO);
         await bBAT.borrow(ONE_BAT, { from: a.user1 });
 
+        expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ONE_BAT);
         expect(await BAT.balanceOf(a.user1)).to.be.bignumber.equal(ONE_BAT);
       });
 
@@ -224,6 +225,7 @@ contract("BErc20", async (accounts) => {
 
         await expectRevert(bZRX.borrow(ONE_ZRX, { from: a.other }), "AbsCToken: borrow-failed");
 
+        expect(await bZRX.borrowBalanceCurrent.call(a.other)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
       });
 
@@ -233,6 +235,7 @@ contract("BErc20", async (accounts) => {
 
         await bUSDT.borrow(ONE_USDT, { from: a.user1 });
 
+        expect(await bUSDT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ONE_USDT);
         expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ONE_USDT);
       });
 
@@ -294,6 +297,7 @@ contract("BErc20", async (accounts) => {
         expect(err).to.be.bignumber.equal(ZERO);
         await bBAT.borrowOnAvatar(avatar1, ONE_BAT, { from: delegatee });
 
+        expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ONE_BAT);
         expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_BAT);
       });
 
@@ -315,6 +319,7 @@ contract("BErc20", async (accounts) => {
 
         await bUSDT.borrowOnAvatar(avatar1, ONE_USDT, { from: delegatee });
 
+        expect(await bUSDT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ONE_USDT);
         expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_USDT);
       });
 
@@ -326,6 +331,7 @@ contract("BErc20", async (accounts) => {
           "AbsCToken: borrow-failed",
         );
 
+        expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);
         expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
       });
 
@@ -337,6 +343,7 @@ contract("BErc20", async (accounts) => {
           "BToken: delegatee-not-authorized",
         );
 
+        expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);
         expect(await BAT.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
       });
     });
