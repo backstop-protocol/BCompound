@@ -17,24 +17,25 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract AbsComptroller is AvatarBase {
 
     function enterMarket(address bToken) external onlyBComptroller returns (uint256) {
-        return _enterMarket(bToken);
+        address cToken = IBToken(bToken).cToken();
+        return _enterMarket(cToken);
     }
 
-    function _enterMarket(address bToken) internal postPoolOp(false) returns (uint256) {
-        address[] memory bTokens = new address[](1);
-        bTokens[0] = bToken;
-        return _enterMarkets(bTokens)[0];
+    function _enterMarket(address cToken) internal postPoolOp(false) returns (uint256) {
+        address[] memory cTokens = new address[](1);
+        cTokens[0] = cToken;
+        return _enterMarkets(cTokens)[0];
     }
 
     function enterMarkets(address[] calldata bTokens) external onlyBComptroller returns (uint256[] memory) {
-        return _enterMarkets(bTokens);
-    }
-
-    function _enterMarkets(address[] memory bTokens) internal postPoolOp(false) returns (uint256[] memory) {
         address[] memory cTokens = new address[](bTokens.length);
         for(uint256 i = 0; i < bTokens.length; i++) {
             cTokens[i] = IBToken(bTokens[i]).cToken();
         }
+        return _enterMarkets(cTokens);
+    }
+
+    function _enterMarkets(address[] memory cTokens) internal postPoolOp(false) returns (uint256[] memory) {
         uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < result.length; i++) {
             require(result[i] == 0, "AbsComptroller: enter-markets-failed");
