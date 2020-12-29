@@ -24,8 +24,7 @@ contract AbsCToken is Cushion {
         return bComptroller.isBToken(bToken);
     }
 
-    function borrowBalanceCurrent(IBToken bToken) public returns (uint256) {
-        ICToken cToken = ICToken(bToken.cToken());
+    function borrowBalanceCurrent(ICToken cToken) public onlyBToken returns (uint256) {
         uint256 borrowBalanceCurr = cToken.borrowBalanceCurrent(address(this));
         if(toppedUpCToken == cToken) return add_(borrowBalanceCurr, toppedUpAmount);
         return borrowBalanceCurr;
