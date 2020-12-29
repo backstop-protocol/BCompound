@@ -591,11 +591,10 @@ contract("BErc20", async (accounts) => {
       it("TODO: as topup is require");
     });
 
-    // TODO: exchangeRateCurrent() always returning 2 * 10^27, need to check
     describe("BErc20.exchangeRateCurrent()", async () => {
-      it("should get current exchange rate", async () => {
-        const expectedExchangeRate = new BN(2).mul(new BN(10).pow(new BN(27)));
+      const expectedExchangeRate = new BN(2).mul(new BN(10).pow(new BN(27)));
 
+      it("should get current exchange rate", async () => {
         const exchangeRateCurrentZRX = await bZRX.exchangeRateCurrent.call();
         expect(exchangeRateCurrentZRX).to.be.bignumber.equal(expectedExchangeRate);
 
@@ -612,7 +611,6 @@ contract("BErc20", async (accounts) => {
       });
 
       it("exchange rate should not change after mint", async () => {
-        const expectedExchangeRate = new BN(2).mul(new BN(10).pow(new BN(27)));
         await bZRX.exchangeRateCurrent();
         let exchangeRateCurrentZRX = await bZRX.exchangeRateCurrent.call();
         expect(exchangeRateCurrentZRX).to.be.bignumber.equal(expectedExchangeRate);
@@ -640,14 +638,58 @@ contract("BErc20", async (accounts) => {
 
         // user1 borrows BAT
         await bBAT.borrow(ONE_BAT, { from: a.user1 });
+        expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ONE_BAT);
 
-        // TODO
+        // advance time to 100 blocks
+        // Somehow advanding block is not affecting exchangeRateCurrent
+        const currBlock = await time.latestBlock();
+        await time.advanceBlockTo(currBlock.add(new BN(100)));
+
+        // this changes getCashPrior()
+        await BAT.transfer(cBAT_addr, ONE_THOUSAND_BAT, { from: a.deployer });
+
+        const exchangeRateCurrentBAT = await bBAT.exchangeRateCurrent.call();
+        expect(exchangeRateCurrentBAT).to.be.bignumber.not.equal(expectedExchangeRate);
       });
     });
 
-    // TODO: after exchangeRateCurent() issue is fixed
     describe("BErc20.exchangeRateStored()", async () => {
-      it("");
+      it("should get exchange rate stored", async () => {
+        const expectedExchangeRate = new BN(2).mul(new BN(10).pow(new BN(27)));
+        const expectedExchangeRateStored = expectedExchangeRate;
+
+        let exchangeRateStored = await bBAT.exchangeRateStored();
+        expect(expectedExchangeRateStored).to.be.bignumber.equal(exchangeRateStored);
+
+        // user1 deposit ZRX
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        const avatar1 = await bProtocol.registry.avatarOf(a.user1);
+
+        // user2 deposit BAT
+        await BAT.approve(bBAT_addr, ONE_THOUSAND_BAT, { from: a.user2 });
+        await bBAT.mint(ONE_THOUSAND_BAT, { from: a.user2 });
+        const avatar2 = await bProtocol.registry.avatarOf(a.user2);
+
+        // user1 borrows BAT
+        await bBAT.borrow(ONE_BAT, { from: a.user1 });
+        await bBAT.borrowBalanceCurrent(a.user1, { from: a.user1 });
+
+        // advance time to 100 blocks
+        // Somehow advanding block is not affecting exchangeRateCurrent
+        const currBlock = await time.latestBlock();
+        await time.advanceBlockTo(currBlock.add(new BN(100)));
+
+        // this changes getCashPrior()
+        await BAT.transfer(cBAT_addr, ONE_THOUSAND_BAT, { from: a.deployer });
+
+        const exchangeRateCurrentBAT = await bBAT.exchangeRateCurrent.call();
+        await bBAT.exchangeRateCurrent();
+        expect(exchangeRateCurrentBAT).to.be.bignumber.not.equal(expectedExchangeRate);
+
+        exchangeRateStored = await bBAT.exchangeRateStored();
+        expect(expectedExchangeRateStored).to.be.bignumber.not.equal(exchangeRateStored);
+      });
     });
 
     describe("BErc20.redeem()", async () => {
