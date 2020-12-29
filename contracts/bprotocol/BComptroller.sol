@@ -53,18 +53,18 @@ contract BComptroller {
         return b2c[bToken] != address(0);
     }
 
-    function enterMarket(address cToken) external returns (uint256) {
-        require(c2b[cToken] != address(0), "BComptroller: BToken-not-exist-for-cToken");
+    function enterMarket(address bToken) external returns (uint256) {
+        require(b2c[bToken] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.enterMarket(cToken);
+        return avatar.enterMarket(bToken);
     }
 
-    function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory) {
-        for(uint i = 0; i < cTokens.length; i++) {
-            require(c2b[cTokens[i]] != address(0), "BComptroller: BToken-not-exist-for-cToken");
+    function enterMarkets(address[] calldata bTokens) external returns (uint256[] memory) {
+        for(uint i = 0; i < bTokens.length; i++) {
+            require(b2c[bTokens[i]] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         }
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.enterMarkets(cTokens);
+        return avatar.enterMarkets(bTokens);
     }
 
     function exitMarket(address cToken) external returns (uint256) {
