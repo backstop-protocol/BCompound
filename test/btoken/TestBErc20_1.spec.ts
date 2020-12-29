@@ -208,6 +208,9 @@ contract("BErc20", async (accounts) => {
         expect(await cUSDT.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
           ONE_THOUSAND_USDT,
         );
+        expect(await bUSDT.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ONE_THOUSAND_USDT,
+        );
       });
     });
 
@@ -237,6 +240,9 @@ contract("BErc20", async (accounts) => {
         expect(await cZRX.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
           ONE_THOUSAND_ZRX,
         );
+        expect(await bZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ONE_THOUSAND_ZRX,
+        );
       });
 
       it("delegatee can mint cUSDT on behalf of user", async () => {
@@ -249,6 +255,9 @@ contract("BErc20", async (accounts) => {
         await bUSDT.mintOnAvatar(avatar1, ONE_THOUSAND_USDT, { from: delegatee });
 
         expect(await cUSDT.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
+          ONE_THOUSAND_USDT,
+        );
+        expect(await bUSDT.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
           ONE_THOUSAND_USDT,
         );
       });
@@ -713,8 +722,14 @@ contract("BErc20", async (accounts) => {
         expect(await cZRX.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
           ONE_THOUSAND_ZRX,
         );
+        expect(await bZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ONE_THOUSAND_ZRX,
+        );
 
         expect(await cUSDT.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
+          ONE_THOUSAND_USDT,
+        );
+        expect(await bUSDT.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
           ONE_THOUSAND_USDT,
         );
       });
@@ -728,6 +743,7 @@ contract("BErc20", async (accounts) => {
         await bZRX.redeem(cTokensAmount, { from: a.user1 });
 
         expect(await cZRX.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
 
         const userZRX_BalAfter = await ZRX.balanceOf(a.user1);
         expect(userZRX_BalAfter).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
@@ -745,10 +761,14 @@ contract("BErc20", async (accounts) => {
         expect(await cZRX.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
           ONE_THOUSAND_ZRX.div(new BN(2)),
         );
+        expect(await bZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ONE_THOUSAND_ZRX.div(new BN(2)),
+        );
 
         await bZRX.redeem(half_cTokens, { from: a.user1 });
 
         expect(await cZRX.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
 
         const userZRX_BalAfter = await ZRX.balanceOf(a.user1);
         expect(userZRX_BalAfter).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
@@ -762,6 +782,7 @@ contract("BErc20", async (accounts) => {
         await bUSDT.redeem(cTokensAmount, { from: a.user1 });
 
         expect(await cUSDT.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bUSDT.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
 
         const userUSDT_BalAfter = await USDT.balanceOf(a.user1);
         expect(userUSDT_BalAfter).to.be.bignumber.equal(ONE_THOUSAND_USDT);
@@ -779,10 +800,14 @@ contract("BErc20", async (accounts) => {
         expect(await cUSDT.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(
           ONE_THOUSAND_USDT.div(new BN(2)),
         );
+        expect(await bUSDT.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ONE_THOUSAND_USDT.div(new BN(2)),
+        );
 
         await bUSDT.redeem(half_cTokens, { from: a.user1 });
 
         expect(await cUSDT.balanceOfUnderlying.call(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bUSDT.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(ZERO);
 
         const userUSDT_BalAfter = await USDT.balanceOf(a.user1);
         expect(userUSDT_BalAfter).to.be.bignumber.equal(ONE_THOUSAND_USDT);
@@ -816,6 +841,7 @@ contract("BErc20", async (accounts) => {
         await bZRX.redeemOnAvatar(avatar1, cTokensAmount, { from: delegatee });
 
         expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
       });
@@ -829,6 +855,7 @@ contract("BErc20", async (accounts) => {
         await bZRX.redeemOnAvatar(avatar1, halfCTokensAmount, { from: delegatee });
 
         expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(halfCTokensAmount);
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(halfCTokensAmount);
         expect(await ZRX.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(FIVE_HUNDRED_ZRX);
 
@@ -837,6 +864,7 @@ contract("BErc20", async (accounts) => {
         await bZRX.redeemOnAvatar(avatar1, halfCTokensAmount, { from: delegatee });
 
         expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(delegatee)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
       });
@@ -849,6 +877,7 @@ contract("BErc20", async (accounts) => {
         await bUSDT.redeemOnAvatar(avatar1, cTokensAmount, { from: delegatee });
 
         expect(await cUSDT.balanceOf(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bUSDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await USDT.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
         expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_THOUSAND_USDT);
       });
@@ -862,6 +891,7 @@ contract("BErc20", async (accounts) => {
         await bUSDT.redeemOnAvatar(avatar1, halfCTokensAmount, { from: delegatee });
 
         expect(await cUSDT.balanceOf(avatar1)).to.be.bignumber.equal(halfCTokensAmount);
+        expect(await bUSDT.balanceOf(a.user1)).to.be.bignumber.equal(halfCTokensAmount);
         expect(await USDT.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
         expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(FIVE_HUNDRED_USDT);
 
@@ -870,6 +900,7 @@ contract("BErc20", async (accounts) => {
         await bUSDT.redeemOnAvatar(avatar1, halfCTokensAmount, { from: delegatee });
 
         expect(await cUSDT.balanceOf(avatar1)).to.be.bignumber.equal(ZERO);
+        expect(await bUSDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await USDT.balanceOf(delegator)).to.be.bignumber.equal(ZERO);
         expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_THOUSAND_USDT);
       });

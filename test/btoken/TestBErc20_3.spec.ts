@@ -440,12 +440,14 @@ contract("BErc20", async (accounts) => {
 
       it("user should approve another user (have an avatar)", async () => {
         expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(ZERO);
+        expect(await bZRX.allowance(owner, spender)).to.be.bignumber.equal(ZERO);
 
         const result = await bZRX.approve.call(spender, TEN_cZRX, { from: owner });
         expect(result).to.be.equal(true);
         await bZRX.approve(spender, TEN_cZRX, { from: owner });
 
         expect(await cZRX.allowance(ownerAvatar, spenderAvatar)).to.be.bignumber.equal(TEN_cZRX);
+        expect(await bZRX.allowance(owner, spender)).to.be.bignumber.equal(TEN_cZRX);
       });
 
       it("user should approve another user (does not have an avatar)", async () => {
