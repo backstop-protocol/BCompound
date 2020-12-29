@@ -42,8 +42,7 @@ contract Import is Exponential {
           uint debt = originalDebt[i];
           if(debtUnderlying[i] == ETH) {
             ICEther(cDebt).repayBorrowBehalf.value(debt)(account);
-          }
-          else {
+          } else {
             IERC20(debtUnderlying[i]).safeApprove(address(cDebt), debt);
             require(ICErc20(cDebt).repayBorrowBehalf(account, debt) == 0, "repay-failed");
           }
@@ -68,8 +67,7 @@ contract Import is Exponential {
           address bColl = bComptroller.c2b(cTokenCollateral[i]);
           if(collateralUnderlying[i] == ETH) {
             BEther(bColl).mintOnAvatar.value(address(this).balance)(avatar);
-          }
-          else {
+          } else {
             IERC20 token = IERC20(collateralUnderlying[i]);
             uint tokenBalance = token.balanceOf(address(this));
             token.safeApprove(bColl, tokenBalance);
@@ -98,7 +96,7 @@ contract Import is Exponential {
         address[] calldata collateralUnderlying,
         address[] calldata cTokenDebt,
         address[] calldata debtUnderlying,
-        uint      ethFlashLoan
+        uint ethFlashLoan
     )
         external
     {
@@ -107,10 +105,11 @@ contract Import is Exponential {
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
         require(mul_(ethFlashLoan, 100) <= mul_(address(this).balance, 101), "flashloan-fees-over-1%");
 
+        // Compound account of an EOA
         address account = tx.origin;
         address avatar = registry.getAvatar(account);
 
-        // mint ETH on B
+        // mint flash loaned ETH on B
         uint ethBalance = address(this).balance;
         BEther(bETH).mintOnAvatar.value(ethBalance)(avatar);
 
@@ -119,17 +118,17 @@ contract Import is Exponential {
           originalDebt[i] = ICToken(cTokenDebt[i]).borrowBalanceCurrent(account);
         }
 
-        // borrow the original debt
+        // borrow the original debt on B
         _borrowDebtOnB(
             cTokenDebt,
             originalDebt,
             avatar
         );
 
-        // repay all debt
+        // repay all debt on Compound
         _repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
 
-        // redeem all non ETH collateral, deposit it in B
+        // redeem all non ETH collateral from Compound and deposit it in B
         _redeemAndDepositCollateral(
             cTokenCollateral,
             collateralUnderlying,
@@ -209,7 +208,7 @@ contract FlashLoanImportWithFees {
         address[] calldata cTokenDebt,
         address[] calldata debtUnderlying,
         address payable importer,
-        uint            ethAmountToFlashBorrow,
+        uint ethAmountToFlashBorrow,
         address payable flash
     )
         external
@@ -234,23 +233,5 @@ contract FlashLoanImportWithFees {
     }
 
     // accept ETH transfers
-    function() external payable {}
-}
-
-
-contract FlashLoanStub {
-    function borrow(address /*_token*/, uint256 _amount, bytes calldata _data) external {
-      uint balanceBefore = address(this).balance;
-      (bool succ, bytes memory res) = msg.sender.call.value(_amount)("");
-      require(succ, "eth-transfer-failed");
-      (succ, res) = msg.sender.call(_data);
-      require(succ, string(res));
-      require(address(this).balance >= balanceBefore, "flash-loan-didnt-repay");
-    }
-
-    function deposit() external payable {
-      // do nothing
-    }
-
     function() external payable {}
 }
