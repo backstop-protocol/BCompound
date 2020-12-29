@@ -29,10 +29,14 @@ contract Import is Exponential {
         bETH = bComptroller.c2b(cETH);
     }
 
-    function repayAllDebt(address[] memory cTokenDebt,
-                          address[] memory debtUnderlying,
-                          uint[] memory originalDebt,
-                          address account) internal {
+    function _repayAllDebt(
+        address[] memory cTokenDebt,
+        address[] memory debtUnderlying,
+        uint[] memory originalDebt,
+        address account
+    )
+        internal
+    {
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
           address cDebt = cTokenDebt[i];
           uint debt = originalDebt[i];
@@ -41,22 +45,25 @@ contract Import is Exponential {
           }
           else {
             IERC20(debtUnderlying[i]).safeApprove(address(cDebt), debt);
-            require(0 == ICErc20(cDebt).repayBorrowBehalf(account, debt), "repay-failed");
+            require(ICErc20(cDebt).repayBorrowBehalf(account, debt) == 0, "repay-failed");
           }
         }
     }
 
-    function redeemAndDepositCollateral(address[] memory cTokenCollateral,
-                                        address[] memory collateralUnderlying,
-                                        address account,
-                                        address avatar) internal {
-
+    function _redeemAndDepositCollateral(
+        address[] memory cTokenCollateral,
+        address[] memory collateralUnderlying,
+        address account,
+        address avatar
+    )
+        internal
+    {
         for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
           ICToken cColl = ICToken(cTokenCollateral[i]);
           uint collBalance = cColl.balanceOf(account);
           require(cColl.transferFrom(account, address(this), collBalance), "transferFrom-failed");
           //IERC20(address(cColl)).safeTransferFrom(account, address(this), collBalance);
-          require(0 == cColl.redeem(collBalance), "redeem-failed");
+          require(cColl.redeem(collBalance) == 0, "redeem-failed");
 
           address bColl = bComptroller.c2b(cTokenCollateral[i]);
           if(collateralUnderlying[i] == ETH) {
@@ -66,27 +73,35 @@ contract Import is Exponential {
             IERC20 token = IERC20(collateralUnderlying[i]);
             uint tokenBalance = token.balanceOf(address(this));
             token.safeApprove(bColl, tokenBalance);
-            require(0 == BErc20(bColl).mintOnAvatar(avatar, tokenBalance), "mint-failed");
+            require(BErc20(bColl).mintOnAvatar(avatar, tokenBalance) == 0, "mint-failed");
           }
         }
     }
 
-    function borrowDebtOnB(address[] memory cTokenDebt,
-                           uint[]    memory originalDebt,
-                           address avatar) internal {
+    function _borrowDebtOnB(
+        address[] memory cTokenDebt,
+        uint[] memory originalDebt,
+        address avatar
+    )
+        internal
+    {
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
           uint debt = originalDebt[i];
           address bTokenDebt = bComptroller.c2b(cTokenDebt[i]);
-          require(0 == BErc20(bTokenDebt).borrowOnAvatar(avatar, debt), "borrowOnAvatar-failed");
+          require(BErc20(bTokenDebt).borrowOnAvatar(avatar, debt) == 0, "borrowOnAvatar-failed");
         }
     }
 
     // this is safe only if the owner of the compound account is an EOA
-    function importAccount(address[] calldata cTokenCollateral,
-                           address[] calldata collateralUnderlying,
-                           address[] calldata cTokenDebt,
-                           address[] calldata debtUnderlying,
-                           uint      ethFlashLoan) external {
+    function importAccount(
+        address[] calldata cTokenCollateral,
+        address[] calldata collateralUnderlying,
+        address[] calldata cTokenDebt,
+        address[] calldata debtUnderlying,
+        uint      ethFlashLoan
+    )
+        external
+    {
 
         require(cTokenCollateral.length == collateralUnderlying.length, "collateral-length-missmatch");
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
@@ -105,18 +120,22 @@ contract Import is Exponential {
         }
 
         // borrow the original debt
-        borrowDebtOnB(cTokenDebt,
-                      originalDebt,
-                      avatar);
+        _borrowDebtOnB(
+            cTokenDebt,
+            originalDebt,
+            avatar
+        );
 
         // repay all debt
-        repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
+        _repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
 
         // redeem all non ETH collateral, deposit it in B
-        redeemAndDepositCollateral(cTokenCollateral,
-                                   collateralUnderlying,
-                                   account,
-                                   avatar);
+        _redeemAndDepositCollateral(
+            cTokenCollateral,
+            collateralUnderlying,
+            account,
+            avatar
+        );
 
         BEther(bETH).redeemUnderlyingOnAvatar(avatar, ethBalance);
         if(address(this).balance < ethFlashLoan) {
@@ -141,13 +160,17 @@ contract FlashLoanImport {
     using SafeERC20 for IERC20;
     address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    function flashImport(address[] calldata cTokenCollateral,
-                         address[] calldata collateralUnderlying,
-                         address[] calldata cTokenDebt,
-                         address[] calldata debtUnderlying,
-                         address payable importer,
-                         uint            ethAmountToFlashBorrow,
-                         address payable flash) external {
+    function flashImport(
+        address[] calldata cTokenCollateral,
+        address[] calldata collateralUnderlying,
+        address[] calldata cTokenDebt,
+        address[] calldata debtUnderlying,
+        address payable importer,
+        uint            ethAmountToFlashBorrow,
+        address payable flash
+    )
+        external
+    {
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
 
         if(address(this).balance < ethAmountToFlashBorrow) {
@@ -158,11 +181,13 @@ contract FlashLoanImport {
         // now balance is sufficient
         importer.transfer(ethAmountToFlashBorrow);
 
-        Import(importer).importAccount(cTokenCollateral,
-                                       collateralUnderlying,
-                                       cTokenDebt,
-                                       debtUnderlying,
-                                       ethAmountToFlashBorrow);
+        Import(importer).importAccount(
+          cTokenCollateral,
+          collateralUnderlying,
+          cTokenDebt,
+          debtUnderlying,
+          ethAmountToFlashBorrow
+        );
 
         flash.transfer(ethAmountToFlashBorrow);
     }
@@ -178,13 +203,17 @@ contract FlashLoanImportWithFees {
     using SafeERC20 for IERC20;
     address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    function flashImport(address[] calldata cTokenCollateral,
-                         address[] calldata collateralUnderlying,
-                         address[] calldata cTokenDebt,
-                         address[] calldata debtUnderlying,
-                         address payable importer,
-                         uint            ethAmountToFlashBorrow,
-                         address payable flash) external {
+    function flashImport(
+        address[] calldata cTokenCollateral,
+        address[] calldata collateralUnderlying,
+        address[] calldata cTokenDebt,
+        address[] calldata debtUnderlying,
+        address payable importer,
+        uint            ethAmountToFlashBorrow,
+        address payable flash
+    )
+        external
+    {
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
 
         if(address(this).balance < ethAmountToFlashBorrow) {

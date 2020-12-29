@@ -28,6 +28,9 @@ contract Registry is Ownable {
     // Avatar => Delegatee => bool
     mapping (address => mapping(address => bool)) public delegate;
 
+    // dummy caller, for safer delegate and execute
+    DummyCaller public dummyCaller;
+
     event NewAvatar(address indexed avatar, address owner);
     event Delegate(address indexed delegator, address avatar, address delegatee);
     event RevokeDelegate(address indexed delegator, address avatar, address delegatee);
@@ -50,6 +53,8 @@ contract Registry is Ownable {
         pool = _pool;
         bComptroller = _bComptroller;
         score = _score;
+
+        dummyCaller = new DummyCaller();
     }
 
     function setPool(address newPool) external onlyOwner {
@@ -97,12 +102,11 @@ contract Registry is Ownable {
         emit RevokeDelegate(msg.sender, _avatar, delegatee);
     }
 
-    function delegateAndExecuteOnce(address delegatee, address payable target, bytes calldata data) payable external {
+    function delegateAndExecuteOnce(address delegatee, address payable target, bytes calldata data) external payable {
         // make sure there is an avatar
         getAvatar(msg.sender);
         delegateAvatar(delegatee);
-        (bool succ, bytes memory err) = target.call.value(msg.value)(data);
-        require(succ, string(err));
+        dummyCaller.execute.value(msg.value)(target, data);
         revokeDelegateAvatar(delegatee);
     }
 
@@ -123,5 +127,12 @@ contract Registry is Ownable {
 
     function doesAvatarExistFor(address _owner) public view returns (bool) {
         return avatarOf[_owner] != address(0);
+    }
+}
+
+contract DummyCaller {
+    function execute(address target, bytes calldata data) external payable {
+        (bool succ, bytes memory err) = target.call.value(msg.value)(data);
+        require(succ, string(err));
     }
 }
