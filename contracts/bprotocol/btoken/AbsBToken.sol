@@ -1,5 +1,7 @@
 pragma solidity 0.5.16;
 
+import "hardhat/console.sol";
+
 // Interface
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IAvatar } from "../interfaces/IAvatar.sol";
@@ -28,7 +30,7 @@ contract AbsBToken is Exponential {
 
     modifier onlyDelegatee(address _avatar) {
         // `msg.sender` is delegatee
-        require(registry.isAvatarHasDelegatee(_avatar, msg.sender), "BToken: delegatee-not-authorized");
+        require(registry.delegate(_avatar, msg.sender), "BToken: delegatee-not-authorized");
         _;
     }
 
@@ -37,7 +39,7 @@ contract AbsBToken is Exponential {
         cToken = _cToken;
     }
 
-    function myAvatar() public returns (address) {
+    function _myAvatar() internal returns (address) {
         return registry.getAvatar(msg.sender);
     }
 
@@ -50,7 +52,7 @@ contract AbsBToken is Exponential {
 
     // redeem()
     function redeem(uint256 redeemTokens) external returns (uint256) {
-        return _redeem(myAvatar(), redeemTokens);
+        return _redeem(_myAvatar(), redeemTokens);
     }
 
     function redeemOnAvatar(address _avatar, uint256 redeemTokens) external onlyDelegatee(_avatar) returns (uint256) {
@@ -65,7 +67,7 @@ contract AbsBToken is Exponential {
 
     // redeemUnderlying()
     function redeemUnderlying(uint256 redeemAmount) external returns (uint256) {
-        return _redeemUnderlying(myAvatar(), redeemAmount);
+        return _redeemUnderlying(_myAvatar(), redeemAmount);
     }
 
     function redeemUnderlyingOnAvatar(address _avatar, uint256 redeemAmount) external onlyDelegatee(_avatar) returns (uint256) {
@@ -80,7 +82,7 @@ contract AbsBToken is Exponential {
 
     // borrow()
     function borrow(uint256 borrowAmount) external returns (uint256) {
-        return _borrow(myAvatar(), borrowAmount);
+        return _borrow(_myAvatar(), borrowAmount);
     }
 
     function borrowOnAvatar(address _avatar, uint256 borrowAmount) external onlyDelegatee(_avatar) returns (uint256) {
@@ -93,11 +95,20 @@ contract AbsBToken is Exponential {
         return result;
     }
 
+    // other functions
+    function exchangeRateCurrent() public returns (uint256) {
+        return ICToken(cToken).exchangeRateCurrent();
+    }
+
+    function exchangeRateStored() public view returns (uint) {
+        return ICToken(cToken).exchangeRateStored();
+    }
+
     // IERC20
     // =======
     // transfer()
     function transfer(address dst, uint256 amount) external returns (bool) {
-        return _transfer(myAvatar(), dst, amount);
+        return _transfer(_myAvatar(), dst, amount);
     }
 
     function transferOnAvatar(address _avatar, address dst, uint256 amount) external onlyDelegatee(_avatar) returns (bool) {
@@ -112,7 +123,7 @@ contract AbsBToken is Exponential {
 
     // transferFrom()
     function transferFrom(address src, address dst, uint256 amount) external returns (bool) {
-        return _transferFrom(myAvatar(), src, dst, amount);
+        return _transferFrom(_myAvatar(), src, dst, amount);
     }
 
     function transferFromOnAvatar(address _avatar, address src, address dst, uint256 amount) external onlyDelegatee(_avatar) returns (bool) {
@@ -127,7 +138,7 @@ contract AbsBToken is Exponential {
 
     // approve()
     function approve(address spender, uint256 amount) public returns (bool) {
-        return IAvatar(myAvatar()).approve(cToken, spender, amount);
+        return IAvatar(_myAvatar()).approve(cToken, spender, amount);
     }
 
     function approveOnAvatar(address _avatar, address spender, uint256 amount) public onlyDelegatee(_avatar) returns (bool) {
@@ -135,11 +146,15 @@ contract AbsBToken is Exponential {
     }
 
     function allowance(address owner, address spender) public view returns (uint256) {
-        return ICToken(cToken).allowance(registry.avatarOf(owner), spender);
+        return ICToken(cToken).allowance(registry.avatarOf(owner), registry.avatarOf(spender));
     }
 
-    function balanceOf(address user) public view returns (uint256) {
-        return ICToken(cToken).balanceOf(registry.avatarOf(user));
+    function balanceOf(address owner) public view returns (uint256) {
+        return ICToken(cToken).balanceOf(registry.avatarOf(owner));
+    }
+
+    function balanceOfUnderlying(address owner) external returns (uint) {
+        return ICToken(cToken).balanceOfUnderlying(registry.avatarOf(owner));
     }
 
     function name() public view returns (string memory) {

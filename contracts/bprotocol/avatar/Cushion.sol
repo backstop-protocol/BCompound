@@ -49,6 +49,7 @@ contract Cushion is AvatarBase {
         // 1. Transfer funds from the Pool contract
         IERC20 underlying = cToken.underlying();
         underlying.safeTransferFrom(pool(), address(this), topupAmount);
+        underlying.safeApprove(address(cToken), topupAmount);
 
         // 2. Repay borrows from Pool to topup
         require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-failed");
@@ -163,7 +164,9 @@ contract Cushion is AvatarBase {
                 // CErc20
                 console.log("in CErc20: amtToRepayOnCompound %s", amtToRepayOnCompound);
                 // take tokens from pool contract
-                toppedUpCToken.underlying().safeTransferFrom(pool, address(this), amtToRepayOnCompound);
+                IERC20 underlying = toppedUpCToken.underlying();
+                underlying.safeTransferFrom(pool, address(this), amtToRepayOnCompound);
+                underlying.safeApprove(address(debtCToken), amtToRepayOnCompound);
                 require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "liquidateBorrow:-repayBorrow-failed");
             }
         }

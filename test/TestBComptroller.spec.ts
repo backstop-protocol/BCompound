@@ -157,7 +157,7 @@ contract("BComptroller", async (accounts) => {
 
       it("should not have 'underlying' contract public variable", async () => {
         const cETH_addr = compoundUtil.getContracts("cETH");
-        const bETH_BEther = await engine.deployNewBEther("cETH");
+        const bETH_BEther = await engine.deployNewBEther();
         expect(await bETH_BEther.cToken()).to.be.equal(cETH_addr);
         expect(await bETH_BEther.registry()).to.be.equal(bProtocol.registry.address);
 
@@ -169,7 +169,7 @@ contract("BComptroller", async (accounts) => {
       it("should fail when BEther already deployed", async () => {
         const cETH_addr = compoundUtil.getContracts("cETH");
         const bETH_addr = await bComptroller.newBToken.call(cETH_addr);
-        const bETH = await engine.deployNewBEther("cETH");
+        const bETH = await engine.deployNewBEther();
 
         expect(await bComptroller.c2b(cETH_addr)).to.be.equal(bETH_addr);
         expect(await bComptroller.b2c(bETH_addr)).to.be.equal(cETH_addr);
@@ -192,7 +192,7 @@ contract("BComptroller", async (accounts) => {
     });
 
     it("should return true when BEther token supported", async () => {
-      const bETH = await engine.deployNewBEther("cETH");
+      const bETH = await engine.deployNewBEther();
       expect(await bComptroller.isBToken(bETH.address)).to.be.equal(true);
     });
 

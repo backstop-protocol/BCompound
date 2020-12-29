@@ -161,10 +161,10 @@ export class BProtocolEngine {
   }
 
   // Deploy BEther
-  public async deployNewBEther(symbol: string): Promise<b.BEtherInstance> {
-    const bToken_addr = await this._newBToken(symbol);
+  public async deployNewBEther(): Promise<b.BEtherInstance> {
+    const bToken_addr = await this._newBToken("cETH");
     const bToken: b.BEtherInstance = await BEther.at(bToken_addr);
-    this.bProtocol.bTokens.set(symbol, bToken);
+    this.bProtocol.bTokens.set("cETH", bToken);
     return bToken;
   }
 

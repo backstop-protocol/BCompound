@@ -1,10 +1,9 @@
 pragma solidity 0.5.16;
 
+import "hardhat/console.sol";
 import { AbsBToken } from "./AbsBToken.sol";
-
 import { IAvatarCErc20 } from "../interfaces/IAvatar.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract BErc20 is AbsBToken {
@@ -20,23 +19,25 @@ contract BErc20 is AbsBToken {
 
     // mint()
     function mint(uint256 mintAmount) external returns (uint256) {
-        return _mint(myAvatar(), mintAmount);
+        return _mint(_myAvatar(), mintAmount);
     }
 
     function mintOnAvatar(address _avatar, uint256 mintAmount) external onlyDelegatee(_avatar) returns (uint256) {
+        console.log("mintOnAvatar: avatar:%s mintAmount:%s", _avatar, mintAmount);
         return _mint(_avatar, mintAmount);
     }
 
     function _mint(address _avatar, uint256 mintAmount) internal returns (uint256) {
         underlying.safeTransferFrom(msg.sender, _avatar, mintAmount);
         uint256 result = IAvatarCErc20(_avatar).mint(cToken, mintAmount);
+        console.log("_mint: result:%s", result);
         require(result == 0, "BErc20: mint-failed");
         return result;
     }
 
     // repayBorrow()
     function repayBorrow(uint256 repayAmount) external returns (uint256) {
-        return _repayBorrow(myAvatar(), repayAmount);
+        return _repayBorrow(_myAvatar(), repayAmount);
     }
 
     function repayBorrowOnAvatar(address _avatar, uint256 repayAmount) external onlyDelegatee(_avatar) returns (uint256) {
@@ -54,6 +55,7 @@ contract BErc20 is AbsBToken {
         return result;
     }
 
+    // liquidateBorrow()
     function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external onlyPool returns (uint) {
         address borrowerAvatar = registry.avatarOf(borrower);
         uint result = IAvatarCErc20(borrowerAvatar).liquidateBorrow(repayAmount, cTokenCollateral);

@@ -19,6 +19,7 @@ const ZERO = new BN(0);
 contract("Pool performs liquidation", async (accounts) => {
   let bProtocol: BProtocol;
 
+  const deployer = accounts[0];
   const user1 = accounts[1];
   const user2 = accounts[2];
 
@@ -129,7 +130,7 @@ contract("Pool performs liquidation", async (accounts) => {
 
   it("1. should deploy BToken Contracts for cETH & cZRX", async () => {
     // BToken cETH
-    bETH = await engine.deployNewBEther("cETH");
+    bETH = await engine.deployNewBEther();
     expect(bETH.address).to.be.not.equal(ZERO_ADDRESS);
 
     // BToken cZRX
@@ -140,12 +141,10 @@ contract("Pool performs liquidation", async (accounts) => {
   it("2. should deploy Avatar Contracts for User-1 and User-2", async () => {
     // Create Avatar for User1
     avatarUser1 = await engine.deployNewAvatar(user1);
-    await avatarUser1.enableCToken(cZRX_addr);
     expect(avatarUser1.address).to.be.not.equal(ZERO_ADDRESS);
 
     // Create Avatar for User2
     avatarUser2 = await engine.deployNewAvatar(user2);
-    await avatarUser2.enableCToken(cZRX_addr);
     expect(avatarUser2.address).to.be.not.equal(ZERO_ADDRESS);
   });
 
@@ -164,6 +163,8 @@ contract("Pool performs liquidation", async (accounts) => {
   });
 
   it("4. User-2 should mint cZRX with ZRX", async () => {
+    await ZRX.transfer(user2, HUNDRED_ZRX, { from: deployer });
+
     await ZRX.approve(bZRX.address, HUNDRED_ZRX, { from: user2 });
     const balanceBefore = await cZRX.balanceOf(avatarUser2.address);
     await bZRX.mint(HUNDRED_ZRX, { from: user2 });

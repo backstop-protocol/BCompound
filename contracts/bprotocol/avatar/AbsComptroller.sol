@@ -34,8 +34,8 @@ contract AbsComptroller is AvatarBase {
 
     function _enterMarkets(address[] memory cTokens) internal postPoolOp(false) returns (uint256[] memory) {
         uint256[] memory result = comptroller.enterMarkets(cTokens);
-        for(uint256 i = 0; i < cTokens.length; i++) {
-            enableCToken(ICToken(cTokens[i]));
+        for(uint256 i = 0; i < result.length; i++) {
+            require(result[i] == 0, "AbsComptroller: enter-markets-failed");
         }
         return result;
     }
@@ -44,26 +44,6 @@ contract AbsComptroller is AvatarBase {
         uint result = comptroller.exitMarket(address(cToken));
         _disableCToken(cToken);
         return result;
-    }
-
-    /**
-     * @dev Anyone allowed to enable a CToken on Avatar
-     * @param cToken CToken address to enable
-     */
-    function enableCToken(ICToken cToken) public {
-        // 1. If cToken is cETH then just return
-        if(address(cToken) == address(cETH)) return;
-
-        // 2. Validate cToken supported on the Compound
-        (bool isListed,) = comptroller.markets(address(cToken));
-        require(isListed, "CToken-not-supported");
-
-        // 3. Initiate inifinite approval
-        IERC20 underlying = cToken.underlying();
-        // 3.1 De-approve any previous approvals, before approving again
-        underlying.safeApprove(address(cToken), 0);
-        // 3.2 Initiate inifinite approval
-        underlying.safeApprove(address(cToken), uint256(-1));
     }
 
     function _disableCToken(ICToken cToken) internal {
