@@ -18,6 +18,7 @@ import {
     ICushionCErc20
     } from "./interfaces/IAvatar.sol";
 import { IComptroller } from "./interfaces/IComptroller.sol";
+import { IBComptroller } from "./interfaces/IBComptroller.sol";
 
 import { Exponential } from "./lib/Exponential.sol";
 
@@ -29,6 +30,7 @@ contract Pool is Exponential, Ownable {
     address internal constant ETH_ADDR = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IComptroller public comptroller;
+    IBComptroller public bComptroller;
     IRegistry public registry;
     address public jar;
     address public cEther;
@@ -79,6 +81,7 @@ contract Pool is Exponential, Ownable {
         require(address(registry) == address(0), "Pool: registry-already-set");
         registry = IRegistry(_registry);
         comptroller = IComptroller(registry.comptroller());
+        bComptroller = IBComptroller(registry.bComptroller());
         cEther = registry.cEther();
     }
 
@@ -154,11 +157,12 @@ contract Pool is Exponential, Ownable {
         winner = possibleWinner;
     }
 
-    function topup(address avatar, address cToken, uint amount, bool resetApprove) external onlyMember {
+    function topup(address avatar, address bToken, uint amount, bool resetApprove) external onlyMember {
         uint expire = topped[avatar].expire;
         // allow next topup after expire
         require(now > expire, "pool: not-expired");
         require(amount > 0, "pool: amount-is-zero");
+        address cToken = bComptroller.b2c(bToken);
         address underlying = _getUnderlying(cToken);
         address winner = chooseMember(avatar, underlying, members);
         require(msg.sender == winner, "pool: not-winner");
@@ -201,8 +205,8 @@ contract Pool is Exponential, Ownable {
     function liquidateBorrow(
         address bToken,
         address borrower,
-        address cTokenCollateral,
-        address cTokenDebt,
+        address bTokenCollateral,
+        address bTokenDebt,
         uint underlyingAmtToLiquidate,
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
@@ -210,6 +214,9 @@ contract Pool is Exponential, Ownable {
         address avatar = registry.avatarOf(borrower);
         TopupInfo memory ti = topped[avatar];
         require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
+
+        address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
+        address cTokenDebt = bComptroller.b2c(bTokenDebt);
 
         // TODO need to figure out how to find `seizedTokens` with low gas consumption
         (uint err, uint seizedTokens) = comptroller.liquidateCalculateSeizeTokens(
@@ -235,11 +242,14 @@ contract Pool is Exponential, Ownable {
 
         balance[ti.toppedBy][ti.underlying] = sub_(balance[ti.toppedBy][ti.underlying], amtToRepayOnCompound);
 
-        uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
-        uint jarShare = sub_(seizedTokens, memberShare);
+        // Block of code to avoid stack too deep error
+        {
+            uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
+            uint jarShare = sub_(seizedTokens, memberShare);
 
-        IERC20(cTokenCollateral).safeTransfer(ti.toppedBy, memberShare);
-        IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
+            IERC20(cTokenCollateral).safeTransfer(ti.toppedBy, memberShare);
+            IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
+        }
 
         bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
         if(! stillToppedUp) delete topped[avatar];

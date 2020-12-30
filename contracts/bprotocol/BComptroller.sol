@@ -67,9 +67,9 @@ contract BComptroller {
         return avatar.enterMarkets(bTokens);
     }
 
-    function exitMarket(address cToken) external returns (uint256) {
+    function exitMarket(address bToken) external returns (uint256) {
         IAvatar avatar = IAvatar(registry.avatarOf(msg.sender));
-        return avatar.exitMarket(cToken);
+        return avatar.exitMarket(bToken);
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
@@ -82,9 +82,9 @@ contract BComptroller {
         return avatar.claimComp(msg.sender);
     }
 
-    function claimComp(address[] calldata cTokens) external {
+    function claimComp(address[] calldata bTokens) external {
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.claimComp(cTokens, msg.sender);
+        return avatar.claimComp(bTokens, msg.sender);
     }
 
     function oracle() external view returns (address) {
