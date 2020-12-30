@@ -3,7 +3,6 @@ pragma solidity 0.5.16;
 // TODO To be removed in mainnet deployment
 import "hardhat/console.sol";
 
-import { IBToken } from "../interfaces/IBToken.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
@@ -210,12 +209,6 @@ contract AbsCToken is Cushion {
     function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
         address spenderAvatar = registry.getAvatar(spender);
         return cToken.approve(spenderAvatar, amount);
-    }
-
-    function resetApprove(IBToken bToken) public {
-        require(msg.sender == registry.ownerOf(address(this)), "AbsCToken: sender-is-not-owner");
-        address cToken = bToken.cToken();
-        ICToken(cToken).underlying().safeApprove(cToken, 0);
     }
 
     /**
