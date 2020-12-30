@@ -7,10 +7,10 @@ import BN from "bn.js";
 import { toWei } from "web3-utils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
-const { balance, expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
+const { balance, expectEvent, expectRevert, time, send } = require("@openzeppelin/test-helpers");
 
 const Erc20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
-
+const MortalContract: b.MortalContract = artifacts.require("Mortal");
 const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 const CEther: b.CEtherContract = artifacts.require("CEther");
 
@@ -68,8 +68,9 @@ contract("BEther", async (accounts) => {
     const FIVE_HUNDRED_USDT = new BN(500).mul(ONE_USDT);
 
     const ONE_ETH = new BN(10).pow(new BN(18));
-    const TEN_ETH = new BN(10).mul(ONE_ETH);
     const HALF_ETH = ONE_ETH.div(new BN(2));
+    const TEN_ETH = new BN(10).mul(ONE_ETH);
+    const HUNDRED_ETH = new BN(100).mul(ONE_ETH);
 
     // ZRX
     let ZRX_addr: string;
@@ -385,6 +386,97 @@ contract("BEther", async (accounts) => {
       it("TODO: as topup is require");
     });
 
+    describe("BErc20.exchangeRateCurrent()", async () => {
+      const expectedExchangeRate = new BN(2).mul(new BN(10).pow(new BN(27)));
+
+      it("should get current exchange rate", async () => {
+        const exchangeRateCurrentETH = await bETH.exchangeRateCurrent.call();
+        expect(exchangeRateCurrentETH).to.be.bignumber.equal(expectedExchangeRate);
+      });
+
+      it("exchange rate should not change after mint", async () => {
+        await bETH.exchangeRateCurrent();
+        let exchangeRateCurrentETH = await bETH.exchangeRateCurrent.call();
+        expect(exchangeRateCurrentETH).to.be.bignumber.equal(expectedExchangeRate);
+
+        await bETH.mint({ from: a.user1, value: TEN_ETH });
+        const expectedTotalSupply = TEN_ETH.mul(ONE_ETH).div(exchangeRateCurrentETH);
+        expect(await bETH.totalSupply()).to.be.bignumber.equal(expectedTotalSupply);
+
+        await bETH.exchangeRateCurrent();
+        exchangeRateCurrentETH = await bETH.exchangeRateCurrent.call();
+        expect(exchangeRateCurrentETH).to.be.bignumber.equal(expectedExchangeRate);
+      });
+
+      it("exchange rate should change after borrow", async () => {
+        // user1 deposit ZRX
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        const avatar1 = await bProtocol.registry.avatarOf(a.user1);
+
+        // user2 deposit ETH
+        await bETH.mint({ from: a.user2, value: TEN_ETH });
+        const avatar2 = await bProtocol.registry.avatarOf(a.user2);
+
+        // user1 borrows ETH
+        await bETH.borrow(ONE_ETH, { from: a.user1 });
+        expect(await bETH.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ONE_ETH);
+
+        // advance time to 100 blocks
+        // Somehow advanding block is not affecting exchangeRateCurrent
+        const currBlock = await time.latestBlock();
+        await time.advanceBlockTo(currBlock.add(new BN(100)));
+
+        // Forcefully send ETH to cETH contract. This changes getCashPrior()
+        const mortal = await MortalContract.new();
+        await send.ether(a.deployer, mortal.address, TEN_ETH);
+        await mortal.kill(cETH_addr);
+
+        const exchangeRateCurrentETH = await bETH.exchangeRateCurrent.call();
+        expect(exchangeRateCurrentETH).to.be.bignumber.not.equal(expectedExchangeRate);
+      });
+    });
+
+    describe("BErc20.exchangeRateStored()", async () => {
+      it("should get exchange rate stored", async () => {
+        const expectedExchangeRate = new BN(2).mul(new BN(10).pow(new BN(27)));
+        const expectedExchangeRateStored = expectedExchangeRate;
+
+        let exchangeRateStored = await bBAT.exchangeRateStored();
+        expect(expectedExchangeRateStored).to.be.bignumber.equal(exchangeRateStored);
+
+        // user1 deposit ZRX
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        const avatar1 = await bProtocol.registry.avatarOf(a.user1);
+
+        // user2 deposit ETH
+        await bETH.mint({ from: a.user2, value: TEN_ETH });
+        const avatar2 = await bProtocol.registry.avatarOf(a.user2);
+
+        // user1 borrows BAT
+        await bETH.borrow(ONE_ETH, { from: a.user1 });
+        await bETH.borrowBalanceCurrent(a.user1, { from: a.user1 });
+
+        // advance time to 100 blocks
+        // Somehow advanding block is not affecting exchangeRateCurrent
+        const currBlock = await time.latestBlock();
+        await time.advanceBlockTo(currBlock.add(new BN(100)));
+
+        // Forcefully send ETH to cETH contract. This changes getCashPrior()
+        const mortal = await MortalContract.new();
+        await send.ether(a.deployer, mortal.address, TEN_ETH);
+        await mortal.kill(cETH_addr);
+
+        const exchangeRateCurrentETH = await bETH.exchangeRateCurrent.call();
+        await bETH.exchangeRateCurrent();
+        expect(exchangeRateCurrentETH).to.be.bignumber.not.equal(expectedExchangeRate);
+
+        exchangeRateStored = await bETH.exchangeRateStored();
+        expect(expectedExchangeRateStored).to.be.bignumber.not.equal(exchangeRateStored);
+      });
+    });
+
     describe("BEther.redeem()", async () => {
       let avatar1: string;
 
@@ -518,86 +610,134 @@ contract("BEther", async (accounts) => {
     });
 
     describe("BEther.redeemUnderlying()", async () => {
-      it("");
+      let avatar1: string;
+
+      beforeEach(async () => {
+        await bETH.mint({ from: a.user1, value: HUNDRED_ETH });
+
+        avatar1 = await bProtocol.registry.avatarOf(a.user1);
+      });
+
+      it("user should redeem all ETH underlying balance", async () => {
+        const underlyingBalance = await bETH.balanceOfUnderlying.call(a.user1);
+        const currentETHBalance = await balance.current(a.user1);
+
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(currentETHBalance);
+
+        const err = await bETH.redeemUnderlying.call(underlyingBalance, { from: a.user1 });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bETH.redeemUnderlying(underlyingBalance, { from: a.user1, gasPrice: 0 });
+
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(
+          currentETHBalance.add(HUNDRED_ETH),
+        );
+      });
+
+      it("user should reedeem some ETH underlying balance", async () => {
+        const underlyingBalance = await bETH.balanceOfUnderlying.call(a.user1);
+        const halfUnderlyingBal = underlyingBalance.div(new BN(2));
+        const currentETHBalance = await balance.current(a.user1);
+
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(currentETHBalance);
+
+        let err = await bETH.redeemUnderlying.call(halfUnderlyingBal, { from: a.user1 });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bETH.redeemUnderlying(halfUnderlyingBal, { from: a.user1, gasPrice: 0 });
+
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(
+          currentETHBalance.add(HUNDRED_ETH.div(new BN(2))),
+        );
+
+        err = await bETH.redeemUnderlying.call(halfUnderlyingBal, { from: a.user1 });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bETH.redeemUnderlying(halfUnderlyingBal, { from: a.user1, gasPrice: 0 });
+
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(
+          currentETHBalance.add(HUNDRED_ETH),
+        );
+      });
     });
 
     describe("BEther.redeemUnderlyingOnAvatar()", async () => {
-      it("");
-    });
+      const delegator = a.user1;
+      const delegatee = a.user3;
+      const nonDelegatee = a.other;
+      let avatar1: string;
 
-    describe("BEther.borrow()", async () => {
-      it("");
-    });
+      beforeEach(async () => {
+        await bETH.mint({ from: delegator, value: HUNDRED_ETH });
 
-    describe("BEther.borrowOnAvatar()", async () => {
-      it("");
-    });
-
-    // ERC20
-    describe("BEther.transfer()", async () => {
-      it("");
-    });
-
-    describe("BEther.transferOnAvatar()", async () => {
-      it("");
-    });
-
-    describe("BEther.transferFrom()", async () => {
-      it("");
-    });
-
-    describe("BEther.transferFromOnAvatar()", async () => {
-      it("");
-    });
-
-    describe("BEther.approve()", async () => {
-      it("");
-    });
-
-    describe("BEther.approveOnAvatar()", async () => {
-      it("");
-    });
-
-    describe("BEther.allowance()", async () => {
-      it("");
-    });
-
-    describe("BEther.balanceOf()", async () => {
-      it("");
-    });
-
-    describe("BEther.name()", async () => {
-      it("should get token name", async () => {
-        expect(await bETH.name()).to.be.equal("cETH");
-      });
-    });
-
-    describe("BEther.symbol()", async () => {
-      it("should get token symbol", async () => {
-        expect(await bETH.symbol()).to.be.equal("cETH");
-      });
-    });
-
-    describe("BEther.decimals()", async () => {
-      it("should get token decimals", async () => {
-        expect(await bETH.decimals()).to.be.bignumber.equal(new BN(8));
-      });
-    });
-
-    describe("BEther.totalSupply()", async () => {
-      it("should get zero totalSupply", async () => {
-        expect(await bETH.totalSupply()).to.be.bignumber.equal(ZERO);
+        await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
+        avatar1 = await bProtocol.registry.avatarOf(delegator);
       });
 
-      it("should get non-zero totalSupply", async () => {
-        expect(await bETH.totalSupply()).to.be.bignumber.equal(ZERO);
+      it("delegatee should redeem all underlying ETH balance on behalf of the delegator", async () => {
+        const underlyingBalance = await bETH.balanceOfUnderlying.call(delegator);
+        const delegateeETHBalance = await balance.current(delegatee);
 
-        await bETH.mint({ from: a.user1, value: toWei("1", "ether") });
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeETHBalance);
 
-        const exchangeRateCurrent = await cETH.exchangeRateCurrent.call();
+        const err = await bETH.redeemUnderlyingOnAvatar.call(avatar1, underlyingBalance, {
+          from: delegatee,
+        });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bETH.redeemUnderlyingOnAvatar(avatar1, underlyingBalance, {
+          from: delegatee,
+          gasPrice: 0,
+        });
 
-        const expectedTotalSupply = ONE_ETH.mul(ONE_ETH).div(exchangeRateCurrent);
-        expect(await bETH.totalSupply()).to.be.bignumber.equal(expectedTotalSupply);
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(
+          delegateeETHBalance.add(HUNDRED_ETH),
+        );
+      });
+
+      it("delegatee should reedeem some underlying ETH balance on behalf of the delegator", async () => {
+        const underlyingBalance = await bETH.balanceOfUnderlying.call(delegator);
+        const halfUnderlyingBal = underlyingBalance.div(new BN(2));
+
+        const delegateeETHBalance = await balance.current(delegatee);
+
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeETHBalance);
+
+        let err = await bETH.redeemUnderlyingOnAvatar.call(avatar1, halfUnderlyingBal, {
+          from: delegatee,
+        });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bETH.redeemUnderlyingOnAvatar(avatar1, halfUnderlyingBal, {
+          from: delegatee,
+          gasPrice: 0,
+        });
+
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(
+          delegateeETHBalance.add(HUNDRED_ETH.div(new BN(2))),
+        );
+
+        err = await bETH.redeemUnderlyingOnAvatar.call(avatar1, halfUnderlyingBal, {
+          from: delegatee,
+        });
+        expect(err).to.be.bignumber.equal(ZERO);
+        await bETH.redeemUnderlyingOnAvatar(avatar1, halfUnderlyingBal, {
+          from: delegatee,
+          gasPrice: 0,
+        });
+
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(
+          delegateeETHBalance.add(HUNDRED_ETH),
+        );
+      });
+
+      it("should fail when a non-delegatee try to redeem ETH balance on behalf of user", async () => {
+        const underlyingBalance = await bETH.balanceOfUnderlying.call(delegator);
+        const nonDelegateeETHBalance = await balance.current(nonDelegatee);
+
+        expect(await balance.current(nonDelegatee)).to.be.bignumber.equal(nonDelegateeETHBalance);
+
+        await expectRevert(
+          bETH.redeemUnderlyingOnAvatar(avatar1, underlyingBalance, { from: nonDelegatee }),
+          "BToken: delegatee-not-authorized",
+        );
+
+        expect(await balance.current(nonDelegatee)).to.be.bignumber.equal(nonDelegateeETHBalance);
       });
     });
   });

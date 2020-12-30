@@ -7,22 +7,21 @@ import BN from "bn.js";
 import { toWei } from "web3-utils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
-const { balance, expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
+const { balance, expectEvent, expectRevert, time, send } = require("@openzeppelin/test-helpers");
 
 const Erc20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
-
+const MortalContract: b.MortalContract = artifacts.require("Mortal");
 const CErc20: b.CErc20Contract = artifacts.require("CErc20");
+const CEther: b.CEtherContract = artifacts.require("CEther");
 
-const BErc20: b.BErc20Contract = artifacts.require("BErc20");
+const BEther: b.BEtherContract = artifacts.require("BEther");
 
 const chai = require("chai");
 const expect = chai.expect;
 const ONE_ETH = new BN(10).pow(new BN(18));
-const HALF_ETH = ONE_ETH.div(new BN(2));
-const TEN_ETH = new BN(10).mul(ONE_ETH);
 const ZERO = new BN(0);
 
-contract("BErc20", async (accounts) => {
+contract("BEther", async (accounts) => {
   let snapshotId: string;
 
   const engine = new BProtocolEngine(accounts);
@@ -51,9 +50,11 @@ contract("BErc20", async (accounts) => {
     await revertToSnapShot(snapshotId);
   });
 
-  describe("BErc20", async () => {
+  describe("BEther", async () => {
     const ONE_cZRX = new BN(10).pow(new BN(8));
     const TEN_cZRX = new BN(10).mul(ONE_cZRX);
+
+    const ONE_cETH = new BN(10).pow(new BN(8));
 
     const ONE_ZRX = new BN(10).pow(new BN(18));
     const ONE_THOUSAND_ZRX = new BN(1000).mul(ONE_ZRX);
@@ -67,6 +68,11 @@ contract("BErc20", async (accounts) => {
     const ONE_USDT = new BN(10).pow(new BN(6));
     const ONE_THOUSAND_USDT = new BN(1000).mul(ONE_USDT);
     const FIVE_HUNDRED_USDT = new BN(500).mul(ONE_USDT);
+
+    const ONE_ETH = new BN(10).pow(new BN(18));
+    const HALF_ETH = ONE_ETH.div(new BN(2));
+    const TEN_ETH = new BN(10).mul(ONE_ETH);
+    const HUNDRED_ETH = new BN(100).mul(ONE_ETH);
 
     // ZRX
     let ZRX_addr: string;
@@ -103,7 +109,7 @@ contract("BErc20", async (accounts) => {
     let bETH: b.BEtherInstance;
 
     let cETH_addr: string;
-    let cETH: b.CErc20Instance;
+    let cETH: b.CEtherInstance;
 
     beforeEach(async () => {
       // ZRX
@@ -141,7 +147,7 @@ contract("BErc20", async (accounts) => {
       bETH_addr = bETH.address;
 
       cETH_addr = compoundUtil.getContracts("cETH");
-      cETH = await CErc20.at(cETH_addr);
+      cETH = await CEther.at(cETH_addr);
 
       expect((await ZRX.balanceOf(a.deployer)).gt(ZERO)).to.be.equal(true);
       expect((await BAT.balanceOf(a.deployer)).gt(ZERO)).to.be.equal(true);
@@ -155,6 +161,12 @@ contract("BErc20", async (accounts) => {
       await BAT.transfer(a.user2, ONE_THOUSAND_BAT, { from: a.deployer });
       expect(await BAT.balanceOf(a.user2)).to.be.bignumber.equal(ONE_THOUSAND_BAT);
 
+      await USDT.transfer(a.user1, ONE_THOUSAND_USDT, { from: a.deployer });
+      expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ONE_THOUSAND_USDT);
+
+      await USDT.transfer(a.user2, ONE_THOUSAND_USDT, { from: a.deployer });
+      expect(await USDT.balanceOf(a.user2)).to.be.bignumber.equal(ONE_THOUSAND_USDT);
+
       await USDT.transfer(a.user4, ONE_THOUSAND_USDT, { from: a.deployer });
       expect(await USDT.balanceOf(a.user4)).to.be.bignumber.equal(ONE_THOUSAND_USDT);
 
@@ -162,7 +174,7 @@ contract("BErc20", async (accounts) => {
       await comptroller._setPriceOracle(compoundUtil.getContracts("PriceOracle"));
     });
 
-    describe("BErc20.borrow()", async () => {
+    describe("BEther.borrow()", async () => {
       let avatar1: string;
       let avatar2: string;
       let avatar3: string;
@@ -189,41 +201,18 @@ contract("BErc20", async (accounts) => {
         avatar4 = await bProtocol.registry.avatarOf(a.user4);
       });
 
-      it("should borrow BAT", async () => {
-        // user1 borrows BAT, he has ZRX collateral
-        expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
-        expect(await BAT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+      it("should borrow ETH", async () => {
+        // user1 borrows ETH, he has ZRX collateral
+        const ethBalBefore = await balance.current(a.user1);
 
-        const err = await bBAT.borrow.call(ONE_BAT, { from: a.user1 });
+        const err = await bETH.borrow.call(ONE_ETH, { from: a.user1 });
         expect(err).to.be.bignumber.equal(ZERO);
-        await bBAT.borrow(ONE_BAT, { from: a.user1 });
+        const tx = await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 1 });
+        const txFee = new BN(tx.receipt.gasUsed);
 
-        expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ONE_BAT);
-        expect(await BAT.balanceOf(a.user1)).to.be.bignumber.equal(ONE_BAT);
-      });
-
-      it("should fail when USDT is collatral and borrow ZRX", async () => {
-        await USDT.transfer(a.other, ONE_THOUSAND_USDT, { from: a.deployer });
-
-        await USDT.approve(bUSDT_addr, ONE_THOUSAND_USDT, { from: a.other });
-        await bUSDT.mint(ONE_THOUSAND_USDT, { from: a.other });
-
-        expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
-
-        await expectRevert(bZRX.borrow(ONE_ZRX, { from: a.other }), "AbsCToken: borrow-failed");
-
-        expect(await bZRX.borrowBalanceCurrent.call(a.other)).to.be.bignumber.equal(ZERO);
-        expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
-      });
-
-      it("should borrow USDT", async () => {
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
-        expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
-
-        await bUSDT.borrow(ONE_USDT, { from: a.user1 });
-
-        expect(await bUSDT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ONE_USDT);
-        expect(await USDT.balanceOf(a.user1)).to.be.bignumber.equal(ONE_USDT);
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(
+          ethBalBefore.add(ONE_ETH).sub(txFee),
+        );
       });
 
       it("should fail borrow when user not have enough collateral", async () => {
@@ -235,13 +224,13 @@ contract("BErc20", async (accounts) => {
         expect(await balance.current(a.other)).to.be.bignumber.equal(ethBalBefore.sub(ONE_ETH));
 
         await expectRevert(
-          bZRX.borrow(ONE_THOUSAND_ZRX, { from: a.other }),
+          bETH.borrow(ONE_THOUSAND_ZRX, { from: a.other }),
           "AbsCToken: borrow-failed",
         );
       });
     });
 
-    describe("BErc20.borrowOnAvatar()", async () => {
+    describe("BEther.borrowOnAvatar()", async () => {
       const delegator = a.user1;
       const delegatee = a.user5;
       const nonDelegatee = a.other;
@@ -274,118 +263,109 @@ contract("BErc20", async (accounts) => {
         await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
       });
 
-      it("delegatee should borrow BAT on behalf of user", async () => {
-        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+      it("delegatee should borrow ETH on behalf of user", async () => {
+        const ethBalBefore = await balance.current(delegatee);
 
-        const err = await bBAT.borrowOnAvatar.call(avatar1, ONE_BAT, { from: delegatee });
+        const err = await bETH.borrowOnAvatar.call(avatar1, ONE_ETH, { from: delegatee });
         expect(err).to.be.bignumber.equal(ZERO);
-        await bBAT.borrowOnAvatar(avatar1, ONE_BAT, { from: delegatee });
+        await bETH.borrowOnAvatar(avatar1, ONE_ETH, { from: delegatee, gasPrice: 0 });
 
-        expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ONE_BAT);
-        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_BAT);
-      });
-
-      it("delegatee should borrow USDT on behalf of user", async () => {
-        expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
-
-        await bUSDT.borrowOnAvatar(avatar1, ONE_USDT, { from: delegatee });
-
-        expect(await bUSDT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ONE_USDT);
-        expect(await USDT.balanceOf(delegatee)).to.be.bignumber.equal(ONE_USDT);
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(ethBalBefore.add(ONE_ETH));
       });
 
       it("delegatee tx should fail when user not have enough collateral", async () => {
-        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        const delegateeETHBalance = await balance.current(delegatee);
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeETHBalance);
 
         await expectRevert(
-          bBAT.borrowOnAvatar(avatar1, ONE_THOUSAND_BAT, { from: delegatee }),
+          bETH.borrowOnAvatar(avatar1, ONE_THOUSAND_BAT, { from: delegatee }),
           "AbsCToken: borrow-failed",
         );
 
-        expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);
-        expect(await BAT.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);
+        expect(await balance.current(delegatee)).to.be.bignumber.equal(delegateeETHBalance);
       });
 
       it("should fail when non-delegatee try to borrow on behalf of user", async () => {
-        expect(await BAT.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+        const delegateeETHBalance = await balance.current(nonDelegatee);
+        expect(await balance.current(nonDelegatee)).to.be.bignumber.equal(delegateeETHBalance);
 
         await expectRevert(
-          bBAT.borrowOnAvatar(avatar1, ONE_BAT, { from: nonDelegatee }),
+          bETH.borrowOnAvatar(avatar1, ONE_BAT, { from: nonDelegatee }),
           "BToken: delegatee-not-authorized",
         );
 
-        expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);
-        expect(await BAT.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);
+        expect(await balance.current(nonDelegatee)).to.be.bignumber.equal(delegateeETHBalance);
       });
     });
 
-    //     // ERC20
-    describe("BErc20.transfer()", async () => {
+    // ERC20
+    describe("BEther.transfer()", async () => {
       let avatar1: string;
 
       beforeEach(async () => {
-        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
-        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bETH.mint({ from: a.user1, value: TEN_ETH });
 
         avatar1 = await bProtocol.registry.avatarOf(a.user1);
         expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       });
 
-      it("should transfer cZRX to another user (not have an avatar)", async () => {
+      it("should transfer cETH to another user (not have an avatar)", async () => {
         let avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.equal(ZERO_ADDRESS);
 
-        const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
-          await bZRX.exchangeRateCurrent.call(),
+        const user1_expected_cETH_Bal = TEN_ETH.mul(ONE_ETH).div(
+          await bETH.exchangeRateCurrent.call(),
         );
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await bETH.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
 
-        await bZRX.transfer(a.user2, ONE_cZRX, { from: a.user1 });
+        await bETH.transfer(a.user2, ONE_cETH, { from: a.user1 });
 
         // avatar2 created
         avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
 
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(
-          user1_expected_cZRX_Bal.sub(ONE_cZRX),
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(
+          user1_expected_cETH_Bal.sub(ONE_cETH),
         );
-        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
+        expect(await bETH.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cETH);
       });
 
-      it("should transfer cZRX to another user (already have an avatar)", async () => {
+      it("should transfer cETH to another user (already have an avatar)", async () => {
         await bProtocol.registry.newAvatar({ from: a.user2 });
         const avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
 
-        const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
-          await bZRX.exchangeRateCurrent.call(),
+        const user1_expected_cETH_Bal = TEN_ETH.mul(ONE_ETH).div(
+          await bETH.exchangeRateCurrent.call(),
         );
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await bETH.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
 
-        await bZRX.transfer(a.user2, ONE_cZRX, { from: a.user1 });
+        await bETH.transfer(a.user2, ONE_cETH, { from: a.user1 });
 
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(
-          user1_expected_cZRX_Bal.sub(ONE_cZRX),
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(
+          user1_expected_cETH_Bal.sub(ONE_cETH),
         );
-        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cZRX);
+        expect(await bETH.balanceOf(a.user2)).to.be.bignumber.equal(ONE_cETH);
       });
 
       it("should fail when transfer to user's own avatar", async () => {
-        const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
-          await bZRX.exchangeRateCurrent.call(),
+        const user1_expected_cETH_Bal = TEN_ETH.mul(ONE_ETH).div(
+          await bETH.exchangeRateCurrent.call(),
         );
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
 
         await expectRevert(
-          bZRX.transfer(avatar1, ONE_cZRX, { from: a.user1 }),
+          bETH.transfer(avatar1, ONE_cETH, { from: a.user1 }),
           "Registry: cannot-create-an-avatar-of-avatar",
         );
 
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
       });
 
       it("should fail when transfer to another user's avatar address", async () => {
@@ -393,32 +373,32 @@ contract("BErc20", async (accounts) => {
         const avatar2 = await bProtocol.registry.avatarOf(a.user2);
         expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
 
-        const user1_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
-          await bZRX.exchangeRateCurrent.call(),
+        const user1_expected_cETH_Bal = TEN_ETH.mul(ONE_ETH).div(
+          await bETH.exchangeRateCurrent.call(),
         );
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
-        expect(await cZRX.balanceOf(avatar2)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await bETH.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+        expect(await cETH.balanceOf(avatar2)).to.be.bignumber.equal(ZERO);
 
         await expectRevert(
-          bZRX.transfer(avatar2, ONE_cZRX, { from: a.user1 }),
+          bETH.transfer(avatar2, ONE_cETH, { from: a.user1 }),
           "Registry: cannot-create-an-avatar-of-avatar",
         );
 
-        expect(await bZRX.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await cZRX.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
-        expect(await cZRX.balanceOf(avatar2)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await cETH.balanceOf(avatar1)).to.be.bignumber.equal(user1_expected_cETH_Bal);
+        expect(await bETH.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+        expect(await cETH.balanceOf(avatar2)).to.be.bignumber.equal(ZERO);
       });
     });
 
-    describe("BErc20.transferOnAvatar()", async () => {
+    describe("BEther.transferOnAvatar()", async () => {
       let delegator = a.user1;
       let delegatee = a.user2;
       let nonDelegatee = a.other;
 
-      let delegator_expected_cZRX_Bal: BN;
+      let delegator_expected_cETH_Bal: BN;
 
       let avatar1: string;
       let avatar2: string;
@@ -435,65 +415,65 @@ contract("BErc20", async (accounts) => {
         await bProtocol.registry.delegateAvatar(delegatee, { from: delegator });
         expect(await bProtocol.registry.delegate(avatar1, delegatee)).to.be.equal(true);
 
-        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: delegator });
-        await bZRX.mint(ONE_THOUSAND_ZRX, { from: delegator });
+        await bETH.mint({ from: delegator, value: TEN_ETH });
 
-        delegator_expected_cZRX_Bal = ONE_THOUSAND_ZRX.mul(ONE_ETH).div(
-          await bZRX.exchangeRateCurrent.call(),
+        delegator_expected_cETH_Bal = TEN_ETH.mul(ONE_ETH).div(
+          await bETH.exchangeRateCurrent.call(),
         );
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cETH_Bal);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
       });
 
-      it("delegatee should transfer cTokens to user3 (not have an avatar) on behalf of delegator", async () => {
-        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+      it("delegatee should transfer cETH to user3 (not have an avatar) on behalf of delegator", async () => {
+        const user3ETHBalanceBefore = await balance.current(a.user3);
+        expect(await balance.current(a.user3)).to.be.bignumber.equal(user3ETHBalanceBefore);
 
-        await bZRX.transferOnAvatar(avatar1, a.user3, ONE_cZRX, { from: delegatee });
+        await bETH.transferOnAvatar(avatar1, a.user3, ONE_cETH, { from: delegatee });
 
         // avatar3 created
         const avatar3 = await bProtocol.registry.avatarOf(a.user3);
         expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
 
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(
-          delegator_expected_cZRX_Bal.sub(ONE_cZRX),
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(
+          delegator_expected_cETH_Bal.sub(ONE_cETH),
         );
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
-        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cZRX);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cETH);
       });
 
-      it("delegatee should transfer cTokens to user3 (already have an avatar) on behalf of delegator", async () => {
+      it("delegatee should transfer cETH to user3 (already have an avatar) on behalf of delegator", async () => {
         await bProtocol.registry.newAvatar({ from: a.user3 });
         const avatar3 = await bProtocol.registry.avatarOf(a.user3);
         expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
 
-        await bZRX.transferOnAvatar(avatar1, a.user3, ONE_cZRX, { from: delegatee });
+        await bETH.transferOnAvatar(avatar1, a.user3, ONE_cETH, { from: delegatee });
 
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(
-          delegator_expected_cZRX_Bal.sub(ONE_cZRX),
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(
+          delegator_expected_cETH_Bal.sub(ONE_cETH),
         );
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
-        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cZRX);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user3)).to.be.bignumber.equal(ONE_cETH);
       });
 
       it("delegatee tx should fail when try to transfer to delegator's own avatar", async () => {
         await expectRevert(
-          bZRX.transferOnAvatar(avatar1, avatar1, ONE_cZRX, { from: delegatee }),
+          bETH.transferOnAvatar(avatar1, avatar1, ONE_cETH, { from: delegatee }),
           "Registry: cannot-create-an-avatar-of-avatar",
         );
 
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cETH_Bal);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
       });
 
       it("delegatee tx should fail when try to transfer to delegatess's own avatar", async () => {
         const delegateeAvatar = await bProtocol.registry.avatarOf(delegatee);
         await expectRevert(
-          bZRX.transferOnAvatar(avatar1, delegateeAvatar, ONE_cZRX, { from: delegatee }),
+          bETH.transferOnAvatar(avatar1, delegateeAvatar, ONE_cETH, { from: delegatee }),
           "Registry: cannot-create-an-avatar-of-avatar",
         );
 
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cETH_Bal);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
       });
 
       it("delegatee tx should fail when transfer to user3's avatar address on behalf of delegator", async () => {
@@ -502,28 +482,87 @@ contract("BErc20", async (accounts) => {
         expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
 
         await expectRevert(
-          bZRX.transferOnAvatar(avatar1, avatar3, ONE_cZRX, { from: delegatee }),
+          bETH.transferOnAvatar(avatar1, avatar3, ONE_cETH, { from: delegatee }),
           "Registry: cannot-create-an-avatar-of-avatar",
         );
 
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
-        expect(await bZRX.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cETH_Bal);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(a.user3)).to.be.bignumber.equal(ZERO);
       });
 
       it("should fail when non-delegatee try to transfer token", async () => {
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
-        expect(await bZRX.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cETH_Bal);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
 
         await expectRevert(
-          bZRX.transferOnAvatar(avatar1, a.other, ONE_cZRX, { from: nonDelegatee }),
+          bETH.transferOnAvatar(avatar1, a.other, ONE_cETH, { from: nonDelegatee }),
           "BToken: delegatee-not-authorized",
         );
 
-        expect(await bZRX.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cZRX_Bal);
-        expect(await bZRX.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
-        expect(await bZRX.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(delegator)).to.be.bignumber.equal(delegator_expected_cETH_Bal);
+        expect(await bETH.balanceOf(delegatee)).to.be.bignumber.equal(ZERO);
+        expect(await bETH.balanceOf(nonDelegatee)).to.be.bignumber.equal(ZERO);
+      });
+    });
+
+    describe("BEther.transferFrom()", async () => {
+      it("");
+    });
+
+    describe("BEther.transferFromOnAvatar()", async () => {
+      it("");
+    });
+
+    describe("BEther.approve()", async () => {
+      it("");
+    });
+
+    describe("BEther.approveOnAvatar()", async () => {
+      it("");
+    });
+
+    describe("BEther.allowance()", async () => {
+      it("");
+    });
+
+    describe("BEther.balanceOf()", async () => {
+      it("");
+    });
+
+    describe("BEther.name()", async () => {
+      it("should get token name", async () => {
+        expect(await bETH.name()).to.be.equal("cETH");
+      });
+    });
+
+    describe("BEther.symbol()", async () => {
+      it("should get token symbol", async () => {
+        expect(await bETH.symbol()).to.be.equal("cETH");
+      });
+    });
+
+    describe("BEther.decimals()", async () => {
+      it("should get token decimals", async () => {
+        expect(await bETH.decimals()).to.be.bignumber.equal(new BN(8));
+      });
+    });
+
+    describe("BEther.totalSupply()", async () => {
+      it("should get zero totalSupply", async () => {
+        expect(await bETH.totalSupply()).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should get non-zero totalSupply", async () => {
+        expect(await bETH.totalSupply()).to.be.bignumber.equal(ZERO);
+
+        await bETH.mint({ from: a.user1, value: toWei("1", "ether") });
+
+        const exchangeRateCurrent = await cETH.exchangeRateCurrent.call();
+
+        const expectedTotalSupply = ONE_ETH.mul(ONE_ETH).div(exchangeRateCurrent);
+        expect(await bETH.totalSupply()).to.be.bignumber.equal(expectedTotalSupply);
       });
     });
   });
