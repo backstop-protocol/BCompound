@@ -77,14 +77,28 @@ contract BComptroller {
         return avatar.getAccountLiquidity();
     }
 
-    function claimComp() external {
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.claimComp(msg.sender);
+    function claimComp(address holder) external {
+        IAvatar avatar = IAvatar(registry.getAvatar(holder));
+        avatar.claimComp();
     }
 
-    function claimComp(address[] calldata bTokens) external {
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.claimComp(bTokens, msg.sender);
+    function claimComp(address holder, address[] calldata bTokens) external {
+        IAvatar avatar = IAvatar(registry.getAvatar(holder));
+        avatar.claimComp(bTokens);
+    }
+
+    function claimComp(
+        address[] calldata holders,
+        address[] calldata bTokens,
+        bool borrowers,
+        bool suppliers
+    )
+        external
+    {
+        for(uint256 i = 0; i < holders.length; i++) {
+            IAvatar avatar = IAvatar(registry.getAvatar(holders[i]));
+            avatar.claimComp(bTokens, borrowers, suppliers);
+        }
     }
 
     function oracle() external view returns (address) {

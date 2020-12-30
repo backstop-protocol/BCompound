@@ -54,17 +54,42 @@ contract AbsComptroller is AvatarBase {
         ICToken(cToken).underlying().safeApprove(cToken, 0);
     }
 
-    function claimComp(address owner) external onlyBComptroller {
+    function claimComp() external onlyBComptroller {
         comptroller.claimComp(address(this));
-        comp.safeTransfer(owner, comp.balanceOf(address(this)));
+        transferCOMP();
     }
 
-    function claimComp(address[] calldata bTokens, address owner) external onlyBComptroller {
+    function claimComp(address[] calldata bTokens) external onlyBComptroller {
         address[] memory cTokens = new address[](bTokens.length);
         for(uint256 i = 0; i < bTokens.length; i++) {
             cTokens[i] = IBToken(bTokens[i]).cToken();
         }
         comptroller.claimComp(address(this), cTokens);
+        transferCOMP();
+    }
+
+    function claimComp(
+        address[] calldata bTokens,
+        bool borrowers,
+        bool suppliers
+    )
+        external
+        onlyBComptroller
+    {
+        address[] memory cTokens = new address[](bTokens.length);
+        for(uint256 i = 0; i < bTokens.length; i++) {
+            cTokens[i] = IBToken(bTokens[i]).cToken();
+        }
+
+        address[] memory holders = new address[](1);
+        holders[0] = address(this);
+        comptroller.claimComp(holders, cTokens, borrowers, suppliers);
+
+        transferCOMP();
+    }
+
+    function transferCOMP() public {
+        address owner = registry.ownerOf(address(this));
         comp.safeTransfer(owner, comp.balanceOf(address(this)));
     }
 
