@@ -380,17 +380,9 @@ contract("BEther", async (accounts) => {
       it("TODO: after Pool tests are done");
     });
 
+    // BToken
     describe("BEther.borrowBalanceCurrent()", async () => {
       it("TODO: as topup is require");
-    });
-
-    // BToken
-    describe("BEther.myAvatar()", async () => {
-      it("");
-    });
-
-    describe("BEther.borrowBalanceCurrent()", async () => {
-      it("");
     });
 
     describe("BEther.redeem()", async () => {
