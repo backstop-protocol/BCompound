@@ -23,7 +23,7 @@ contract AbsCToken is Cushion {
         return bComptroller.isBToken(bToken);
     }
 
-    function borrowBalanceCurrent(ICToken cToken) public returns (uint256) {
+    function borrowBalanceCurrent(ICToken cToken) public onlyBToken returns (uint256) {
         uint256 borrowBalanceCurr = cToken.borrowBalanceCurrent(address(this));
         if(toppedUpCToken == cToken) return add_(borrowBalanceCurr, toppedUpAmount);
         return borrowBalanceCurr;
@@ -209,11 +209,6 @@ contract AbsCToken is Cushion {
     function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
         address spenderAvatar = registry.getAvatar(spender);
         return cToken.approve(spenderAvatar, amount);
-    }
-
-    function resetApprove(ICToken cToken) public {
-        require(msg.sender == registry.ownerOf(address(this)), "AbsCToken: sender-is-not-owner");
-        cToken.underlying().safeApprove(address(cToken), 0);
     }
 
     /**
