@@ -207,12 +207,9 @@ contract("BEther", async (accounts) => {
 
         const err = await bETH.borrow.call(ONE_ETH, { from: a.user1 });
         expect(err).to.be.bignumber.equal(ZERO);
-        const tx = await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 1 });
-        const txFee = new BN(tx.receipt.gasUsed);
+        await bETH.borrow(ONE_ETH, { from: a.user1, gasPrice: 0 });
 
-        expect(await balance.current(a.user1)).to.be.bignumber.equal(
-          ethBalBefore.add(ONE_ETH).sub(txFee),
-        );
+        expect(await balance.current(a.user1)).to.be.bignumber.equal(ethBalBefore.add(ONE_ETH));
       });
 
       it("should fail borrow when user not have enough collateral", async () => {
