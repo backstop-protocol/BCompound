@@ -67,24 +67,23 @@ contract Avatar is AbsComptroller, AbsCToken {
     }
 
     // EMERGENCY FUNCTIONS
-    function resetApprove(IBToken bToken) external onlyAvatarOwner {
-        address cToken = bToken.cToken();
-        ICToken(cToken).underlying().safeApprove(cToken, 0);
+    function resetApprove(IERC20 token, address spender) external onlyAvatarOwner {
+        token.safeApprove(spender, 0);
     }
 
-    function transferERC20(address token) external onlyAvatarOwner {
+    function transferERC20(address token, uint256 amount) external onlyAvatarOwner {
         // ensure that token should not be a cToken, this is to protect user Score manipulation
         require(ICToken(token).isCToken() == false, "Avatar: cToken-not-allowed");
 
         address owner = registry.ownerOf(address(this));
         IERC20 erc20 = IERC20(token);
         // NOTICE: not enclosing in require()
-        erc20.transfer(owner, erc20.balanceOf(address(this)));
+        erc20.transfer(owner, amount);
     }
 
-    function transferETH() external onlyAvatarOwner {
+    function transferETH(uint256 amount) external onlyAvatarOwner {
         address owner = registry.ownerOf(address(this));
         address payable ownerPayable = address(uint160(owner));
-        ownerPayable.transfer(address(this).balance);
+        ownerPayable.transfer(amount);
     }
 }
