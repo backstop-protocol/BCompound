@@ -124,12 +124,12 @@ contract Registry is Ownable {
         return _avatar;
     }
 
-    function avatarSize() external view returns (uint256) {
+    function avatarLength() external view returns (uint256) {
         return avatars.length;
     }
 
-    function getAvatarAt(uint256 index) external view returns (address) {
-        return avatars[index];
+    function avatarList() external view returns (address[] memory) {
+        return avatars;
     }
 
     function doesAvatarExist(address _avatar) public view returns (bool) {

@@ -443,58 +443,75 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("Registry.avatarSize()", async () => {
+  describe("Registry.avatarLength()", async () => {
     it("should have avatar size zero after deployment", async () => {
-      expect(await registry.avatarSize()).to.be.bignumber.equal(ZERO);
+      expect(await registry.avatarLength()).to.be.bignumber.equal(ZERO);
     });
 
     it("should increase avatar count when new avatar created", async () => {
-      expect(await registry.avatarSize()).to.be.bignumber.equal(ZERO);
+      expect(await registry.avatarLength()).to.be.bignumber.equal(ZERO);
 
       await registry.newAvatar({ from: a.user1 });
 
-      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(1));
+      expect(await registry.avatarLength()).to.be.bignumber.equal(new BN(1));
 
       await registry.newAvatar({ from: a.user2 });
 
-      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(2));
+      expect(await registry.avatarLength()).to.be.bignumber.equal(new BN(2));
     });
 
     it("should not increase avatar count when avatar already exists", async () => {
-      expect(await registry.avatarSize()).to.be.bignumber.equal(ZERO);
+      expect(await registry.avatarLength()).to.be.bignumber.equal(ZERO);
 
       await registry.newAvatar({ from: a.user1 });
 
-      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(1));
+      expect(await registry.avatarLength()).to.be.bignumber.equal(new BN(1));
 
       await registry.getAvatar(a.user1, { from: a.user1 });
 
-      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(1));
+      expect(await registry.avatarLength()).to.be.bignumber.equal(new BN(1));
     });
   });
 
-  describe("Registry.getAvatarAt(index)", async () => {
+  describe("Registry.avatars(index)", async () => {
     it("should fail when no avatar present", async () => {
-      await expectRevert.unspecified(registry.getAvatarAt(0));
+      await expectRevert.unspecified(registry.avatars(0));
     });
 
     it("should get avatar address with index", async () => {
       await registry.newAvatar({ from: a.user1 });
       const avatar1 = await registry.avatarOf(a.user1);
 
-      expect(await registry.getAvatarAt(0)).to.be.equal(avatar1);
+      expect(await registry.avatars(0)).to.be.equal(avatar1);
 
       await registry.newAvatar({ from: a.user2 });
       const avatar2 = await registry.avatarOf(a.user2);
-
-      expect(await registry.getAvatarAt(1)).to.be.equal(avatar2);
+      expect(await registry.avatars(1)).to.be.equal(avatar2);
     });
 
     it("should fail when avatar not present for given index", async () => {
       await registry.newAvatar({ from: a.user1 });
       await registry.newAvatar({ from: a.user2 });
 
-      await expectRevert.unspecified(registry.getAvatarAt(2));
+      await expectRevert.unspecified(registry.avatars(2));
+    });
+  });
+
+  describe("Registry.avatarList()", async () => {
+    it("should get empty avatar list after deployment", async () => {
+      const avatarList = await registry.avatarList();
+      expect(avatarList).to.eql([]);
+    });
+
+    it("should get avatar list", async () => {
+      await registry.newAvatar({ from: a.user1 });
+      await registry.newAvatar({ from: a.user2 });
+
+      const avatar1 = await registry.avatarOf(a.user1);
+      const avatar2 = await registry.avatarOf(a.user2);
+
+      const avatarList = await registry.avatarList();
+      expect(avatarList).to.eql([avatar1, avatar2]);
     });
   });
 });
