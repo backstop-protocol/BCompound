@@ -495,18 +495,28 @@ contract("BComptroller", async (accounts) => {
     });
   });
 
-  describe("BComptroller.claimComp()", async () => {
+  describe("BComptroller.claimComp(holder)", async () => {
     it("user claims his COMP tokens from Compound");
 
     it("user gets nothing, when not earned COMP tokens on Compound");
   });
 
-  describe("BComptroller.claimComp(cTokens[])", async () => {
+  describe("BComptroller.claimComp(holder, bTokens[])", async () => {
     it("user claims his COMP tokens from Compound");
 
     it("user gets COMP tokens he earned on different markets");
 
     it("user gets nothing, when not earned COMP tokens on Compound");
+  });
+
+  describe("BComptroller.claimComp(holders[], bTokens[], borrowers, suppliers)", async () => {
+    it("user initiate claims for multiple Avatars");
+
+    it("user initiate claims for multiple Avatars with borrowers");
+
+    it("user initiate claims for multiple Avatars with suppliers");
+
+    it("user initiate claims for multiple Avatars with both borrowers and suppliers");
   });
 
   describe("BComptroller.oracle()", async () => {
