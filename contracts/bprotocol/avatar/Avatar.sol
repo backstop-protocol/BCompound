@@ -68,7 +68,8 @@ contract Avatar is AbsComptroller, AbsCToken {
 
     // EMERGENCY FUNCTIONS
     function resetApprove(IERC20 token, address spender) external onlyAvatarOwner {
-        token.safeApprove(spender, 0);
+        // NOTICE: not enclosing in require()
+        token.approve(spender, 0);
     }
 
     function transferERC20(address token, uint256 amount) external onlyAvatarOwner {
