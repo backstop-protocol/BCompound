@@ -24,6 +24,8 @@ contract Registry is Ownable {
     // Avatar => Owner
     mapping (address => address) public ownerOf;
 
+    address[] public avatars;
+
     // An Avatar can have multiple Delegatee
     // Avatar => Delegatee => bool
     mapping (address => mapping(address => bool)) public delegate;
@@ -117,8 +119,17 @@ contract Registry is Ownable {
         address _avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
         avatarOf[_owner] = _avatar;
         ownerOf[_avatar] = _owner;
+        avatars.push(_avatar);
         emit NewAvatar(_avatar, _owner);
         return _avatar;
+    }
+
+    function avatarSize() external view returns (uint256) {
+        return avatars.length;
+    }
+
+    function getAvatarAt(uint256 index) external view returns (address) {
+        return avatars[index];
     }
 
     function doesAvatarExist(address _avatar) public view returns (bool) {

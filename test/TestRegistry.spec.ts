@@ -5,10 +5,12 @@ import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
+import BN from "bn.js";
 
 const chai = require("chai");
 const expect = chai.expect;
 let snapshotId: string;
+const ZERO = new BN(0);
 
 contract("Registry", async (accounts) => {
   let bProtocol: BProtocol;
@@ -58,7 +60,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("setPool()", async () => {
+  describe("Registry.setPool()", async () => {
     it("should have pool already set", async () => {
       const pool = await registry.pool();
       expect(pool).to.be.not.equal(ZERO_ADDRESS);
@@ -100,7 +102,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("setScore()", async () => {
+  describe("Registry.setScore()", async () => {
     it("should have score already set", async () => {
       const score = await registry.score();
       expect(score).to.be.not.equal(ZERO_ADDRESS);
@@ -142,7 +144,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("newAvatar()", async () => {
+  describe("Registry.newAvatar()", async () => {
     it("should create new avatar", async () => {
       let avatar1 = await registry.avatarOf(a.user1);
       expect(ZERO_ADDRESS).to.be.equal(avatar1);
@@ -184,7 +186,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("getAvatar()", async () => {
+  describe("Registry.getAvatar(address)", async () => {
     it("should create new if not exists for a user", async () => {
       let avatar3 = await registry.avatarOf(a.user3);
       expect(ZERO_ADDRESS).to.be.equal(avatar3);
@@ -240,7 +242,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("delegateAvatar()", async () => {
+  describe("Registry.delegateAvatar()", async () => {
     it("should allow a delegator to delegate avatar to a delegatee", async () => {
       await registry.newAvatar({ from: a.user1 });
 
@@ -357,7 +359,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("revokeDelegateAvatar()", async () => {
+  describe("Registry.revokeDelegateAvatar()", async () => {
     it("should allow a delegator to revoke delegation rights from a delegatee", async () => {
       const delegator = a.user1;
       const delegatee = a.dummy1;
@@ -411,7 +413,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("doesAvatarExist()", async () => {
+  describe("Registry.doesAvatarExist()", async () => {
     it("should return true when an avatar exists", async () => {
       await registry.newAvatar({ from: a.user1 });
 
@@ -427,7 +429,7 @@ contract("Registry", async (accounts) => {
     });
   });
 
-  describe("doesAvatarExistFor()", async () => {
+  describe("Registry.doesAvatarExistFor()", async () => {
     it("should return true when an avatar exists for a given owner", async () => {
       await registry.newAvatar({ from: a.user1 });
 
@@ -438,6 +440,61 @@ contract("Registry", async (accounts) => {
     it("should return false when an avatar does not exists for a given owner", async () => {
       const doesAvExist = await registry.doesAvatarExistFor(a.dummy1);
       expect(doesAvExist).to.be.equal(false);
+    });
+  });
+
+  describe("Registry.avatarSize()", async () => {
+    it("should have avatar size zero after deployment", async () => {
+      expect(await registry.avatarSize()).to.be.bignumber.equal(ZERO);
+    });
+
+    it("should increase avatar count when new avatar created", async () => {
+      expect(await registry.avatarSize()).to.be.bignumber.equal(ZERO);
+
+      await registry.newAvatar({ from: a.user1 });
+
+      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(1));
+
+      await registry.newAvatar({ from: a.user2 });
+
+      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(2));
+    });
+
+    it("should not increase avatar count when avatar already exists", async () => {
+      expect(await registry.avatarSize()).to.be.bignumber.equal(ZERO);
+
+      await registry.newAvatar({ from: a.user1 });
+
+      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(1));
+
+      await registry.getAvatar(a.user1, { from: a.user1 });
+
+      expect(await registry.avatarSize()).to.be.bignumber.equal(new BN(1));
+    });
+  });
+
+  describe("Registry.getAvatarAt(index)", async () => {
+    it("should fail when no avatar present", async () => {
+      await expectRevert.unspecified(registry.getAvatarAt(0));
+    });
+
+    it("should get avatar address with index", async () => {
+      await registry.newAvatar({ from: a.user1 });
+      const avatar1 = await registry.avatarOf(a.user1);
+
+      expect(await registry.getAvatarAt(0)).to.be.equal(avatar1);
+
+      await registry.newAvatar({ from: a.user2 });
+      const avatar2 = await registry.avatarOf(a.user2);
+
+      expect(await registry.getAvatarAt(1)).to.be.equal(avatar2);
+    });
+
+    it("should fail when avatar not present for given index", async () => {
+      await registry.newAvatar({ from: a.user1 });
+      await registry.newAvatar({ from: a.user2 });
+
+      await expectRevert.unspecified(registry.getAvatarAt(2));
     });
   });
 });
