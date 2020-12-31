@@ -191,6 +191,7 @@ contract("BErc20", async (accounts) => {
 
       it("should borrow BAT", async () => {
         // user1 borrows BAT, he has ZRX collateral
+        expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await BAT.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
 
         const err = await bBAT.borrow.call(ONE_BAT, { from: a.user1 });
