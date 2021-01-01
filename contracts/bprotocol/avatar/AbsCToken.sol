@@ -49,7 +49,7 @@ contract AbsCToken is Cushion {
     // ======
     function mint() public payable onlyBToken postPoolOp(false) {
         cETH.mint.value(msg.value)(); // fails on compound in case of err
-        _score().updateCollScore(address(this), address(cETH), toInt256(msg.value));
+        if(!quit) _score().updateCollScore(address(this), address(cETH), toInt256(msg.value));
     }
 
     function repayBorrow()
@@ -60,7 +60,7 @@ contract AbsCToken is Cushion {
     {
         uint256 amtToRepayOnCompound = _untopPartial(cETH, msg.value);
         if(amtToRepayOnCompound > 0) cETH.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
-        _score().updateDebtScore(address(this), address(cETH), -toInt256(msg.value));
+        if(!quit) _score().updateDebtScore(address(this), address(cETH), -toInt256(msg.value));
     }
 
     function liquidateBorrow(ICToken cTokenCollateral) external payable onlyBToken {
@@ -73,7 +73,7 @@ contract AbsCToken is Cushion {
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
         uint result = cToken.mint(mintAmount);
         require(result == 0, "AbsCToken: mint-failed");
-        _score().updateCollScore(address(this), address(cToken), toInt256(mintAmount));
+        if(!quit) _score().updateCollScore(address(this), address(cToken), toInt256(mintAmount));
         return result;
     }
 
@@ -91,7 +91,7 @@ contract AbsCToken is Cushion {
             underlying.safeApprove(address(cToken), repayAmount);
             result = cToken.repayBorrow(amtToRepayOnCompound);
             require(result == 0, "AbsCToken: repayBorrow-failed");
-            _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
+            if(!quit) _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
         }
         return result; // in case of err, tx fails at BToken
     }
@@ -110,9 +110,11 @@ contract AbsCToken is Cushion {
         uint256 seizedCTokens = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidate, cTokenCollateral);
         // Convert seizedCToken to underlyingTokens
         uint256 underlyingSeizedTokens = _toUnderlying(cTokenDebt, seizedCTokens);
-        IScore score = _score();
-        score.updateCollScore(address(this), address(cTokenDebt), -toInt256(underlyingSeizedTokens));
-        score.updateDebtScore(address(this), address(cTokenCollateral), -toInt256(underlyingAmtToLiquidate));
+        if(!quit) {
+            IScore score = _score();
+            score.updateCollScore(address(this), address(cTokenDebt), -toInt256(underlyingSeizedTokens));
+            score.updateDebtScore(address(this), address(cTokenCollateral), -toInt256(underlyingAmtToLiquidate));
+        }
         return 0;
     }
 
@@ -126,7 +128,7 @@ contract AbsCToken is Cushion {
         require(result == 0, "AbsCToken: redeem-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
-        _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
+        if(!quit) _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
 
         // Do the fund transfer at last
         if(_isCEther(cToken)) {
@@ -147,7 +149,7 @@ contract AbsCToken is Cushion {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
         require(result == 0, "AbsCToken: redeemUnderlying-failed");
 
-        _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
+        if(!quit) _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
 
         // Do the fund transfer at last
         if(_isCEther(cToken)) {
@@ -168,7 +170,7 @@ contract AbsCToken is Cushion {
         console.log("borrow result: %s", result);
         require(result == 0, "AbsCToken: borrow-failed");
         
-        _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
+        if(!quit) _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
 
         // send funds at last
         if(_isCEther(cToken)) {
@@ -188,8 +190,11 @@ contract AbsCToken is Cushion {
         require(result, "AbsCToken: transfer-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
-        _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
-        _score().updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
+        if(!quit) {
+            IScore score = _score();
+            score.updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
+            score.updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
+        }
         return result;
     }
 
@@ -201,8 +206,11 @@ contract AbsCToken is Cushion {
         require(result, "AbsCToken: transferFrom-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
-        _score().updateCollScore(srcAvatar, address(cToken), -toInt256(underlyingRedeemAmount));
-        _score().updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
+        if(!quit) {
+            IScore score = _score();
+            score.updateCollScore(srcAvatar, address(cToken), -toInt256(underlyingRedeemAmount));
+            score.updateCollScore(dstAvatar, address(cToken), toInt256(underlyingRedeemAmount));
+        }
         return result;
     }
 

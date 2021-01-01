@@ -23,6 +23,7 @@ contract AvatarBase is Exponential {
     IComptroller public comptroller;
     IERC20 public comp;
     ICEther public cETH;
+    bool public quit;
 
     /* Storage for topup details */
     // Topped up cToken
