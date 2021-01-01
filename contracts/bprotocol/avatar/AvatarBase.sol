@@ -54,15 +54,7 @@ contract AvatarBase is Exponential {
         _reevaluate(debtIncrease);
     }
 
-    /**
-     * @dev Constructor
-     * @param _bComptroller BComptroller contract address
-     * @param _comptroller Compound finance Comptroller contract address
-     * @param _comp Compound finance COMP token contract address
-     * @param _cETH cETH contract address
-     * @param _registry Registry contract address
-     */
-    constructor(
+    function _initAvatarBase(
         address _bComptroller,
         address _comptroller,
         address _comp,

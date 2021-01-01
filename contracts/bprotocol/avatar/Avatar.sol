@@ -17,6 +17,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract Avatar is AbsComptroller, AbsCToken {
 
+    // @NOTICE: NO CONSTRUCTOR AS ITS USED AS AN IMPLEMENTATION CONTRACT FOR PROXY
+
     /**
      * @dev Constructor
      * @param _bComptroller BComptroller contract address
@@ -25,22 +27,15 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @param _cETH cETH contract address
      * @param _registry Registry contract address
      */
-    constructor(
+    function initialize(
         address _bComptroller,
         address _comptroller,
         address _comp,
         address _cETH,
         address _registry
-    )
-        public
-        AvatarBase(
-            _bComptroller,
-            _comptroller,
-            _comp,
-            _cETH,
-            _registry
-        )
-    {
+    ) external initializer {
+        // TODO If possible to reduce function args????
+        _initAvatarBase(_bComptroller, _comptroller, _comp, _cETH, _registry);
     }
 
     //override
