@@ -1,8 +1,5 @@
 pragma solidity 0.5.16;
 
-// TODO To be removed in mainnet deployment
-import "hardhat/console.sol";
-
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
@@ -122,7 +119,6 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
-        console.log("redeem result: %s", result);
         require(result == 0, "AbsCToken: redeem-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
@@ -165,9 +161,8 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
-        console.log("borrow result: %s", result);
         require(result == 0, "AbsCToken: borrow-failed");
-        
+
         _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
 
         // send funds at last
