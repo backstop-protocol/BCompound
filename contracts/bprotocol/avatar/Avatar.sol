@@ -33,7 +33,7 @@ contract Avatar is AbsComptroller, AbsCToken {
         address _comp,
         address _cETH,
         address _registry
-    ) external initializer {
+    ) external  /*TODO initializer*/ {
         // TODO If possible to reduce function args????
         _initAvatarBase(_bComptroller, _comptroller, _comp, _cETH, _registry);
     }
