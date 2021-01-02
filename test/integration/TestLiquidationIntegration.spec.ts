@@ -46,8 +46,10 @@ contract("Pool performs liquidation", async (accounts) => {
   // CTokens
   let cETH_addr: string;
   let cETH: b.CEtherInstance;
+  let bETH_addr: string;
   let cZRX_addr: string;
   let cZRX: b.CErc20Instance;
+  let bZRX_addr: string;
 
   // ZRX
   let ZRX: b.Erc20DetailedInstance;
@@ -132,10 +134,12 @@ contract("Pool performs liquidation", async (accounts) => {
     // BToken cETH
     bETH = await engine.deployNewBEther();
     expect(bETH.address).to.be.not.equal(ZERO_ADDRESS);
+    bETH_addr = bETH.address;
 
     // BToken cZRX
     bZRX = await engine.deployNewBErc20("cZRX");
     expect(bZRX.address).to.be.not.equal(ZERO_ADDRESS);
+    bZRX_addr = bZRX.address;
   });
 
   it("2. should deploy Avatar Contracts for User-1 and User-2", async () => {
@@ -149,12 +153,13 @@ contract("Pool performs liquidation", async (accounts) => {
   });
 
   it("3. User-1 should mint cETH with ETH", async () => {
+    const bETH_addr = bETH.address;
     const balanceBefore = await cETH.balanceOf(avatarUser1.address);
     await bETH.mint({ from: user1, value: toWei("1", "ether") });
     const balanceAfter = await cETH.balanceOf(avatarUser1.address);
     expect(balanceAfter).to.be.bignumber.gt(balanceBefore);
 
-    await bProtocol.bComptroller.enterMarket(cETH_addr, { from: user1 });
+    await bProtocol.bComptroller.enterMarket(bETH_addr, { from: user1 });
     const isAvatar1_has_ETH_membership = await comptroller.checkMembership(
       avatarUser1.address,
       cETH_addr,
@@ -243,7 +248,7 @@ contract("Pool performs liquidation", async (accounts) => {
     await ZRX.approve(pool.address, TEN_ZRX, { from: member1 });
     await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: member1 });
 
-    await pool.topup(avatarUser1.address, cZRX_addr, topupAmount, false, { from: member1 });
+    await pool.topup(avatarUser1.address, bZRX_addr, topupAmount, false, { from: member1 });
 
     const zrxBalAfter = await ZRX.balanceOf(pool.address);
 
@@ -360,8 +365,8 @@ contract("Pool performs liquidation", async (accounts) => {
         await pool.liquidateBorrow(
           bZRX.address,
           user1,
-          cETH_addr,
-          cZRX_addr,
+          bETH_addr,
+          bZRX_addr,
           tokensToLiquidate,
           amtToRepayOnCompound,
           resetApprove,

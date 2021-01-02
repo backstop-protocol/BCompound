@@ -7,6 +7,7 @@ import { AvatarBase } from "./AvatarBase.sol";
 
 import { IPriceOracle } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
+import { IBToken } from "../interfaces/IBToken.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -15,20 +16,22 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract AbsComptroller is AvatarBase {
 
-    function enterMarket(address cToken) external onlyBComptroller returns (uint256) {
+    function enterMarket(address bToken) external onlyBComptroller returns (uint256) {
+        address cToken = IBToken(bToken).cToken();
         return _enterMarket(cToken);
     }
 
     function _enterMarket(address cToken) internal postPoolOp(false) returns (uint256) {
-        bool isMember = comptroller.checkMembership(address(this), cToken);
-        if(isMember) return 0;
-
         address[] memory cTokens = new address[](1);
         cTokens[0] = cToken;
         return _enterMarkets(cTokens)[0];
     }
 
-    function enterMarkets(address[] calldata cTokens) external onlyBComptroller returns (uint256[] memory) {
+    function enterMarkets(address[] calldata bTokens) external onlyBComptroller returns (uint256[] memory) {
+        address[] memory cTokens = new address[](bTokens.length);
+        for(uint256 i = 0; i < bTokens.length; i++) {
+            cTokens[i] = IBToken(bTokens[i]).cToken();
+        }
         return _enterMarkets(cTokens);
     }
 
@@ -40,23 +43,53 @@ contract AbsComptroller is AvatarBase {
         return result;
     }
 
-    function exitMarket(ICToken cToken) external onlyBComptroller postPoolOp(true) returns (uint256) {
-        uint result = comptroller.exitMarket(address(cToken));
+    function exitMarket(IBToken bToken) external onlyBComptroller postPoolOp(true) returns (uint256) {
+        address cToken = bToken.cToken();
+        uint result = comptroller.exitMarket(cToken);
         _disableCToken(cToken);
         return result;
     }
 
-    function _disableCToken(ICToken cToken) internal {
-        cToken.underlying().safeApprove(address(cToken), 0);
+    function _disableCToken(address cToken) internal {
+        ICToken(cToken).underlying().safeApprove(cToken, 0);
     }
 
-    function claimComp(address owner) external onlyBComptroller {
+    function claimComp() external onlyBComptroller {
         comptroller.claimComp(address(this));
-        comp.safeTransfer(owner, comp.balanceOf(address(this)));
+        transferCOMP();
     }
 
-    function claimComp(address[] calldata cTokens, address owner) external onlyBComptroller {
+    function claimComp(address[] calldata bTokens) external onlyBComptroller {
+        address[] memory cTokens = new address[](bTokens.length);
+        for(uint256 i = 0; i < bTokens.length; i++) {
+            cTokens[i] = IBToken(bTokens[i]).cToken();
+        }
         comptroller.claimComp(address(this), cTokens);
+        transferCOMP();
+    }
+
+    function claimComp(
+        address[] calldata bTokens,
+        bool borrowers,
+        bool suppliers
+    )
+        external
+        onlyBComptroller
+    {
+        address[] memory cTokens = new address[](bTokens.length);
+        for(uint256 i = 0; i < bTokens.length; i++) {
+            cTokens[i] = IBToken(bTokens[i]).cToken();
+        }
+
+        address[] memory holders = new address[](1);
+        holders[0] = address(this);
+        comptroller.claimComp(holders, cTokens, borrowers, suppliers);
+
+        transferCOMP();
+    }
+
+    function transferCOMP() public {
+        address owner = registry.ownerOf(address(this));
         comp.safeTransfer(owner, comp.balanceOf(address(this)));
     }
 
@@ -101,5 +134,4 @@ contract AbsComptroller is AvatarBase {
             // FIXME We can combine last two `else` block, as calculation is same??
         }
     }
-
 }

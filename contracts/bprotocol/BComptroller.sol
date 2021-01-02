@@ -53,23 +53,23 @@ contract BComptroller {
         return b2c[bToken] != address(0);
     }
 
-    function enterMarket(address cToken) external returns (uint256) {
-        require(c2b[cToken] != address(0), "BComptroller: BToken-not-exist-for-cToken");
+    function enterMarket(address bToken) external returns (uint256) {
+        require(b2c[bToken] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.enterMarket(cToken);
+        return avatar.enterMarket(bToken);
     }
 
-    function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory) {
-        for(uint i = 0; i < cTokens.length; i++) {
-            require(c2b[cTokens[i]] != address(0), "BComptroller: BToken-not-exist-for-cToken");
+    function enterMarkets(address[] calldata bTokens) external returns (uint256[] memory) {
+        for(uint i = 0; i < bTokens.length; i++) {
+            require(b2c[bTokens[i]] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         }
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.enterMarkets(cTokens);
+        return avatar.enterMarkets(bTokens);
     }
 
-    function exitMarket(address cToken) external returns (uint256) {
+    function exitMarket(address bToken) external returns (uint256) {
         IAvatar avatar = IAvatar(registry.avatarOf(msg.sender));
-        return avatar.exitMarket(cToken);
+        return avatar.exitMarket(bToken);
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
@@ -77,14 +77,28 @@ contract BComptroller {
         return avatar.getAccountLiquidity();
     }
 
-    function claimComp() external {
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.claimComp(msg.sender);
+    function claimComp(address holder) external {
+        IAvatar avatar = IAvatar(registry.getAvatar(holder));
+        avatar.claimComp();
     }
 
-    function claimComp(address[] calldata cTokens) external {
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.claimComp(cTokens, msg.sender);
+    function claimComp(address holder, address[] calldata bTokens) external {
+        IAvatar avatar = IAvatar(registry.getAvatar(holder));
+        avatar.claimComp(bTokens);
+    }
+
+    function claimComp(
+        address[] calldata holders,
+        address[] calldata bTokens,
+        bool borrowers,
+        bool suppliers
+    )
+        external
+    {
+        for(uint256 i = 0; i < holders.length; i++) {
+            IAvatar avatar = IAvatar(registry.getAvatar(holders[i]));
+            avatar.claimComp(bTokens, borrowers, suppliers);
+        }
     }
 
     function oracle() external view returns (address) {

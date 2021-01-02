@@ -34,6 +34,11 @@ contract AvatarBase is Exponential {
     // Liquidation cToken
     ICToken public liquidationCToken;
 
+    modifier onlyAvatarOwner() {
+        require(msg.sender == registry.ownerOf(address(this)), "sender-is-not-owner");
+        _;
+    }
+
     modifier onlyPool() {
         require(msg.sender == pool(), "only-pool-is-authorized");
         _;

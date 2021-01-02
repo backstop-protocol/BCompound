@@ -8,6 +8,7 @@ interface IRegistry {
     function cEther() external view returns (address);
 
     // B.Protocol contracts
+    function bComptroller() external view returns (address);
     function score() external view returns (address);
     function pool() external view returns (address);
 

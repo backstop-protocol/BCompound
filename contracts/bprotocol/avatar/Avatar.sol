@@ -3,7 +3,8 @@ pragma solidity 0.5.16;
 import { AvatarBase } from "./AvatarBase.sol";
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
-
+import { IBToken } from "../interfaces/IBToken.sol";
+import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 
@@ -63,5 +64,27 @@ contract Avatar is AbsComptroller, AbsCToken {
         underlying.safeApprove(address(cToken), mintAmount);
         uint256 result = super.mint(cToken, mintAmount);
         return result;
+    }
+
+    // EMERGENCY FUNCTIONS
+    function resetApprove(IERC20 token, address spender) external onlyAvatarOwner {
+        // NOTICE: not enclosing in require()
+        token.approve(spender, 0);
+    }
+
+    function transferERC20(address token, uint256 amount) external onlyAvatarOwner {
+        // ensure that token should not be a cToken, this is to protect user Score manipulation
+        require(ICToken(token).isCToken() == false, "Avatar: cToken-not-allowed");
+
+        address owner = registry.ownerOf(address(this));
+        IERC20 erc20 = IERC20(token);
+        // NOTICE: not enclosing in require()
+        erc20.transfer(owner, amount);
+    }
+
+    function transferETH(uint256 amount) external onlyAvatarOwner {
+        address owner = registry.ownerOf(address(this));
+        address payable ownerPayable = address(uint160(owner));
+        ownerPayable.transfer(amount);
     }
 }

@@ -13,6 +13,7 @@ interface IComptroller {
     function claimComp(address holder) external;
     // Claim all the COMP accrued by holder in specific markets
     function claimComp(address holder, address[] calldata cTokens) external;
+    function claimComp(address[] calldata holders, address[] calldata cTokens, bool borrowers, bool suppliers) external;
 
     // Public storage defined in Comptroller contract
     // ===============================================
