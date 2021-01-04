@@ -4,6 +4,7 @@ pragma solidity 0.5.16;
 interface IRegistry {
 
     // Compound contracts
+    function comp() external view returns (address);
     function comptroller() external view returns (address);
     function cEther() external view returns (address);
 

@@ -94,6 +94,9 @@ export class BProtocolEngine {
     _bProtocol.bComptroller = await this.deployBComptroller();
     _bProtocol.registry = await this.deployRegistry();
 
+    const avatarMaster = await Avatar.new();
+    await _bProtocol.registry.setAvatarMaster(avatarMaster.address);
+
     await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
     await _bProtocol.score.setRegistry(_bProtocol.registry.address);
     await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);

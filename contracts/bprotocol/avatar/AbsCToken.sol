@@ -45,8 +45,8 @@ contract AbsCToken is Cushion {
     // CEther
     // ======
     function mint() public payable onlyBToken postPoolOp(false) {
-        cETH.mint.value(msg.value)(); // fails on compound in case of err
-        _score().updateCollScore(address(this), address(cETH), toInt256(msg.value));
+        cEther.mint.value(msg.value)(); // fails on compound in case of err
+        _score().updateCollScore(address(this), address(cEther), toInt256(msg.value));
     }
 
     function repayBorrow()
@@ -55,9 +55,9 @@ contract AbsCToken is Cushion {
         onlyBToken
         postPoolOp(false)
     {
-        uint256 amtToRepayOnCompound = _untopPartial(cETH, msg.value);
-        if(amtToRepayOnCompound > 0) cETH.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
-        _score().updateDebtScore(address(this), address(cETH), -toInt256(msg.value));
+        uint256 amtToRepayOnCompound = _untopPartial(cEther, msg.value);
+        if(amtToRepayOnCompound > 0) cEther.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
+        _score().updateDebtScore(address(this), address(cEther), -toInt256(msg.value));
     }
 
     function liquidateBorrow(ICToken cTokenCollateral) external payable onlyBToken {
