@@ -38,10 +38,18 @@ contract("Registry", async (accounts) => {
 
   describe("Registry: constructor", async () => {
     it("should have addresses set", async () => {
-      let add = await registry.getDeploymentAddress(a.deployer);
+      let add = await registry.getAvatar.call(a.dummy1);
       console.log(add);
 
-      add = await registry.deploy.call({ from: a.deployer });
+      add = await registry.getAvatar.call(a.dummy2);
+      console.log(add);
+
+      await revertToSnapShot(snapshotId);
+
+      add = await registry.getAvatar.call(a.dummy2);
+      console.log(add);
+
+      add = await registry.getAvatar.call(a.dummy1);
       console.log(add);
 
       // Registry variables
