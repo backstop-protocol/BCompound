@@ -17,7 +17,7 @@ contract Cushion is AvatarBase {
      * @return `true` when this Avatar can be liquidated, `false` otherwise
      */
     function canLiquidate() public returns (bool) {
-        bool result = !canUntop();
+        bool result = (remainingLiquidationAmount > 0) || (!canUntop());
         console.log("In canLiquidate(), result: %s", result);
         return result;
     }
@@ -63,8 +63,8 @@ contract Cushion is AvatarBase {
         toppedUpAmount = topupAmount;
     }
 
-    function untop() external onlyPool {
-        _untop();
+    function untop(uint amount) external onlyPool {
+        _untop(amount);
     }
 
     /**
@@ -73,27 +73,34 @@ contract Cushion is AvatarBase {
      * @notice Only Pool contract allowed to call the untop.
      * @return `true` if success, `false` otherwise.
      */
-    function _untop() internal {
+    function _untop(uint amount) internal {
         // when already untopped
         if(!isToppedUp()) return;
 
-        // 1. Borrow from Compound and send tokens to Pool
-        require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
+        // 1. Udpdate storage for toppedUp details
+        require(toppedUpAmount >= amount, "untop: amount >= toppedUpAmount");
+        toppedUpAmount = sub_(toppedUpAmount, amount);
+
+        // 2. Borrow from Compound and send tokens to Pool
+        require(toppedUpCToken.borrow(amount) == 0, "borrow-failed");
 
         address payable pool = pool();
         if(address(toppedUpCToken) == address(cETH)) {
-            // 2. Send borrowed ETH to Pool contract
+            // 3. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
-            bool success = pool.send(toppedUpAmount);
+            bool success = pool.send(amount);
             success; // shh: Not checking return value to avoid DoS attack
         } else {
-            // 2. Transfer borrowed amount to Pool contract
+            // 3. Transfer borrowed amount to Pool contract
             IERC20 underlying = toppedUpCToken.underlying();
-            underlying.safeTransfer(pool, toppedUpAmount);
+            underlying.safeTransfer(pool, amount);
         }
+    }
 
-        // 3. Udpdate storage for toppedUp details
-        toppedUpAmount = 0;
+    function _untop() internal {
+        // when already untopped
+        if(!isToppedUp()) return;
+        _untop(toppedUpAmount);
     }
 
     function _untopPartial(uint256 amount) internal {

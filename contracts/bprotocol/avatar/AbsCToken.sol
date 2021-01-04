@@ -34,6 +34,7 @@ contract AbsCToken is Cushion {
             // consume debt from cushion first
             uint256 amtToUntopFromB = repayAmount >= toppedUpAmount ? toppedUpAmount : repayAmount;
             super._untopPartial(amtToUntopFromB);
+            _untop();
             amtToRepayOnCompound = sub_(repayAmount, amtToUntopFromB);
         } else {
             amtToRepayOnCompound = repayAmount;
