@@ -437,12 +437,13 @@ contract("BErc20", async (accounts) => {
           )
           .encodeABI();
 
-        await bProtocol.registry.delegateAndExecuteOnce(
+        const tx = await bProtocol.registry.delegateAndExecuteOnce(
           bImport.address,
           bFlashLoanImportWithFees.address,
           data,
           { from: a.user1 },
         );
+        console.log(tx.receipt.gasUsed);
 
         // check balance
         expect(await bETH.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(
