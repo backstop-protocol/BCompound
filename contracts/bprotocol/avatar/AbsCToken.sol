@@ -211,6 +211,11 @@ contract AbsCToken is Cushion {
         return cToken.approve(spenderAvatar, amount);
     }
 
+    function collectCToken(ICToken cToken, uint256 amount) public {
+        address _owner = registry.ownerOf(address(this));
+        require(cToken.transferFrom(_owner, address(this), amount), "transferFrom-failed");
+    }
+
     /**
      * @dev Fallback to receieve ETH from CEther contract on `borrow()`, `redeem()`, `redeemUnderlying`
      */
