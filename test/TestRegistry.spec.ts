@@ -38,6 +38,12 @@ contract("Registry", async (accounts) => {
 
   describe("Registry: constructor", async () => {
     it("should have addresses set", async () => {
+      let add = await registry.getDeploymentAddress(a.deployer);
+      console.log(add);
+
+      add = await registry.deploy.call({ from: a.deployer });
+      console.log(add);
+
       // Registry variables
       expect(await registry.comptroller()).to.be.not.equal(ZERO_ADDRESS);
       expect(await registry.comp()).to.be.not.equal(ZERO_ADDRESS);

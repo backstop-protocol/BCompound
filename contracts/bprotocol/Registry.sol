@@ -18,7 +18,11 @@ contract Registry is Ownable {
     address public pool;
     address public bComptroller;
     address public score;
+
+    // Avatar
     address public avatarMaster;
+    bytes private avatarProxyContractCode;
+    bytes32 private avatarProxyContractCodeHash;
 
     // Owner => Avatar
     mapping (address => address) public avatarOf;
@@ -59,6 +63,8 @@ contract Registry is Ownable {
         score = _score;
 
         dummyCaller = new DummyCaller();
+        avatarProxyContractCode = type(GnosisSafeProxy).creationCode;
+        avatarProxyContractCodeHash = keccak256(abi.encodePacked(avatarProxyContractCode, uint256(avatarMaster)));
     }
 
     function setPool(address newPool) external onlyOwner {
@@ -125,6 +131,7 @@ contract Registry is Ownable {
         require(ownerOf[_owner] == address(0), "Registry: cannot-create-an-avatar-of-avatar");
 
         // Deploy GnosisSafeProxy with the Avatar contract as logic contract
+        // TODO use the `_deploy()` function
         address _avatar = address(new GnosisSafeProxy(avatarMaster));
         // Initialize Avatar
         IAvatar(_avatar).initialize(address(this));
@@ -134,6 +141,32 @@ contract Registry is Ownable {
         avatars.push(_avatar);
         emit NewAvatar(_avatar, _owner);
         return _avatar;
+    }
+
+    // TODO convert to internal and change name
+    function deploy() public returns (address addr)
+    {
+        bytes32 salt = keccak256(abi.encodePacked(msg.sender));
+        bytes memory deploymentData = abi.encodePacked(avatarProxyContractCode, uint256(avatarMaster));
+
+        assembly {
+            addr := create2(0, add(deploymentData, 0x20), mload(deploymentData), salt)
+            if iszero(extcodesize(addr)) { revert(0, 0) }
+        }
+    }
+
+    function getDeploymentAddress(address _sender) public view returns (address) {
+        // Adapted from https://github.com/archanova/solidity/blob/08f8f6bedc6e71c24758d20219b7d0749d75919d/contracts/contractCreator/ContractCreator.sol
+        bytes32 salt = keccak256(abi.encodePacked(_sender));
+        bytes32 rawAddress = keccak256(
+            abi.encodePacked(
+                bytes1(0xff),
+                address(this),
+                salt,
+                avatarProxyContractCodeHash
+            )
+        );
+        return address(bytes20(rawAddress << 96));
     }
 
     function avatarLength() external view returns (uint256) {
