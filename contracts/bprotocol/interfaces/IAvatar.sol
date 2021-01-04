@@ -7,6 +7,8 @@ contract IERC20 {
 }
 
 contract IAvatar is IERC20 {
+    function initialize(address _registry) external;
+
     function toppedUpCToken() external returns (address);
     function toppedUpAmount() external returns (uint256);
     function redeem(address cToken, uint256 redeemTokens, address payable userOrDelegatee) external returns (uint256);

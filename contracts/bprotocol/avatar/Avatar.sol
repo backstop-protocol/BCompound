@@ -20,22 +20,11 @@ contract Avatar is AbsComptroller, AbsCToken {
     // @NOTICE: NO CONSTRUCTOR AS ITS USED AS AN IMPLEMENTATION CONTRACT FOR PROXY
 
     /**
-     * @dev Constructor
-     * @param _bComptroller BComptroller contract address
-     * @param _comptroller Compound finance Comptroller contract address
-     * @param _comp Compound finance COMP token contract address
-     * @param _cETH cETH contract address
+     * @dev Initialize the contract variables
      * @param _registry Registry contract address
      */
-    function initialize(
-        address _bComptroller,
-        address _comptroller,
-        address _comp,
-        address _cETH,
-        address _registry
-    ) external  /*TODO initializer*/ {
-        // TODO If possible to reduce function args????
-        _initAvatarBase(_bComptroller, _comptroller, _comp, _cETH, _registry);
+    function initialize(address _registry) external {
+        _initAvatarBase(_registry);
     }
 
     //override
@@ -45,7 +34,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint() public payable {
         super.mint();
-        require(_enterMarket(address(cETH)) == 0, "enterMarket-failed");
+        require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
     }
 
     //override

@@ -30,10 +30,10 @@ contract Cushion is AvatarBase {
         if(isToppedUp()) return;
 
         // 2. Repay borrows from Pool to topup
-        cETH.repayBorrow.value(msg.value)();
+        cEther.repayBorrow.value(msg.value)();
 
         // 3. Store Topped-up details
-        _topupAndStoreDetails(cETH, msg.value);
+        _topupAndStoreDetails(cEther, msg.value);
     }
 
     /**
@@ -81,7 +81,7 @@ contract Cushion is AvatarBase {
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
 
         address payable pool = pool();
-        if(address(toppedUpCToken) == address(cETH)) {
+        if(address(toppedUpCToken) == address(cEther)) {
             // 2. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
             bool success = pool.send(toppedUpAmount);
@@ -103,7 +103,7 @@ contract Cushion is AvatarBase {
         if(!isToppedUp()) return;
 
         address payable pool = pool();
-        if(address(toppedUpCToken) == address(cETH)) {
+        if(address(toppedUpCToken) == address(cEther)) {
             // 2. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
             bool success = pool.send(amount);
@@ -154,7 +154,7 @@ contract Cushion is AvatarBase {
             if(isCEtherDebt) {
                 // CEther
                 require(msg.value == amtToRepayOnCompound, "insuffecient-ETH-sent");
-                cETH.repayBorrow.value(amtToRepayOnCompound)();
+                cEther.repayBorrow.value(amtToRepayOnCompound)();
                 // send back rest of the amount to the Pool contract
                 if(amtToDeductFromTopup > 0 ) {
                     bool success = pool.send(amtToDeductFromTopup); // avoid DoS attack

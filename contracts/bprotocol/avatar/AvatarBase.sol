@@ -14,15 +14,18 @@ import { Exponential } from "../lib/Exponential.sol";
 
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Initializable } from "openzeppelin-upgrades/packages/core/contracts/Initializable.sol";
 
-contract AvatarBase is Exponential {
+contract AvatarBase is Exponential, Initializable {
     using SafeERC20 for IERC20;
+
+    bool private initialized = false;
 
     IRegistry public registry;
     IBComptroller public bComptroller;
     IComptroller public comptroller;
     IERC20 public comp;
-    ICEther public cETH;
+    ICEther public cEther;
 
     /* Storage for topup details */
     // Topped up cToken
@@ -54,20 +57,12 @@ contract AvatarBase is Exponential {
         _reevaluate(debtIncrease);
     }
 
-    function _initAvatarBase(
-        address _bComptroller,
-        address _comptroller,
-        address _comp,
-        address _cETH,
-        address _registry
-    )
-        internal
-    {
-        bComptroller = IBComptroller(_bComptroller);
-        comptroller = IComptroller(_comptroller);
-        comp = IERC20(_comp);
-        cETH = ICEther(_cETH);
+    function _initAvatarBase(address _registry) internal initializer {
         registry = IRegistry(_registry);
+        bComptroller = IBComptroller(registry.bComptroller());
+        comptroller = IComptroller(registry.comptroller());
+        comp = IERC20(registry.comp());
+        cEther = ICEther(registry.cEther());
     }
 
     /**
@@ -98,7 +93,7 @@ contract AvatarBase is Exponential {
     }
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
-        return address(cToken) == address(cETH);
+        return address(cToken) == address(cEther);
     }
 
     function _score() internal view returns (IScore) {
