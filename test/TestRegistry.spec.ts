@@ -38,20 +38,6 @@ contract("Registry", async (accounts) => {
 
   describe("Registry: constructor", async () => {
     it("should have addresses set", async () => {
-      let add = await registry.getAvatar.call(a.dummy1);
-      console.log(add);
-
-      add = await registry.getAvatar.call(a.dummy2);
-      console.log(add);
-
-      await revertToSnapShot(snapshotId);
-
-      add = await registry.getAvatar.call(a.dummy2);
-      console.log(add);
-
-      add = await registry.getAvatar.call(a.dummy1);
-      console.log(add);
-
       // Registry variables
       expect(await registry.comptroller()).to.be.not.equal(ZERO_ADDRESS);
       expect(await registry.comp()).to.be.not.equal(ZERO_ADDRESS);
@@ -159,6 +145,42 @@ contract("Registry", async (accounts) => {
   });
 
   describe("Registry.newAvatar()", async () => {
+    it("should always have different avatar address based on msg.sender", async () => {
+      const avatar1 = await registry.newAvatar.call({ from: a.user1 });
+      const avatar2 = await registry.newAvatar.call({ from: a.user2 });
+      const avatar3 = await registry.newAvatar.call({ from: a.user3 });
+
+      expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+      expect(avatar1).to.be.not.equal(avatar2);
+      expect(avatar2).to.be.not.equal(avatar3);
+      expect(avatar1).to.be.not.equal(avatar3);
+    });
+
+    it("should not change avatar address by deployment order", async () => {
+      const avatar1 = await registry.newAvatar.call({ from: a.user1 });
+      const avatar2 = await registry.newAvatar.call({ from: a.user2 });
+      const avatar3 = await registry.newAvatar.call({ from: a.user3 });
+
+      expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+      await registry.newAvatar({ from: a.user3 });
+      await registry.newAvatar({ from: a.user2 });
+      await registry.newAvatar({ from: a.user1 });
+
+      const avatar3_created = await registry.avatarOf(a.user3);
+      const avatar2_created = await registry.avatarOf(a.user2);
+      const avatar1_created = await registry.avatarOf(a.user1);
+
+      expect(avatar1).to.be.equal(avatar1_created);
+      expect(avatar2).to.be.equal(avatar2_created);
+      expect(avatar3).to.be.equal(avatar3_created);
+    });
+
     it("should create new avatar", async () => {
       let avatar1 = await registry.avatarOf(a.user1);
       expect(ZERO_ADDRESS).to.be.equal(avatar1);
@@ -201,6 +223,42 @@ contract("Registry", async (accounts) => {
   });
 
   describe("Registry.getAvatar(address)", async () => {
+    it("should always have different avatar address for the given owner", async () => {
+      const avatar1 = await registry.getAvatar.call(a.user1);
+      const avatar2 = await registry.getAvatar.call(a.user2);
+      const avatar3 = await registry.getAvatar.call(a.user3);
+
+      expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+      expect(avatar1).to.be.not.equal(avatar2);
+      expect(avatar2).to.be.not.equal(avatar3);
+      expect(avatar1).to.be.not.equal(avatar3);
+    });
+
+    it("should not change avatar address by deployment order", async () => {
+      const avatar1 = await registry.getAvatar.call(a.user1);
+      const avatar2 = await registry.getAvatar.call(a.user2);
+      const avatar3 = await registry.getAvatar.call(a.user3);
+
+      expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar2).to.be.not.equal(ZERO_ADDRESS);
+      expect(avatar3).to.be.not.equal(ZERO_ADDRESS);
+
+      await registry.getAvatar(a.user3);
+      await registry.getAvatar(a.user2);
+      await registry.getAvatar(a.user1);
+
+      const avatar3_created = await registry.avatarOf(a.user3);
+      const avatar2_created = await registry.avatarOf(a.user2);
+      const avatar1_created = await registry.avatarOf(a.user1);
+
+      expect(avatar1).to.be.equal(avatar1_created);
+      expect(avatar2).to.be.equal(avatar2_created);
+      expect(avatar3).to.be.equal(avatar3_created);
+    });
+
     it("should create new if not exists for a user", async () => {
       let avatar3 = await registry.avatarOf(a.user3);
       expect(ZERO_ADDRESS).to.be.equal(avatar3);
