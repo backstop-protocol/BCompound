@@ -252,7 +252,6 @@ contract Cushion is AvatarBase {
 
     function quitB() external onlyAvatarOwner() {
         quit = true;
-        _untop();
+        _hardReevaluate();
     }
-
 }

@@ -82,7 +82,7 @@ contract AvatarBase is Exponential {
     /**
      * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
      */
-    function _hardReevaluate() private {
+    function _hardReevaluate() internal {
         // Check: must allowed untop
         require(canUntop(), "cannot-untop");
         // Reset it to force re-calculation
