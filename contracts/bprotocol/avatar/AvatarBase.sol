@@ -16,6 +16,7 @@ contract AvatarBase is Exponential, Initializable {
     using SafeERC20 for IERC20;
 
     IRegistry public registry;
+    bool public quit;
 
     /* Storage for topup details */
     // Topped up cToken
@@ -54,7 +55,7 @@ contract AvatarBase is Exponential, Initializable {
     /**
      * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
      */
-    function _hardReevaluate() private {
+    function _hardReevaluate() internal {
         // Check: must allowed untop
         require(canUntop(), "cannot-untop");
         // Reset it to force re-calculation
