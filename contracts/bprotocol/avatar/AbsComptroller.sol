@@ -4,11 +4,9 @@ pragma solidity 0.5.16;
 import "hardhat/console.sol";
 
 import { AvatarBase } from "./AvatarBase.sol";
-
-import { IPriceOracle } from "../interfaces/CTokenInterfaces.sol";
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
+import { IPriceOracle, ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IBToken } from "../interfaces/IBToken.sol";
-
+import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -36,6 +34,7 @@ contract AbsComptroller is AvatarBase {
     }
 
     function _enterMarkets(address[] memory cTokens) internal postPoolOp(false) returns (uint256[] memory) {
+        IComptroller comptroller = IComptroller(registry.comptroller());
         uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < result.length; i++) {
             require(result[i] == 0, "AbsComptroller: enter-markets-failed");
@@ -45,6 +44,7 @@ contract AbsComptroller is AvatarBase {
 
     function exitMarket(IBToken bToken) external onlyBComptroller postPoolOp(true) returns (uint256) {
         address cToken = bToken.cToken();
+        IComptroller comptroller = IComptroller(registry.comptroller());
         uint result = comptroller.exitMarket(cToken);
         _disableCToken(cToken);
         return result;
@@ -55,6 +55,7 @@ contract AbsComptroller is AvatarBase {
     }
 
     function claimComp() external onlyBComptroller {
+        IComptroller comptroller = IComptroller(registry.comptroller());
         comptroller.claimComp(address(this));
         transferCOMP();
     }
@@ -64,6 +65,7 @@ contract AbsComptroller is AvatarBase {
         for(uint256 i = 0; i < bTokens.length; i++) {
             cTokens[i] = IBToken(bTokens[i]).cToken();
         }
+        IComptroller comptroller = IComptroller(registry.comptroller());
         comptroller.claimComp(address(this), cTokens);
         transferCOMP();
     }
@@ -83,6 +85,7 @@ contract AbsComptroller is AvatarBase {
 
         address[] memory holders = new address[](1);
         holders[0] = address(this);
+        IComptroller comptroller = IComptroller(registry.comptroller());
         comptroller.claimComp(holders, cTokens, borrowers, suppliers);
 
         transferCOMP();
@@ -90,6 +93,7 @@ contract AbsComptroller is AvatarBase {
 
     function transferCOMP() public {
         address owner = registry.ownerOf(address(this));
+        IERC20 comp = IERC20(registry.comp());
         comp.safeTransfer(owner, comp.balanceOf(address(this)));
     }
 
@@ -98,10 +102,12 @@ contract AbsComptroller is AvatarBase {
     }
 
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
+        IComptroller comptroller = IComptroller(registry.comptroller());
         return _getAccountLiquidity(comptroller.oracle());
     }
 
     function _getAccountLiquidity(address oracle) internal view returns (uint err, uint liquidity, uint shortFall) {
+        IComptroller comptroller = IComptroller(registry.comptroller());
         // If not topped up, get the account liquidity from Comptroller
         (err, liquidity, shortFall) = comptroller.getAccountLiquidity(address(this));
         if(!isToppedUp()) {

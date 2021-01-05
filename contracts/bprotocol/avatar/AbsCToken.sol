@@ -3,13 +3,10 @@ pragma solidity 0.5.16;
 // TODO To be removed in mainnet deployment
 import "hardhat/console.sol";
 
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
-import { ICEther } from "../interfaces/CTokenInterfaces.sol";
-import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IScore } from "../interfaces/IScore.sol";
-
+import { IBComptroller } from "../interfaces/IBComptroller.sol";
 import { Cushion } from "./Cushion.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract AbsCToken is Cushion {
@@ -20,6 +17,7 @@ contract AbsCToken is Cushion {
     }
 
     function isValidBToken(address bToken) internal view returns (bool) {
+        IBComptroller bComptroller = IBComptroller(registry.bComptroller());
         return bComptroller.isBToken(bToken);
     }
 
@@ -48,6 +46,7 @@ contract AbsCToken is Cushion {
     // CEther
     // ======
     function mint() public payable onlyBToken postPoolOp(false) {
+        ICEther cEther = ICEther(registry.cEther());
         cEther.mint.value(msg.value)(); // fails on compound in case of err
         _score().updateCollScore(address(this), address(cEther), toInt256(msg.value));
     }
@@ -58,6 +57,7 @@ contract AbsCToken is Cushion {
         onlyBToken
         postPoolOp(false)
     {
+        ICEther cEther = ICEther(registry.cEther());
         uint256 amtToRepayOnCompound = _untopPartial(cEther, msg.value);
         if(amtToRepayOnCompound > 0) cEther.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
         _score().updateDebtScore(address(this), address(cEther), -toInt256(msg.value));

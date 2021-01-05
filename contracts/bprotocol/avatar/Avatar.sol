@@ -1,13 +1,8 @@
 pragma solidity 0.5.16;
 
-import { AvatarBase } from "./AvatarBase.sol";
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
-import { IBToken } from "../interfaces/IBToken.sol";
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
-import { ICEther } from "../interfaces/CTokenInterfaces.sol";
-import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
-
+import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -34,6 +29,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint() public payable {
         super.mint();
+        ICEther cEther = ICEther(registry.cEther());
         require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
     }
 
