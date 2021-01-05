@@ -5,6 +5,7 @@ import { BEther } from "./btoken/BEther.sol";
 import { Registry } from "./Registry.sol";
 import { BComptroller } from "./BComptroller.sol";
 import { ICToken, ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
+import { IAvatar } from "./interfaces/IAvatar.sol";
 import { Exponential } from "./lib/Exponential.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -49,9 +50,8 @@ contract Import is Exponential {
         }
     }
 
-    function _redeemAndDepositCollateral(
+    function _transferCollateral(
         address[] memory cTokenCollateral,
-        address[] memory collateralUnderlying,
         address account,
         address avatar
     )
@@ -60,19 +60,7 @@ contract Import is Exponential {
         for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
           ICToken cColl = ICToken(cTokenCollateral[i]);
           uint collBalance = cColl.balanceOf(account);
-          require(cColl.transferFrom(account, address(this), collBalance), "transferFrom-failed");
-          //IERC20(address(cColl)).safeTransferFrom(account, address(this), collBalance);
-          require(cColl.redeem(collBalance) == 0, "redeem-failed");
-
-          address bColl = bComptroller.c2b(cTokenCollateral[i]);
-          if(collateralUnderlying[i] == ETH) {
-            BEther(bColl).mintOnAvatar.value(address(this).balance)(avatar);
-          } else {
-            IERC20 token = IERC20(collateralUnderlying[i]);
-            uint tokenBalance = token.balanceOf(address(this));
-            token.safeApprove(bColl, tokenBalance);
-            require(BErc20(bColl).mintOnAvatar(avatar, tokenBalance) == 0, "mint-failed");
-          }
+          IAvatar(avatar).collectCToken(address(cColl), account, collBalance);
         }
     }
 
@@ -129,9 +117,8 @@ contract Import is Exponential {
         _repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
 
         // redeem all non ETH collateral from Compound and deposit it in B
-        _redeemAndDepositCollateral(
+        _transferCollateral(
             cTokenCollateral,
-            collateralUnderlying,
             account,
             avatar
         );

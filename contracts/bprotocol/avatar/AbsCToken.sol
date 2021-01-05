@@ -3,14 +3,11 @@ pragma solidity 0.5.16;
 // TODO To be removed in mainnet deployment
 import "hardhat/console.sol";
 
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
-import { ICEther } from "../interfaces/CTokenInterfaces.sol";
-import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IScore } from "../interfaces/IScore.sol";
 import { IAvatar } from "../interfaces/IAvatar.sol";
-
+import { IBComptroller } from "../interfaces/IBComptroller.sol";
 import { Cushion } from "./Cushion.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract AbsCToken is Cushion {
@@ -21,6 +18,7 @@ contract AbsCToken is Cushion {
     }
 
     function isValidBToken(address bToken) internal view returns (bool) {
+        IBComptroller bComptroller = IBComptroller(registry.bComptroller());
         return bComptroller.isBToken(bToken);
     }
 
@@ -49,8 +47,9 @@ contract AbsCToken is Cushion {
     // CEther
     // ======
     function mint() public payable onlyBToken postPoolOp(false) {
-        cETH.mint.value(msg.value)(); // fails on compound in case of err
-        if(! quit) _score().updateCollScore(address(this), address(cETH), toInt256(msg.value));
+        ICEther cEther = ICEther(registry.cEther());
+        cEther.mint.value(msg.value)(); // fails on compound in case of err
+        if(! quit) _score().updateCollScore(address(this), address(cEther), toInt256(msg.value));
     }
 
     function repayBorrow()
@@ -59,9 +58,10 @@ contract AbsCToken is Cushion {
         onlyBToken
         postPoolOp(false)
     {
-        uint256 amtToRepayOnCompound = _untopPartial(cETH, msg.value);
-        if(amtToRepayOnCompound > 0) cETH.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
-        if(! quit) _score().updateDebtScore(address(this), address(cETH), -toInt256(msg.value));
+        ICEther cEther = ICEther(registry.cEther());
+        uint256 amtToRepayOnCompound = _untopPartial(cEther, msg.value);
+        if(amtToRepayOnCompound > 0) cEther.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
+        if(! quit) _score().updateDebtScore(address(this), address(cEther), -toInt256(msg.value));
     }
 
     function liquidateBorrow(ICToken cTokenCollateral) external payable onlyBToken {
@@ -219,6 +219,14 @@ contract AbsCToken is Cushion {
     function approve(ICToken cToken, address spender, uint256 amount) public onlyBToken returns (bool) {
         address spenderAvatar = registry.getAvatar(spender);
         return cToken.approve(spenderAvatar, amount);
+    }
+
+    function collectCToken(ICToken cToken, address from, uint256 cTokenAmt) public postPoolOp(false) {
+        // `from` should not be an avatar
+        require(registry.ownerOf(from) == address(0), "AbsCToken: from-is-an-avatar");
+        require(cToken.transferFrom(from, address(this), cTokenAmt), "AbsCToken: transferFrom-failed");
+        uint256 underlyingAmt = _toUnderlying(cToken, cTokenAmt);
+        _score().updateCollScore(address(this), address(cToken), toInt256(underlyingAmt));
     }
 
     /**

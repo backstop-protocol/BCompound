@@ -1,7 +1,8 @@
 pragma solidity 0.5.16;
 
-import { Avatar } from "./avatar/Avatar.sol";
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
+import { GnosisSafeProxy } from "./proxy/GnosisSafeProxy.sol";
+import { IAvatar } from "./interfaces/IAvatar.sol";
 
 /**
  * @dev Registry contract to maintain Compound, BProtocol and avatar address.
@@ -17,6 +18,9 @@ contract Registry is Ownable {
     address public pool;
     address public bComptroller;
     address public score;
+
+    // Avatar
+    address public avatarMaster;
 
     // Owner => Avatar
     mapping (address => address) public avatarOf;
@@ -73,6 +77,11 @@ contract Registry is Ownable {
         emit NewScore(oldScore, newScore);
     }
 
+    function setAvatarMaster(address _avatarMaster) external onlyOwner {
+        require(avatarMaster == address(0), "Registry: avatar-master-already-set");
+        avatarMaster = _avatarMaster;
+    }
+
     function newAvatar() external returns (address) {
         return _newAvatar(msg.sender);
     }
@@ -116,12 +125,28 @@ contract Registry is Ownable {
         require(avatarOf[_owner] == address(0), "Registry: avatar-exits-for-owner");
         // _owner should not be an avatar address
         require(ownerOf[_owner] == address(0), "Registry: cannot-create-an-avatar-of-avatar");
-        address _avatar = address(new Avatar(bComptroller, comptroller, comp, cEther, address(this)));
+
+        // Deploy GnosisSafeProxy with the Avatar contract as logic contract
+        address _avatar = _deployAvatarProxy(_owner);
+        // Initialize Avatar
+        IAvatar(_avatar).initialize(address(this));
+
         avatarOf[_owner] = _avatar;
         ownerOf[_avatar] = _owner;
         avatars.push(_avatar);
         emit NewAvatar(_avatar, _owner);
         return _avatar;
+    }
+
+    function _deployAvatarProxy(address _owner) internal returns (address proxy) {
+        bytes32 salt = keccak256(abi.encodePacked(_owner));
+        bytes memory proxyCode = type(GnosisSafeProxy).creationCode;
+        bytes memory deploymentData = abi.encodePacked(proxyCode, uint256(avatarMaster));
+
+        assembly {
+            proxy := create2(0, add(deploymentData, 0x20), mload(deploymentData), salt)
+            if iszero(extcodesize(proxy)) { revert(0, 0) }
+        }
     }
 
     function avatarLength() external view returns (uint256) {
