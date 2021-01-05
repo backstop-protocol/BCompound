@@ -26,6 +26,8 @@ contract Cushion is AvatarBase {
      * @dev Topup this avatar by repaying borrowings with ETH
      */
     function topup() external payable onlyPool {
+        require(! quit, "Cushion: user-quit-B");
+
         // when already topped
         if(isToppedUp()) return;
 
@@ -43,6 +45,8 @@ contract Cushion is AvatarBase {
      * @param topupAmount Amount of tokens to Topup
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
+        require(! quit, "Cushion: user-quit-B");
+
         // when already topped
         if(isToppedUp()) return;
 
@@ -244,5 +248,10 @@ contract Cushion is AvatarBase {
         console.log("underlyingAmtToLiquidate: %s", underlyingAmtToLiquidate);
         console.log("amountToLiquidate: %s", amountToLiquidate);
         (amtToDeductFromTopup, amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, amountToLiquidate);
+    }
+
+    function quitB() external onlyAvatarOwner() {
+        quit = true;
+        _hardReevaluate();
     }
 }

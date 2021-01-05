@@ -15,5 +15,9 @@ contract("Avatar", async (accounts) => {
     describe("Avatar.transferERC20()", async () => {
       it("");
     });
+
+    describe("Avatar.quitB()", async () => {
+      it("");
+    });
   });
 });

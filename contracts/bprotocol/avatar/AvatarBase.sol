@@ -23,6 +23,7 @@ contract AvatarBase is Exponential {
     IComptroller public comptroller;
     IERC20 public comp;
     ICEther public cETH;
+    bool public quit;
 
     /* Storage for topup details */
     // Topped up cToken
@@ -81,7 +82,7 @@ contract AvatarBase is Exponential {
     /**
      * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
      */
-    function _hardReevaluate() private {
+    function _hardReevaluate() internal {
         // Check: must allowed untop
         require(canUntop(), "cannot-untop");
         // Reset it to force re-calculation
