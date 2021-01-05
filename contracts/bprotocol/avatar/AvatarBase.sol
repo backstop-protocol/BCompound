@@ -1,8 +1,5 @@
 pragma solidity 0.5.16;
 
-// TODO To be removed in mainnet deployment
-import "hardhat/console.sol";
-
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
