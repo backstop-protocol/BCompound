@@ -1,10 +1,11 @@
 pragma solidity 0.5.16;
 
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
-import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+// TODO To be removed in mainnet deployment
+import "hardhat/console.sol";
 
+import { ICToken, ICErc20, ICEther } from "../interfaces/CTokenInterfaces.sol";
+import { IComptroller } from "../interfaces/IComptroller.sol";
 import { AvatarBase } from "./AvatarBase.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Cushion is AvatarBase {
@@ -22,10 +23,13 @@ contract Cushion is AvatarBase {
      * @dev Topup this avatar by repaying borrowings with ETH
      */
     function topup() external payable onlyPool {
+        require(! quit, "Cushion: user-quit-B");
+
         // when already topped
         if(isToppedUp()) return;
 
         // 2. Repay borrows from Pool to topup
+        ICEther cEther = ICEther(registry.cEther());
         cEther.repayBorrow.value(msg.value)();
 
         // 3. Store Topped-up details
@@ -39,6 +43,8 @@ contract Cushion is AvatarBase {
      * @param topupAmount Amount of tokens to Topup
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
+        require(! quit, "Cushion: user-quit-B");
+
         // when already topped
         if(isToppedUp()) return;
 
@@ -77,7 +83,7 @@ contract Cushion is AvatarBase {
         require(toppedUpCToken.borrow(toppedUpAmount) == 0, "borrow-failed");
 
         address payable pool = pool();
-        if(address(toppedUpCToken) == address(cEther)) {
+        if(address(toppedUpCToken) == registry.cEther()) {
             // 2. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
             bool success = pool.send(toppedUpAmount);
@@ -99,7 +105,7 @@ contract Cushion is AvatarBase {
         if(!isToppedUp()) return;
 
         address payable pool = pool();
-        if(address(toppedUpCToken) == address(cEther)) {
+        if(address(toppedUpCToken) == registry.cEther()) {
             // 2. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
             bool success = pool.send(amount);
@@ -150,6 +156,7 @@ contract Cushion is AvatarBase {
             if(isCEtherDebt) {
                 // CEther
                 require(msg.value == amtToRepayOnCompound, "insuffecient-ETH-sent");
+                ICEther cEther = ICEther(registry.cEther());
                 cEther.repayBorrow.value(amtToRepayOnCompound)();
                 // send back rest of the amount to the Pool contract
                 if(amtToDeductFromTopup > 0 ) {
@@ -172,6 +179,7 @@ contract Cushion is AvatarBase {
         remainingLiquidationAmount = sub_(remainingLiquidationAmount, underlyingAmtToLiquidate);
 
         // 5. Calculate premium and transfer to Liquidator
+        IComptroller comptroller = IComptroller(registry.comptroller());
         (uint err, uint seizeTokens) = comptroller.liquidateCalculateSeizeTokens(
             address(debtCToken),
             address(collCToken),
@@ -191,6 +199,7 @@ contract Cushion is AvatarBase {
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
         // When First time liquidation is performed after topup
         // maxLiquidationAmount = closeFactorMantissa * totalDedt / 1e18;
+        IComptroller comptroller = IComptroller(registry.comptroller());
         return mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
     }
 
@@ -230,5 +239,10 @@ contract Cushion is AvatarBase {
             amountToLiquidate = getMaxLiquidationAmount(debtCToken);
         }
         (amtToDeductFromTopup, amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, amountToLiquidate);
+    }
+
+    function quitB() external onlyAvatarOwner() {
+        quit = true;
+        _hardReevaluate();
     }
 }

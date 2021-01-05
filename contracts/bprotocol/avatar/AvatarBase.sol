@@ -1,14 +1,13 @@
 pragma solidity 0.5.16;
 
-import { ICEther } from "../interfaces/CTokenInterfaces.sol";
+// TODO To be removed in mainnet deployment
+import "hardhat/console.sol";
+
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
-import { IBComptroller } from "../interfaces/IBComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IScore } from "../interfaces/IScore.sol";
-
 import { Exponential } from "../lib/Exponential.sol";
-
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Initializable } from "openzeppelin-upgrades/packages/core/contracts/Initializable.sol";
@@ -16,13 +15,8 @@ import { Initializable } from "openzeppelin-upgrades/packages/core/contracts/Ini
 contract AvatarBase is Exponential, Initializable {
     using SafeERC20 for IERC20;
 
-    bool private initialized = false;
-
     IRegistry public registry;
-    IBComptroller public bComptroller;
-    IComptroller public comptroller;
-    IERC20 public comp;
-    ICEther public cEther;
+    bool public quit;
 
     /* Storage for topup details */
     // Topped up cToken
@@ -45,7 +39,7 @@ contract AvatarBase is Exponential, Initializable {
     }
 
     modifier onlyBComptroller() {
-        require(msg.sender == address(bComptroller), "only-BComptroller-is-authorized");
+        require(msg.sender == registry.bComptroller(), "only-BComptroller-is-authorized");
         _;
     }
 
@@ -56,16 +50,12 @@ contract AvatarBase is Exponential, Initializable {
 
     function _initAvatarBase(address _registry) internal initializer {
         registry = IRegistry(_registry);
-        bComptroller = IBComptroller(registry.bComptroller());
-        comptroller = IComptroller(registry.comptroller());
-        comp = IERC20(registry.comp());
-        cEther = ICEther(registry.cEther());
     }
 
     /**
      * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
      */
-    function _hardReevaluate() private {
+    function _hardReevaluate() internal {
         // Check: must allowed untop
         require(canUntop(), "cannot-untop");
         // Reset it to force re-calculation
@@ -90,7 +80,7 @@ contract AvatarBase is Exponential, Initializable {
     }
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
-        return address(cToken) == address(cEther);
+        return address(cToken) == registry.cEther();
     }
 
     function _score() internal view returns (IScore) {
@@ -118,6 +108,7 @@ contract AvatarBase is Exponential, Initializable {
     function canUntop() public returns (bool) {
         // When not topped up, just return true
         if(!isToppedUp()) return true;
+        IComptroller comptroller = IComptroller(registry.comptroller());
         bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
         return result;
     }

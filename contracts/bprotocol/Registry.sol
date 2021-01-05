@@ -18,6 +18,8 @@ contract Registry is Ownable {
     address public pool;
     address public bComptroller;
     address public score;
+
+    // Avatar
     address public avatarMaster;
 
     // Owner => Avatar
@@ -125,7 +127,7 @@ contract Registry is Ownable {
         require(ownerOf[_owner] == address(0), "Registry: cannot-create-an-avatar-of-avatar");
 
         // Deploy GnosisSafeProxy with the Avatar contract as logic contract
-        address _avatar = address(new GnosisSafeProxy(avatarMaster));
+        address _avatar = _deployAvatarProxy(_owner);
         // Initialize Avatar
         IAvatar(_avatar).initialize(address(this));
 
@@ -134,6 +136,17 @@ contract Registry is Ownable {
         avatars.push(_avatar);
         emit NewAvatar(_avatar, _owner);
         return _avatar;
+    }
+
+    function _deployAvatarProxy(address _owner) internal returns (address proxy) {
+        bytes32 salt = keccak256(abi.encodePacked(_owner));
+        bytes memory proxyCode = type(GnosisSafeProxy).creationCode;
+        bytes memory deploymentData = abi.encodePacked(proxyCode, uint256(avatarMaster));
+
+        assembly {
+            proxy := create2(0, add(deploymentData, 0x20), mload(deploymentData), salt)
+            if iszero(extcodesize(proxy)) { revert(0, 0) }
+        }
     }
 
     function avatarLength() external view returns (uint256) {

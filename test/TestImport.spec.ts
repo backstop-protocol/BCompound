@@ -277,6 +277,11 @@ contract("BErc20", async (accounts) => {
       });
 
       it("user should import without fees", async () => {
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        await cZRX.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cETH.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cBAT.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+
         // call flash import
         const data = await bFlashLoanImport.contract.methods
           .flashImport(
@@ -306,6 +311,11 @@ contract("BErc20", async (accounts) => {
         expect(await cETH.borrow.call(HALF_ETH, { from: a.user1 })).to.be.bignumber.equal(ZERO);
         await cETH.borrow(HALF_ETH, { from: a.user1 });
         expect(await cETH.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(HALF_ETH);
+
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        await cZRX.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cETH.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cBAT.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
 
         // call flash import
         const data = await bFlashLoanImport.contract.methods
@@ -343,6 +353,11 @@ contract("BErc20", async (accounts) => {
         expect(await cBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
         expect(await cUSDT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
 
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        await cZRX.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cETH.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cBAT.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+
         // call flash import
         const data = await bFlashLoanImport.contract.methods
           .flashImport(
@@ -373,6 +388,11 @@ contract("BErc20", async (accounts) => {
       });
 
       it("user should import with fees", async () => {
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        await cZRX.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cETH.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cBAT.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+
         // call flash import
         const data = await bFlashLoanImportWithFees.contract.methods
           .flashImport(
@@ -402,6 +422,11 @@ contract("BErc20", async (accounts) => {
         expect(await cETH.borrow.call(HALF_ETH, { from: a.user1 })).to.be.bignumber.equal(ZERO);
         await cETH.borrow(HALF_ETH, { from: a.user1 });
         expect(await cETH.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(HALF_ETH);
+
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        await cZRX.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cETH.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cBAT.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
 
         // call flash import
         const data = await bFlashLoanImportWithFees.contract.methods
