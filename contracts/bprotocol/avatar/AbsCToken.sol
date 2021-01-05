@@ -206,6 +206,7 @@ contract AbsCToken is Cushion {
         bool result = cToken.transferFrom(srcAvatar, dstAvatar, amount);
         require(result, "AbsCToken: transferFrom-failed");
 
+        require(IAvatar(srcAvatar).canUntop(), "AbsCToken: insuffecient-fund-at-src");
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
 
         IScore score = _score();
