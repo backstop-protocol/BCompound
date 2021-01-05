@@ -211,7 +211,9 @@ contract AbsCToken is Cushion {
         return cToken.approve(spenderAvatar, amount);
     }
 
-    function collectCToken(ICToken cToken, address from, uint256 cTokenAmt) public {
+    function collectCToken(ICToken cToken, address from, uint256 cTokenAmt) public postPoolOp(false) {
+        // `from` should not be an avatar
+        require(registry.ownerOf(from) == address(0), "AbsCToken: from-is-an-avatar");
         require(cToken.transferFrom(from, address(this), cTokenAmt), "AbsCToken: transferFrom-failed");
         uint256 underlyingAmt = _toUnderlying(cToken, cTokenAmt);
         _score().updateCollScore(address(this), address(cToken), toInt256(underlyingAmt));
