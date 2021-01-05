@@ -21,8 +21,6 @@ contract Registry is Ownable {
 
     // Avatar
     address public avatarMaster;
-    bytes private avatarProxyContractCode;
-    bytes32 private avatarProxyContractCodeHash;
 
     // Owner => Avatar
     mapping (address => address) public avatarOf;
@@ -63,8 +61,6 @@ contract Registry is Ownable {
         score = _score;
 
         dummyCaller = new DummyCaller();
-        avatarProxyContractCode = type(GnosisSafeProxy).creationCode;
-        avatarProxyContractCodeHash = keccak256(abi.encodePacked(avatarProxyContractCode, uint256(avatarMaster)));
     }
 
     function setPool(address newPool) external onlyOwner {
@@ -144,7 +140,8 @@ contract Registry is Ownable {
 
     function _deployAvatarProxy(address _owner) internal returns (address proxy) {
         bytes32 salt = keccak256(abi.encodePacked(_owner));
-        bytes memory deploymentData = abi.encodePacked(avatarProxyContractCode, uint256(avatarMaster));
+        bytes memory proxyCode = type(GnosisSafeProxy).creationCode;
+        bytes memory deploymentData = abi.encodePacked(proxyCode, uint256(avatarMaster));
 
         assembly {
             proxy := create2(0, add(deploymentData, 0x20), mload(deploymentData), salt)

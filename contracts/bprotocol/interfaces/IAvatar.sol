@@ -15,7 +15,7 @@ contract IAvatar is IERC20 {
     function redeemUnderlying(address cToken, uint256 redeemAmount, address payable userOrDelegatee) external returns (uint256);
     function borrow(address cToken, uint256 borrowAmount, address payable userOrDelegatee) external returns (uint256);
     function borrowBalanceCurrent(address cToken) external returns (uint256);
-    function collectCToken(address cToken, uint256 amount) public;
+    function collectCToken(address cToken, address from, uint256 cTokenAmt) public;
 
     // Comptroller functions
     function enterMarket(address cToken) external returns (uint256);

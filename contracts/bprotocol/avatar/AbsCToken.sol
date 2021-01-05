@@ -211,9 +211,10 @@ contract AbsCToken is Cushion {
         return cToken.approve(spenderAvatar, amount);
     }
 
-    function collectCToken(ICToken cToken, uint256 amount) public {
-        address _owner = registry.ownerOf(address(this));
-        require(cToken.transferFrom(_owner, address(this), amount), "transferFrom-failed");
+    function collectCToken(ICToken cToken, address from, uint256 cTokenAmt) public {
+        require(cToken.transferFrom(from, address(this), cTokenAmt), "AbsCToken: transferFrom-failed");
+        uint256 underlyingAmt = _toUnderlying(cToken, cTokenAmt);
+        _score().updateCollScore(address(this), address(cToken), toInt256(underlyingAmt));
     }
 
     /**

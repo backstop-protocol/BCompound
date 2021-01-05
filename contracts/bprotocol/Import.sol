@@ -50,7 +50,7 @@ contract Import is Exponential {
         }
     }
 
-    function _redeemAndDepositCollateral(
+    function _transferCollateral(
         address[] memory cTokenCollateral,
         address account,
         address avatar
@@ -60,7 +60,7 @@ contract Import is Exponential {
         for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
           ICToken cColl = ICToken(cTokenCollateral[i]);
           uint collBalance = cColl.balanceOf(account);
-          IAvatar(avatar).collectCToken(address(cColl), collBalance);
+          IAvatar(avatar).collectCToken(address(cColl), account, collBalance);
         }
     }
 
@@ -117,7 +117,7 @@ contract Import is Exponential {
         _repayAllDebt(cTokenDebt, debtUnderlying, originalDebt, account);
 
         // redeem all non ETH collateral from Compound and deposit it in B
-        _redeemAndDepositCollateral(
+        _transferCollateral(
             cTokenCollateral,
             account,
             avatar
