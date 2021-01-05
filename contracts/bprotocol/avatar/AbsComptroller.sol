@@ -1,8 +1,5 @@
 pragma solidity 0.5.16;
 
-// TODO To be removed in mainnet deployment
-import "hardhat/console.sol";
-
 import { AvatarBase } from "./AvatarBase.sol";
 import { IPriceOracle, ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IBToken } from "../interfaces/IBToken.sol";
@@ -116,11 +113,8 @@ contract AbsComptroller is AvatarBase {
         require(err == 0, "Error-in-getting-account-liquidity");
 
         uint256 price = IPriceOracle(oracle).getUnderlyingPrice(toppedUpCToken);
-        console.log("In getAccountLiquidity, price: %s", price);
         uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
 
-        console.log("In getAccountLiquidity, liquidity: %s", liquidity);
-        console.log("In getAccountLiquidity, toppedUpAmtInETH: %s", toppedUpAmtInETH);
         // liquidity = 0 and shortFall = 0
         if(liquidity == toppedUpAmtInETH) return(0, 0, 0);
 

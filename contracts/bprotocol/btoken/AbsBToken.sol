@@ -1,7 +1,5 @@
 pragma solidity 0.5.16;
 
-import "hardhat/console.sol";
-
 // Interface
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IAvatar } from "../interfaces/IAvatar.sol";

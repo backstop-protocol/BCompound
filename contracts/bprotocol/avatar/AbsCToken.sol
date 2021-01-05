@@ -1,8 +1,5 @@
 pragma solidity 0.5.16;
 
-// TODO To be removed in mainnet deployment
-import "hardhat/console.sol";
-
 import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IScore } from "../interfaces/IScore.sol";
 import { IAvatar } from "../interfaces/IAvatar.sol";
@@ -125,7 +122,6 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
-        console.log("redeem result: %s", result);
         require(result == 0, "AbsCToken: redeem-failed");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
@@ -168,7 +164,6 @@ contract AbsCToken is Cushion {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
-        console.log("borrow result: %s", result);
         require(result == 0, "AbsCToken: borrow-failed");
 
         if(! quit) _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
@@ -226,7 +221,7 @@ contract AbsCToken is Cushion {
         require(registry.ownerOf(from) == address(0), "AbsCToken: from-is-an-avatar");
         require(cToken.transferFrom(from, address(this), cTokenAmt), "AbsCToken: transferFrom-failed");
         uint256 underlyingAmt = _toUnderlying(cToken, cTokenAmt);
-        _score().updateCollScore(address(this), address(cToken), toInt256(underlyingAmt));
+        if(! quit) _score().updateCollScore(address(this), address(cToken), toInt256(underlyingAmt));
     }
 
     /**

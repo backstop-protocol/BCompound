@@ -1,8 +1,5 @@
 pragma solidity 0.5.16;
 
-// TODO To be removed in mainnet deployment
-import "hardhat/console.sol";
-
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
@@ -98,7 +95,6 @@ contract AvatarBase is Exponential, Initializable {
     }
 
     function isToppedUp() public view returns (bool) {
-        console.log("In _isToppedUp, result: %s", toppedUpAmount > 0);
         return toppedUpAmount > 0;
     }
 
@@ -111,7 +107,6 @@ contract AvatarBase is Exponential, Initializable {
         if(!isToppedUp()) return true;
         IComptroller comptroller = IComptroller(registry.comptroller());
         bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
-        console.log("In canUntop, result: %s", result);
         return result;
     }
 

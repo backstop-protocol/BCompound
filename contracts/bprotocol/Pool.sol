@@ -1,7 +1,5 @@
 pragma solidity 0.5.16;
 
-import "hardhat/console.sol";
-
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -232,8 +230,6 @@ contract Pool is Exponential, Ownable {
             // Avatar will send back `amtToDeductFromTopup` ETH back to Pool contract
             ICEther(bToken).liquidateBorrow.value(underlyingAmtToLiquidate)(borrower, cTokenCollateral);
         } else {
-            console.log("Pool.liquidateBorrow(): avatar: %s", avatar);
-            console.log("Pool.liquidateBorrow(): amtToRepayOnCompound: %s", amtToRepayOnCompound);
             if(resetApprove) IERC20(ti.underlying).safeApprove(avatar, 0);
             IERC20(ti.underlying).safeApprove(avatar, amtToRepayOnCompound);
             err = ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral);
