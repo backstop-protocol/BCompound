@@ -47,7 +47,10 @@ contract IAvatarCErc20 is IAvatar {
 
 contract ICushion {
     function canLiquidate() external returns (bool);
-    function untop() external;
+    function untop(uint amount) external;
+    function toppedUpAmount() external returns (uint);
+    function remainingLiquidationAmount() external returns(uint);
+    function getMaxLiquidationAmount(address debtCToken) public returns (uint256);
 }
 
 contract ICushionCErc20 is ICushion {
