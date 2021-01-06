@@ -1,7 +1,5 @@
 pragma solidity 0.5.16;
 
-import "hardhat/console.sol";
-
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -18,6 +16,7 @@ import {
     ICushionCErc20
     } from "./interfaces/IAvatar.sol";
 import { IComptroller } from "./interfaces/IComptroller.sol";
+import { IBComptroller } from "./interfaces/IBComptroller.sol";
 
 import { Exponential } from "./lib/Exponential.sol";
 
@@ -29,6 +28,7 @@ contract Pool is Exponential, Ownable {
     address internal constant ETH_ADDR = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IComptroller public comptroller;
+    IBComptroller public bComptroller;
     IRegistry public registry;
     address public jar;
     address public cEther;
@@ -180,6 +180,7 @@ contract Pool is Exponential, Ownable {
         require(address(registry) == address(0), "Pool: registry-already-set");
         registry = IRegistry(_registry);
         comptroller = IComptroller(registry.comptroller());
+        bComptroller = IBComptroller(registry.bComptroller());
         cEther = registry.cEther();
     }
 
@@ -232,8 +233,8 @@ contract Pool is Exponential, Ownable {
     function liquidateBorrow(
         address bToken,
         address borrower,
-        address cTokenCollateral,
-        address cTokenDebt,
+        address bTokenCollateral,
+        address bTokenDebt,
         uint underlyingAmtToLiquidate,
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
@@ -272,8 +273,6 @@ contract Pool is Exponential, Ownable {
             // Avatar will send back `amtToDeductFromTopup` ETH back to Pool contract
             ICEther(bToken).liquidateBorrow.value(underlyingAmtToLiquidate)(borrower, cTokenCollateral);
         } else {
-            console.log("Pool.liquidateBorrow(): avatar: %s", avatar);
-            console.log("Pool.liquidateBorrow(): amtToRepayOnCompound: %s", amtToRepayOnCompound);
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
             uint err = 0;
@@ -285,16 +284,19 @@ contract Pool is Exponential, Ownable {
 
         balance[msg.sender][debtUnderlying] = sub_(balance[msg.sender][debtUnderlying], amtToRepayOnCompound);
 
-        uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
-        uint jarShare = sub_(seizedTokens, memberShare);
+        // Block of code to avoid stack too deep error
+        {
+            uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
+            uint jarShare = sub_(seizedTokens, memberShare);
 
-        IERC20(cTokenCollateral).safeTransfer(msg.sender, memberShare);
-        IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
-
+            IERC20(cTokenCollateral).safeTransfer(msg.sender, memberShare);
+            IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
+        }
+        
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
-        // TODO - if it is not possible to delete a strucutre with mapping, then
+        // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
         if(! stillToppedUp) delete topped[avatar];
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);

@@ -1,12 +1,8 @@
 pragma solidity 0.5.16;
 
-import { AvatarBase } from "./AvatarBase.sol";
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
-
-import { ICEther } from "../interfaces/CTokenInterfaces.sol";
-import { ICErc20 } from "../interfaces/CTokenInterfaces.sol";
-
+import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
@@ -16,30 +12,14 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract Avatar is AbsComptroller, AbsCToken {
 
+    // @NOTICE: NO CONSTRUCTOR AS ITS USED AS AN IMPLEMENTATION CONTRACT FOR PROXY
+
     /**
-     * @dev Constructor
-     * @param _bComptroller BComptroller contract address
-     * @param _comptroller Compound finance Comptroller contract address
-     * @param _comp Compound finance COMP token contract address
-     * @param _cETH cETH contract address
+     * @dev Initialize the contract variables
      * @param _registry Registry contract address
      */
-    constructor(
-        address _bComptroller,
-        address _comptroller,
-        address _comp,
-        address _cETH,
-        address _registry
-    )
-        public
-        AvatarBase(
-            _bComptroller,
-            _comptroller,
-            _comp,
-            _cETH,
-            _registry
-        )
-    {
+    function initialize(address _registry) external {
+        _initAvatarBase(_registry);
     }
 
     //override
@@ -49,7 +29,8 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint() public payable {
         super.mint();
-        require(_enterMarket(address(cETH)) == 0, "enterMarket-failed");
+        ICEther cEther = ICEther(registry.cEther());
+        require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
     }
 
     //override
@@ -63,5 +44,27 @@ contract Avatar is AbsComptroller, AbsCToken {
         underlying.safeApprove(address(cToken), mintAmount);
         uint256 result = super.mint(cToken, mintAmount);
         return result;
+    }
+
+    // EMERGENCY FUNCTIONS
+    function resetApprove(IERC20 token, address spender) external onlyAvatarOwner {
+        // NOTICE: not enclosing in require()
+        token.approve(spender, 0);
+    }
+
+    function transferERC20(address token, uint256 amount) external onlyAvatarOwner {
+        // ensure that token should not be a cToken, this is to protect user Score manipulation
+        require(ICToken(token).isCToken() == false, "Avatar: cToken-not-allowed");
+
+        address owner = registry.ownerOf(address(this));
+        IERC20 erc20 = IERC20(token);
+        // NOTICE: not enclosing in require()
+        erc20.transfer(owner, amount);
+    }
+
+    function transferETH(uint256 amount) external onlyAvatarOwner {
+        address owner = registry.ownerOf(address(this));
+        address payable ownerPayable = address(uint160(owner));
+        ownerPayable.transfer(amount);
     }
 }

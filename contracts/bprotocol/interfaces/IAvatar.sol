@@ -7,19 +7,24 @@ contract IERC20 {
 }
 
 contract IAvatar is IERC20 {
+    function initialize(address registry) external;
+    function quit() external returns (bool);
+    function canUntop() public returns (bool);
     function toppedUpCToken() external returns (address);
     function toppedUpAmount() external returns (uint256);
     function redeem(address cToken, uint256 redeemTokens, address payable userOrDelegatee) external returns (uint256);
     function redeemUnderlying(address cToken, uint256 redeemAmount, address payable userOrDelegatee) external returns (uint256);
     function borrow(address cToken, uint256 borrowAmount, address payable userOrDelegatee) external returns (uint256);
     function borrowBalanceCurrent(address cToken) external returns (uint256);
+    function collectCToken(address cToken, address from, uint256 cTokenAmt) public;
 
     // Comptroller functions
     function enterMarket(address cToken) external returns (uint256);
     function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory);
     function exitMarket(address cToken) external returns (uint256);
-    function claimComp(address owner) external;
-    function claimComp(address[] calldata cTokens, address owner) external;
+    function claimComp() external;
+    function claimComp(address[] calldata bTokens) external;
+    function claimComp(address[] calldata bTokens, bool borrowers, bool suppliers) external;
     function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall);
 }
 

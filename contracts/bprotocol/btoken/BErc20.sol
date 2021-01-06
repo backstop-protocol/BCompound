@@ -1,6 +1,5 @@
 pragma solidity 0.5.16;
 
-import "hardhat/console.sol";
 import { AbsBToken } from "./AbsBToken.sol";
 import { IAvatarCErc20 } from "../interfaces/IAvatar.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
@@ -23,14 +22,12 @@ contract BErc20 is AbsBToken {
     }
 
     function mintOnAvatar(address _avatar, uint256 mintAmount) external onlyDelegatee(_avatar) returns (uint256) {
-        console.log("mintOnAvatar: avatar:%s mintAmount:%s", _avatar, mintAmount);
         return _mint(_avatar, mintAmount);
     }
 
     function _mint(address _avatar, uint256 mintAmount) internal returns (uint256) {
         underlying.safeTransferFrom(msg.sender, _avatar, mintAmount);
         uint256 result = IAvatarCErc20(_avatar).mint(cToken, mintAmount);
-        console.log("_mint: result:%s", result);
         require(result == 0, "BErc20: mint-failed");
         return result;
     }

@@ -1,28 +1,19 @@
 pragma solidity 0.5.16;
 
-// TODO To be removed in mainnet deployment
-import "hardhat/console.sol";
-
-import { ICEther } from "../interfaces/CTokenInterfaces.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
-import { IBComptroller } from "../interfaces/IBComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IScore } from "../interfaces/IScore.sol";
-
 import { Exponential } from "../lib/Exponential.sol";
-
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Initializable } from "openzeppelin-upgrades/packages/core/contracts/Initializable.sol";
 
-contract AvatarBase is Exponential {
+contract AvatarBase is Exponential, Initializable {
     using SafeERC20 for IERC20;
 
     IRegistry public registry;
-    IBComptroller public bComptroller;
-    IComptroller public comptroller;
-    IERC20 public comp;
-    ICEther public cETH;
+    bool public quit;
 
     /* Storage for topup details */
     // Topped up cToken
@@ -34,13 +25,18 @@ contract AvatarBase is Exponential {
     // Liquidation cToken
     ICToken public liquidationCToken;
 
+    modifier onlyAvatarOwner() {
+        require(msg.sender == registry.ownerOf(address(this)), "sender-is-not-owner");
+        _;
+    }
+
     modifier onlyPool() {
         require(msg.sender == pool(), "only-pool-is-authorized");
         _;
     }
 
     modifier onlyBComptroller() {
-        require(msg.sender == address(bComptroller), "only-BComptroller-is-authorized");
+        require(msg.sender == registry.bComptroller(), "only-BComptroller-is-authorized");
         _;
     }
 
@@ -49,34 +45,14 @@ contract AvatarBase is Exponential {
         _reevaluate(debtIncrease);
     }
 
-    /**
-     * @dev Constructor
-     * @param _bComptroller BComptroller contract address
-     * @param _comptroller Compound finance Comptroller contract address
-     * @param _comp Compound finance COMP token contract address
-     * @param _cETH cETH contract address
-     * @param _registry Registry contract address
-     */
-    constructor(
-        address _bComptroller,
-        address _comptroller,
-        address _comp,
-        address _cETH,
-        address _registry
-    )
-        internal
-    {
-        bComptroller = IBComptroller(_bComptroller);
-        comptroller = IComptroller(_comptroller);
-        comp = IERC20(_comp);
-        cETH = ICEther(_cETH);
+    function _initAvatarBase(address _registry) internal initializer {
         registry = IRegistry(_registry);
     }
 
     /**
      * @dev Hard check to ensure untop is allowed and then reset remaining liquidation amount
      */
-    function _hardReevaluate() private {
+    function _hardReevaluate() internal {
         // Check: must allowed untop
         require(canUntop(), "cannot-untop");
         // Reset it to force re-calculation
@@ -101,7 +77,7 @@ contract AvatarBase is Exponential {
     }
 
     function _isCEther(ICToken cToken) internal view returns (bool) {
-        return address(cToken) == address(cETH);
+        return address(cToken) == registry.cEther();
     }
 
     function _score() internal view returns (IScore) {
@@ -119,7 +95,6 @@ contract AvatarBase is Exponential {
     }
 
     function isToppedUp() public view returns (bool) {
-        console.log("In _isToppedUp, result: %s", toppedUpAmount > 0);
         return toppedUpAmount > 0;
     }
 
@@ -130,8 +105,8 @@ contract AvatarBase is Exponential {
     function canUntop() public returns (bool) {
         // When not topped up, just return true
         if(!isToppedUp()) return true;
+        IComptroller comptroller = IComptroller(registry.comptroller());
         bool result = comptroller.borrowAllowed(address(toppedUpCToken), address(this), toppedUpAmount) == 0;
-        console.log("In canUntop, result: %s", result);
         return result;
     }
 

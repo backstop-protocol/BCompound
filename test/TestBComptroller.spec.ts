@@ -202,49 +202,52 @@ contract("BComptroller", async (accounts) => {
   });
 
   describe("BComptroller.enterMarket()", async () => {
+    let cZRX_addr: string;
+    let bZRX_addr: string;
+
+    let cETH_addr: string;
+    let bETH_addr: string;
+
     beforeEach(async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-      const cETH_addr = compoundUtil.getContracts("cETH");
+      cZRX_addr = compoundUtil.getContracts("cZRX");
+      cETH_addr = compoundUtil.getContracts("cETH");
 
       await bComptroller.newBToken(cZRX_addr);
       await bComptroller.newBToken(cETH_addr);
+
+      bZRX_addr = await bComptroller.c2b(cZRX_addr);
+      bETH_addr = await bComptroller.c2b(cETH_addr);
     });
 
     it("user (doesn't have an avatar) can enter an existing CErc20 market on compound", async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-
       const avatar1 = await bProtocol.registry.newAvatar.call({ from: a.user1 });
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(ZERO_ADDRESS);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
-      const err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      const err = await bComptroller.enterMarket.call(bZRX_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bZRX_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
     });
 
     it("user (doesn't have an avatar) can enter an existing CEther market on compound", async () => {
-      const cETH_addr = compoundUtil.getContracts("cETH");
-
       const avatar1 = await bProtocol.registry.newAvatar.call({ from: a.user1 });
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(ZERO_ADDRESS);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      const err = await bComptroller.enterMarket.call(cETH_addr, { from: a.user1 });
+      const err = await bComptroller.enterMarket.call(bETH_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bETH_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
     });
 
     it("user (have an avatar) can enter an existing CErc20 market on compound", async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-
       const avatar1 = await bProtocol.registry.newAvatar.call({ from: a.user1 });
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
 
@@ -252,17 +255,15 @@ contract("BComptroller", async (accounts) => {
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
-      const err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      const err = await bComptroller.enterMarket.call(bZRX_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bZRX_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
     });
 
     it("user (have an avatar) can enter an existing CEther market on compound", async () => {
-      const cETH_addr = compoundUtil.getContracts("cETH");
-
       const avatar1 = await bProtocol.registry.newAvatar.call({ from: a.user1 });
       expect(avatar1).to.be.not.equal(ZERO_ADDRESS);
 
@@ -270,50 +271,46 @@ contract("BComptroller", async (accounts) => {
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      const err = await bComptroller.enterMarket.call(cETH_addr, { from: a.user1 });
+      const err = await bComptroller.enterMarket.call(bETH_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bETH_addr, { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
     });
 
     it("user can enter a CErc20 market again", async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-
       const avatar1 = await bProtocol.registry.newAvatar.call({ from: a.user1 });
       await bProtocol.registry.newAvatar({ from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
-      let err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      let err = await bComptroller.enterMarket.call(bZRX_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
 
-      err = await bComptroller.enterMarket.call(cZRX_addr, { from: a.user1 });
+      err = await bComptroller.enterMarket.call(bZRX_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
     });
 
     it("user can enter a CEther market again", async () => {
-      const cETH_addr = compoundUtil.getContracts("cETH");
-
       const avatar1 = await bProtocol.registry.newAvatar.call({ from: a.user1 });
       await bProtocol.registry.newAvatar({ from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      const err = await bComptroller.enterMarket.call(cETH_addr, { from: a.user1 });
+      const err = await bComptroller.enterMarket.call(bETH_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bETH_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
-      await bComptroller.enterMarket(cETH_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bETH_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
     });
@@ -322,18 +319,27 @@ contract("BComptroller", async (accounts) => {
       const cBAT_addr = compoundUtil.getContracts("cBAT");
       await expectRevert(
         bComptroller.enterMarket(cBAT_addr, { from: a.user1 }),
-        "BComptroller: BToken-not-exist-for-cToken",
+        "BComptroller: CToken-not-exist-for-bToken",
       );
     });
   });
 
   describe("BComptroller.enterMarkets()", async () => {
+    let cZRX_addr: string;
+    let bZRX_addr: string;
+
+    let cETH_addr: string;
+    let bETH_addr: string;
+
     beforeEach(async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-      const cETH_addr = compoundUtil.getContracts("cETH");
+      cZRX_addr = compoundUtil.getContracts("cZRX");
+      cETH_addr = compoundUtil.getContracts("cETH");
 
       await bComptroller.newBToken(cZRX_addr);
       await bComptroller.newBToken(cETH_addr);
+
+      bZRX_addr = await bComptroller.c2b(cZRX_addr);
+      bETH_addr = await bComptroller.c2b(cETH_addr);
     });
 
     it("user (doesn't have an avatar) can enter multiple existing markets on compound", async () => {
@@ -347,12 +353,12 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      const errArr = await bComptroller.enterMarkets.call([cZRX_addr, cETH_addr], {
+      const errArr = await bComptroller.enterMarkets.call([bZRX_addr, bETH_addr], {
         from: a.user1,
       });
       await Promise.all(errArr.map((e) => expect(e).to.be.bignumber.equal(ZERO)));
 
-      await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
+      await bComptroller.enterMarkets([bZRX_addr, bETH_addr], { from: a.user1 });
 
       expect(await bProtocol.registry.avatarOf(a.user1)).to.be.equal(avatar1);
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
@@ -373,11 +379,11 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      const errArr = await bComptroller.enterMarkets.call([cZRX_addr, cETH_addr], {
+      const errArr = await bComptroller.enterMarkets.call([bZRX_addr, bETH_addr], {
         from: a.user1,
       });
       await Promise.all(errArr.map((e) => expect(e).to.be.bignumber.equal(ZERO)));
-      await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
+      await bComptroller.enterMarkets([bZRX_addr, bETH_addr], { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
@@ -393,11 +399,11 @@ contract("BComptroller", async (accounts) => {
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
 
-      const errArr = await bComptroller.enterMarkets.call([cZRX_addr, cZRX_addr], {
+      const errArr = await bComptroller.enterMarkets.call([bZRX_addr, bZRX_addr], {
         from: a.user1,
       });
       await Promise.all(errArr.map((e) => expect(e).to.be.bignumber.equal(ZERO)));
-      await bComptroller.enterMarkets([cZRX_addr, cZRX_addr], { from: a.user1 });
+      await bComptroller.enterMarkets([bZRX_addr, bZRX_addr], { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
     });
@@ -406,20 +412,29 @@ contract("BComptroller", async (accounts) => {
       const cBAT_addr = compoundUtil.getContracts("cBAT");
       await expectRevert(
         bComptroller.enterMarkets([cBAT_addr], { from: a.user1 }),
-        "BComptroller: BToken-not-exist-for-cToken",
+        "BComptroller: CToken-not-exist-for-bToken",
       );
     });
   });
 
   describe("BComptroller.exitMarket()", async () => {
+    let cZRX_addr: string;
+    let bZRX_addr: string;
+
+    let cETH_addr: string;
+    let bETH_addr: string;
+
     beforeEach(async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-      const cETH_addr = compoundUtil.getContracts("cETH");
+      cZRX_addr = compoundUtil.getContracts("cZRX");
+      cETH_addr = compoundUtil.getContracts("cETH");
 
       await bComptroller.newBToken(cZRX_addr);
       await bComptroller.newBToken(cETH_addr);
 
-      await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
+      bZRX_addr = await bComptroller.c2b(cZRX_addr);
+      bETH_addr = await bComptroller.c2b(cETH_addr);
+
+      await bComptroller.enterMarkets([bZRX_addr, bETH_addr], { from: a.user1 });
     });
 
     it("should fail when user not have avatar", async () => {
@@ -436,9 +451,9 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
-      const err = await bComptroller.exitMarket.call(cZRX_addr, { from: a.user1 });
+      const err = await bComptroller.exitMarket.call(bZRX_addr, { from: a.user1 });
       expect(err).to.be.bignumber.equal(ZERO);
-      await bComptroller.exitMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.exitMarket(bZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
@@ -446,14 +461,23 @@ contract("BComptroller", async (accounts) => {
   });
 
   describe("BComptroller.getAccountLiquidity()", async () => {
+    let cZRX_addr: string;
+    let bZRX_addr: string;
+
+    let cETH_addr: string;
+    let bETH_addr: string;
+
     beforeEach(async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-      const cETH_addr = compoundUtil.getContracts("cETH");
+      cZRX_addr = compoundUtil.getContracts("cZRX");
+      cETH_addr = compoundUtil.getContracts("cETH");
 
       await bComptroller.newBToken(cZRX_addr);
       await bComptroller.newBToken(cETH_addr);
 
-      await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
+      bZRX_addr = await bComptroller.c2b(cZRX_addr);
+      bETH_addr = await bComptroller.c2b(cETH_addr);
+
+      await bComptroller.enterMarkets([bZRX_addr, bETH_addr], { from: a.user1 });
     });
 
     it("should get account liquidity of a user");
@@ -471,18 +495,28 @@ contract("BComptroller", async (accounts) => {
     });
   });
 
-  describe("BComptroller.claimComp()", async () => {
+  describe("BComptroller.claimComp(holder)", async () => {
     it("user claims his COMP tokens from Compound");
 
     it("user gets nothing, when not earned COMP tokens on Compound");
   });
 
-  describe("BComptroller.claimComp(cTokens[])", async () => {
+  describe("BComptroller.claimComp(holder, bTokens[])", async () => {
     it("user claims his COMP tokens from Compound");
 
     it("user gets COMP tokens he earned on different markets");
 
     it("user gets nothing, when not earned COMP tokens on Compound");
+  });
+
+  describe("BComptroller.claimComp(holders[], bTokens[], borrowers, suppliers)", async () => {
+    it("user initiate claims for multiple Avatars");
+
+    it("user initiate claims for multiple Avatars with borrowers");
+
+    it("user initiate claims for multiple Avatars with suppliers");
+
+    it("user initiate claims for multiple Avatars with both borrowers and suppliers");
   });
 
   describe("BComptroller.oracle()", async () => {
@@ -538,12 +572,21 @@ contract("BComptroller", async (accounts) => {
   });
 
   describe("BComptroller: Integration tests:", async () => {
+    let cZRX_addr: string;
+    let bZRX_addr: string;
+
+    let cETH_addr: string;
+    let bETH_addr: string;
+
     beforeEach(async () => {
-      const cZRX_addr = compoundUtil.getContracts("cZRX");
-      const cETH_addr = compoundUtil.getContracts("cETH");
+      cZRX_addr = compoundUtil.getContracts("cZRX");
+      cETH_addr = compoundUtil.getContracts("cETH");
 
       await bComptroller.newBToken(cZRX_addr);
       await bComptroller.newBToken(cETH_addr);
+
+      bZRX_addr = await bComptroller.c2b(cZRX_addr);
+      bETH_addr = await bComptroller.c2b(cETH_addr);
     });
 
     it("user enterMakert, exitMarket then enterMarket", async () => {
@@ -555,17 +598,17 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      await bComptroller.enterMarkets([cZRX_addr, cETH_addr], { from: a.user1 });
+      await bComptroller.enterMarkets([bZRX_addr, bETH_addr], { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
-      await bComptroller.exitMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.exitMarket(bZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
-      await bComptroller.enterMarket(cZRX_addr, { from: a.user1 });
+      await bComptroller.enterMarket(bZRX_addr, { from: a.user1 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
