@@ -48,7 +48,6 @@ contract Pool is Exponential, Ownable {
     uint public selectionDuration = 60 minutes;  // member selection duration for round robin, default 10 mins
 
     struct MemberTopupInfo {
-        address member;   // member who toppedUp
         uint expire;        // after expire time, other member can topup. relevant only if small
         uint amountTopped;  // amount of underlying tokens toppedUp
         uint amountLiquidated; // how much was already liquidated
@@ -89,7 +88,7 @@ contract Pool is Exponential, Ownable {
 
         if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
         address underlying = _getUnderlying(info.ctoken);
-        balance[memberInfo.member][underlying] = add_(balance[memberInfo.member][underlying], underlyingAmount);
+        balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
 
         memberInfo.amountTopped = 0;
         memberInfo.expire = 0;
@@ -119,6 +118,9 @@ contract Pool is Exponential, Ownable {
                   // now it is 0 topup
                   continue;
                 }
+
+                require(info.ctoken == cToken, "ctoken-miss-match");
+
                 if(member == msg.sender) continue;
                 if(! small) continue; // can share
                 require(info.memberInfo[member].expire < now, "topup: other-member-topped");
@@ -138,8 +140,11 @@ contract Pool is Exponential, Ownable {
         }
 
         info.memberInfo[msg.sender].amountTopped = add_(info.memberInfo[msg.sender].amountTopped, amount);
+        // in all the below, as sload will soon cost 2k gas, we use sstore without
+        // checking if the value really changed
         info.memberInfo[msg.sender].amountLiquidated = 0;
         info.debtToLiquidatePerMember = 0;
+        info.ctoken = cToken;
 
         if(_isCEther(cToken)) {
             ICushionCEther(avatar).topup.value(amount)();
@@ -149,7 +154,6 @@ contract Pool is Exponential, Ownable {
             ICushionCErc20(avatar).topup(cToken, amount);
         }
     }
-
 
     event MemberDeposit(address indexed member, address underlying, uint amount);
     event MemberWithdraw(address indexed member, address underlying, uint amount);
@@ -233,19 +237,18 @@ contract Pool is Exponential, Ownable {
     function liquidateBorrow(
         address bToken,
         address borrower,
-        address bTokenCollateral,
-        address bTokenDebt,
+        address cTokenCollateral,
+        address cTokenDebt,
         uint underlyingAmtToLiquidate,
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
     ) external {
         address avatar = registry.avatarOf(borrower);
         TopupInfo storage info = topped[avatar];
-        uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
 
+        uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
         bool memberToppedUp = false;
-        uint debtToLiquidate = info.debtToLiquidatePerMember;
-        if(debtToLiquidate == 0) {
+        if(debtToLiquidatePerMember == 0) {
           uint numMembers = 0;
           for(uint i = 0 ; i < members.length ; i++) {
             if(info.memberInfo[members[i]].amountTopped > 0) {
@@ -253,8 +256,8 @@ contract Pool is Exponential, Ownable {
               if(members[i] == msg.sender) memberToppedUp = true;
             }
           }
-          debtToLiquidate = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
-          info.debtToLiquidatePerMember = debtToLiquidate;
+          debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
+          info.debtToLiquidatePerMember = debtToLiquidatePerMember;
         }
 
         require(memberToppedUp, "liquidateBorrow: member-didnt-topup");
@@ -275,31 +278,34 @@ contract Pool is Exponential, Ownable {
         } else {
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
-            uint err = 0;
-            err = ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral);
-            require(err == 0, "Pool: liquidateBorrow-failed");
+            require(ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral) == 0,
+                    "Pool: liquidateBorrow-failed");
         }
-
-        uint seizedTokens = sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore);
 
         balance[msg.sender][debtUnderlying] = sub_(balance[msg.sender][debtUnderlying], amtToRepayOnCompound);
 
-        // Block of code to avoid stack too deep error
-        {
-            uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
-            uint jarShare = sub_(seizedTokens, memberShare);
+        //uint seizedTokens = sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore);
+        shareLiquidationProceeds(cTokenCollateral,
+                                 msg.sender,
+                                 sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore));
 
-            IERC20(cTokenCollateral).safeTransfer(msg.sender, memberShare);
-            IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
-        }
-        
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
-        bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
-        if(! stillToppedUp) delete topped[avatar];
+        if(IAvatar(avatar).toppedUpAmount() > 0) {
+          info.debtToLiquidatePerMember = 0; // in theory this is not needed if delete works
+          delete topped[avatar];
+        }
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
+    }
+
+    function shareLiquidationProceeds(address cTokenCollateral, address member, uint seizedTokens) internal {
+        uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
+        uint jarShare = sub_(seizedTokens, memberShare);
+
+        IERC20(cTokenCollateral).safeTransfer(member, memberShare);
+        IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
     }
 
     function membersLength() external view returns (uint) {
