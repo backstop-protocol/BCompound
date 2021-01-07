@@ -1,12 +1,12 @@
 pragma solidity 0.5.16;
 
+import "hardhat/console.sol";
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { IRegistry } from "./interfaces/IRegistry.sol";
-import { ICToken } from "./interfaces/CTokenInterfaces.sol";
-import { ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
+import { ICToken, ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
 import {
     IAvatar,
     IAvatarCErc20,
@@ -60,6 +60,24 @@ contract Pool is Exponential, Ownable {
         address ctoken;          // underlying debt ctoken address
     }
 
+    function getMemberTopupInfo(
+        address avatar,
+        address member
+    )
+        public
+        view
+        returns (
+            uint expire,
+            uint amountTopped,
+            uint amountLiquidated
+        )
+    {
+        MemberTopupInfo memory memberInfo = topped[avatar].memberInfo[member];
+        expire = memberInfo.expire;
+        amountTopped = memberInfo.amountLiquidated;
+        amountLiquidated = memberInfo.amountLiquidated;
+    }
+
     function getDebtTopupInfo(address avatar, address ctoken) public /* view */ returns(uint minDebt, bool isSmall){
         uint debt = ICToken(ctoken).borrowBalanceCurrent(avatar);
         minDebt = mul_(debt, minTopupBps) / 10000;
@@ -99,7 +117,8 @@ contract Pool is Exponential, Ownable {
         return members[chosen];
     }
 
-    function topup(address avatar, address cToken, uint amount, bool resetApprove) external onlyMember {
+    function topup(address avatar, address bToken, uint amount, bool resetApprove) external onlyMember {
+        address cToken = bComptroller.b2c(bToken);
         (uint minDebt, bool small) = getDebtTopupInfo(avatar, cToken);
 
         address underlying = _getUnderlying(cToken);
@@ -237,37 +256,49 @@ contract Pool is Exponential, Ownable {
     function liquidateBorrow(
         address bToken,
         address borrower,
-        address cTokenCollateral,
-        address cTokenDebt,
+        address bTokenCollateral,
+        address bTokenDebt,
         uint underlyingAmtToLiquidate,
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
-    ) external {
+    )
+        external
+    {
+        address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
+        address cTokenDebt = bComptroller.b2c(bTokenDebt);
         address avatar = registry.avatarOf(borrower);
         TopupInfo storage info = topped[avatar];
 
         uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
-        bool memberToppedUp = false;
-        if(debtToLiquidatePerMember == 0) {
-          uint numMembers = 0;
-          for(uint i = 0 ; i < members.length ; i++) {
-            if(info.memberInfo[members[i]].amountTopped > 0) {
-              numMembers++;
-              if(members[i] == msg.sender) memberToppedUp = true;
-            }
-          }
-          debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
-          info.debtToLiquidatePerMember = debtToLiquidatePerMember;
-        }
 
-        require(memberToppedUp, "liquidateBorrow: member-didnt-topup");
+        // code block to remove stack too deep error
+        {
+            console.log("debtToLiquidatePerMember: %s", debtToLiquidatePerMember);
+            bool memberToppedUp = false;
+            if(debtToLiquidatePerMember == 0) {
+                uint numMembers = 0;
+                for(uint i = 0 ; i < members.length ; i++) {
+                    if(info.memberInfo[members[i]].amountTopped > 0) {
+                        numMembers++;
+                        if(members[i] == msg.sender) memberToppedUp = true;
+                    }
+                }
+                console.log("getMaxLiquidationAmount: %s", ICushion(avatar).getMaxLiquidationAmount(cTokenDebt));
+                console.log("numMembers: %s", numMembers);
+                debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
+                info.debtToLiquidatePerMember = debtToLiquidatePerMember;
+            }
+            require(memberToppedUp, "Pool: member-didnt-topup");
+        }
 
         MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
 
+        console.log("amountLiquidated: %s", memberInfo.amountLiquidated);
+        console.log("underlyingAmtToLiquidate: %s", underlyingAmtToLiquidate);
+        console.log("debtToLiquidatePerMember: %s", debtToLiquidatePerMember);
         require(add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate) <= debtToLiquidatePerMember,
-                "liquidateBorrow: amount-too-big");
+                "Pool: amount-too-big");
 
-        uint cbalanceBefore = IERC20(cTokenCollateral).balanceOf(address(this));
         address debtUnderlying = _getUnderlying(cTokenDebt);
 
         if(_isCEther(cTokenDebt)) {
@@ -278,29 +309,38 @@ contract Pool is Exponential, Ownable {
         } else {
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
-            require(ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral) == 0,
-                    "Pool: liquidateBorrow-failed");
+            require(
+                ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral) == 0,
+                "Pool: liquidateBorrow-failed"
+            );
         }
 
         balance[msg.sender][debtUnderlying] = sub_(balance[msg.sender][debtUnderlying], amtToRepayOnCompound);
 
         //uint seizedTokens = sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore);
-        shareLiquidationProceeds(cTokenCollateral,
-                                 msg.sender,
-                                 sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore));
+        // code block to remove stack too deep error
+        {
+            uint cbalanceBefore = IERC20(cTokenCollateral).balanceOf(address(this));
+            _shareLiquidationProceeds(
+                cTokenCollateral,
+                msg.sender,
+                sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore)
+            );
+        }
 
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() > 0) {
-          info.debtToLiquidatePerMember = 0; // in theory this is not needed if delete works
-          delete topped[avatar];
+            //info.debtToLiquidatePerMember = 0; // in theory this is not needed if delete works
+            // TODO delege might consume a lot of gas, so we can prefer setting debtToLiquidatePerMember = 0
+            delete topped[avatar];
         }
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
     }
 
-    function shareLiquidationProceeds(address cTokenCollateral, address member, uint seizedTokens) internal {
+    function _shareLiquidationProceeds(address cTokenCollateral, address member, uint seizedTokens) internal {
         uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
         uint jarShare = sub_(seizedTokens, memberShare);
 

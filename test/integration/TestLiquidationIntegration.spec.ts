@@ -338,17 +338,33 @@ contract("Pool performs liquidation", async (accounts) => {
             */
       const canLiquidate = await avatarUser1.canLiquidate.call();
       // console.log("canLiquidate: ", canLiquidate);
+      console.log(
+        "remainingLiquidationAmount: " + (await avatarUser1.remainingLiquidationAmount()),
+      );
 
       if (canLiquidate) {
-        const tokensToLiquidate = ONE_ZRX.mul(new BN(2));
+        let underlyingAmtToLiquidate = ONE_ZRX.mul(new BN(2));
 
         const maxLiquidationAmount = await avatarUser1.getMaxLiquidationAmount.call(cZRX_addr);
+        const memberInfo = await pool.getMemberTopupInfo(avatarUser1.address, member1);
+        const amountLiquidated = memberInfo[2];
+        console.log("amountLiquidated: " + amountLiquidated.toString());
+        const amtAvailForLiquidation = maxLiquidationAmount.sub(amountLiquidated);
+        console.log("maxLiquidationAmount: " + maxLiquidationAmount.toString());
 
         const toppedUpAmount = await avatarUser1.toppedUpAmount();
 
-        const result = await avatarUser1.calcAmountToLiquidate.call(cZRX_addr, tokensToLiquidate);
+        underlyingAmtToLiquidate = underlyingAmtToLiquidate.lt(amtAvailForLiquidation)
+          ? underlyingAmtToLiquidate
+          : amtAvailForLiquidation;
+
+        const result = await avatarUser1.calcAmountToLiquidate.call(
+          cZRX_addr,
+          underlyingAmtToLiquidate,
+        );
         const amtToRepayOnCompound = result[1];
 
+        console.log("underlyingAmtToLiquidate: " + underlyingAmtToLiquidate.toString());
         console.log("amtToRepayOnCompound: " + amtToRepayOnCompound.toString());
 
         // member1 deposit
@@ -367,7 +383,7 @@ contract("Pool performs liquidation", async (accounts) => {
           user1,
           bETH_addr,
           bZRX_addr,
-          tokensToLiquidate,
+          underlyingAmtToLiquidate,
           amtToRepayOnCompound,
           resetApprove,
           { from: member1 },
@@ -388,9 +404,9 @@ contract("Pool performs liquidation", async (accounts) => {
 
   it("10. Member should perform untop via Pool", async () => {
     const pool = bProtocol.pool;
-    await pool.untop(avatarUser1.address, { from: member1 });
-
     const toppedUpAmount = await avatarUser1.toppedUpAmount();
+    await pool.untop(avatarUser1.address, toppedUpAmount, { from: member1 });
+
     expect(ZERO).to.be.bignumber.equal(toppedUpAmount);
 
     const isToppedUp = await avatarUser1.isToppedUp();
