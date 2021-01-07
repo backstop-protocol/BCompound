@@ -78,10 +78,11 @@ contract Pool is Exponential, Ownable {
         amountLiquidated = memberInfo.amountLiquidated;
     }
 
-    function getDebtTopupInfo(address avatar, address ctoken) public /* view */ returns(uint minDebt, bool isSmall){
-        uint debt = ICToken(ctoken).borrowBalanceCurrent(avatar);
+    function getDebtTopupInfo(address avatar, address cTokenDebt) public /* view */ returns(uint minDebt, bool isSmall){
+        // TODO this should be borrowBalanceCurrent on B ???
+        uint debt = ICToken(cTokenDebt).borrowBalanceCurrent(avatar);
         minDebt = mul_(debt, minTopupBps) / 10000;
-        isSmall = debt < minSharingThreshold[ctoken];
+        isSmall = debt < minSharingThreshold[cTokenDebt];
     }
 
     function untop(address avatar, uint underlyingAmount) public {
@@ -212,6 +213,11 @@ contract Pool is Exponential, Ownable {
      */
     function() external payable {}
 
+    function setMinSharingThreshold(address cToken, uint minThreshold) external onlyOwner {
+        require(minThreshold > 0, "Pool: incorrect-minThreshold");
+        minSharingThreshold[cToken] = minThreshold;
+    }
+
     function setProfitParams(uint numerator, uint denominator) external onlyOwner {
         require(numerator < denominator, "pool: invalid-profit-params");
         shareNumerator = numerator;
@@ -328,6 +334,7 @@ contract Pool is Exponential, Ownable {
             );
         }
 
+        // TODO this SSTORE can be saved if toppedUpAmount() > 0
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
