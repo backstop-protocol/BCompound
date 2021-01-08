@@ -6,6 +6,7 @@ import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
 import { boolean } from "hardhat/internal/core/params/argumentTypes";
+import { ONE } from "user-rating/test-utils/constants";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { balance, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
@@ -21,7 +22,10 @@ const chai = require("chai");
 const expect = chai.expect;
 
 const ONE_ETH = new BN(10).pow(new BN(18));
+const HALF_ETH = ONE_ETH.div(new BN(2));
 const ZERO = new BN(0);
+
+const ETH_ADDR = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 // SCALE
 const SCALE = new BN(10).pow(new BN(18));
@@ -209,28 +213,492 @@ contract("Pool", async (accounts) => {
       it("");
     });
 
-    describe("Pool.setRegistry()", async () => {
+    describe("Pool.setMinTopupBps()", async () => {
+      const defaultMinTopupBps = new BN(250);
+
+      it("should have default minTopupBps", async () => {
+        expect(await pool.minTopupBps()).to.be.bignumber.equal(defaultMinTopupBps);
+      });
+
+      it("owner should set minTopupBps", async () => {
+        expect(await pool.minTopupBps()).to.be.bignumber.equal(defaultMinTopupBps);
+
+        let newMinTopupBps = new BN(0); // 0%
+        let tx = await pool.setMinTopupBps(newMinTopupBps, { from: a.deployer });
+        expectEvent(tx, "MinTopupBpsChanged", {
+          oldMinTopupBps: defaultMinTopupBps,
+          newMinTopupBps: newMinTopupBps,
+        });
+        expect(await pool.minTopupBps()).to.be.bignumber.equal(newMinTopupBps);
+
+        newMinTopupBps = new BN(5000); // 50%
+        tx = await pool.setMinTopupBps(newMinTopupBps, { from: a.deployer });
+        expectEvent(tx, "MinTopupBpsChanged", {
+          oldMinTopupBps: new BN(0),
+          newMinTopupBps: newMinTopupBps,
+        });
+        expect(await pool.minTopupBps()).to.be.bignumber.equal(newMinTopupBps);
+      });
+
+      it("should not allow setting out-of-bound minTopupBps", async () => {
+        const newMinTopupBps = new BN(11000); // 110%
+        await expectRevert(
+          pool.setMinTopupBps(newMinTopupBps, { from: a.deployer }),
+          "Pool: incorrect-minTopupBps",
+        );
+
+        expect(await pool.minTopupBps()).to.be.bignumber.equal(defaultMinTopupBps);
+      });
+
+      it("should fail when called by non-owner", async () => {
+        const newMinTopupBps = new BN(5000); // 50%
+        await expectRevert(
+          pool.setMinTopupBps(newMinTopupBps, { from: a.other }),
+          "Ownable: caller is not the owner",
+        );
+        expect(await pool.minTopupBps()).to.be.bignumber.equal(defaultMinTopupBps);
+      });
+    });
+
+    describe("Pool.setHoldingTime()", async () => {
+      const defaultHoldingTime = new BN(5).mul(ONE_HOUR);
+
+      it("should have default holdingTime", async () => {
+        expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
+      });
+
+      it("owner should set holdingTime", async () => {
+        expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
+
+        const newHoldingTime = new BN(6).mul(ONE_HOUR);
+        const tx = await pool.setHoldingTime(newHoldingTime, { from: a.deployer });
+        expectEvent(tx, "HoldingTimeChanged", {
+          oldHoldingTime: defaultHoldingTime,
+          newHoldingTime: newHoldingTime,
+        });
+        expect(await pool.holdingTime()).to.be.bignumber.equal(newHoldingTime);
+      });
+
+      it("should fail when trying to set to zero", async () => {
+        const newHoldingTime = new BN(0);
+        await expectRevert(
+          pool.setHoldingTime(newHoldingTime, { from: a.deployer }),
+          "Pool: incorrect-holdingTime",
+        );
+        expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
+      });
+
+      it("should fail when holdingTime is out-of-bound", async () => {
+        const newHoldingTime = new BN(12).mul(ONE_HOUR);
+        await expectRevert(
+          pool.setHoldingTime(newHoldingTime, { from: a.deployer }),
+          "Pool: incorrect-holdingTime",
+        );
+        expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
+      });
+
+      it("should fail when called by non-owner", async () => {
+        const newHoldingTime = new BN(6).mul(ONE_HOUR);
+        await expectRevert(
+          pool.setHoldingTime(newHoldingTime, { from: a.other }),
+          "Ownable: caller is not the owner",
+        );
+        expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
+      });
+    });
+
+    describe("Pool.setMinSharingThreshold()", async () => {
       it("");
+    });
+
+    describe("Pool.setRegistry()", async () => {
+      it("should have registry already set", async () => {
+        const registryAddr = await pool.registry();
+        expect(registryAddr).to.be.not.equal(ZERO_ADDRESS);
+        expect(registryAddr).to.be.equal(bProtocol.registry.address);
+      });
+
+      it("should fail when try to set registry again", async () => {
+        const registryAddr = await pool.registry();
+        await expectRevert(
+          pool.setRegistry(a.dummy1, { from: a.deployer }),
+          "Pool: registry-already-set",
+        );
+        expect(registryAddr).to.be.equal(bProtocol.registry.address);
+      });
     });
 
     describe("Pool.setProfitParams()", async () => {
-      it("");
+      // Numerator and Denominators are already set in Engine
+      const prevSetNumerator = new BN(105);
+      const prevSetDenominator = new BN(110);
+
+      it("should have default profit params values", async () => {
+        expect(await pool.shareNumerator()).to.be.bignumber.equal(prevSetNumerator);
+        expect(await pool.shareDenominator()).to.be.bignumber.equal(prevSetDenominator);
+      });
+
+      it("should change profit params", async () => {
+        const numerator = new BN(100);
+        const denominator = new BN(1000);
+
+        const tx = await pool.setProfitParams(numerator, denominator, { from: a.deployer });
+        expectEvent(tx, "ProfitParamsChanged", { numerator: numerator, denominator: denominator });
+
+        expect(await pool.shareNumerator()).to.be.bignumber.equal(numerator);
+        expect(await pool.shareDenominator()).to.be.bignumber.equal(denominator);
+      });
+
+      it("should fail when incorrect profit params sent", async () => {
+        const numerator = new BN(1000);
+        const denominator = new BN(100);
+
+        await expectRevert(
+          pool.setProfitParams(numerator, denominator, { from: a.deployer }),
+          "Pool: invalid-profit-params",
+        );
+
+        expect(await pool.shareNumerator()).to.be.bignumber.equal(prevSetNumerator);
+        expect(await pool.shareDenominator()).to.be.bignumber.equal(prevSetDenominator);
+      });
+
+      it("should fail when non-owner try to change profit params", async () => {
+        const numerator = new BN(100);
+        const denominator = new BN(1000);
+
+        await expectRevert(
+          pool.setProfitParams(numerator, denominator, { from: a.other }),
+          "Ownable: caller is not the owner",
+        );
+
+        expect(await pool.shareNumerator()).to.be.bignumber.equal(prevSetNumerator);
+        expect(await pool.shareDenominator()).to.be.bignumber.equal(prevSetDenominator);
+      });
     });
 
     describe("Pool.setSelectionDuration()", async () => {
-      it("");
+      const defaultSelectionDuration = new BN(60).mul(ONE_MINUTE);
+
+      it("should get default selectionDuration", async () => {
+        expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
+      });
+
+      it("should set selection duration", async () => {
+        const newSelectionDuration = new BN(2).mul(ONE_HOUR);
+        const tx = await pool.setSelectionDuration(newSelectionDuration, { from: a.deployer });
+        expectEvent(tx, "SelectionDurationChanged", {
+          oldDuration: defaultSelectionDuration,
+          newDuration: newSelectionDuration,
+        });
+
+        expect(await pool.selectionDuration()).to.be.bignumber.equal(newSelectionDuration);
+      });
+
+      it("should fail when selection duration is zero", async () => {
+        expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
+
+        await expectRevert(
+          pool.setSelectionDuration(new BN(0)),
+          "Pool: selection-duration-is-zero",
+        );
+
+        expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
+      });
+
+      it("should fail when non-owner try to set selectionDuration", async () => {
+        expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
+
+        const newSelectionDuration = new BN(2).mul(ONE_HOUR);
+        await expectRevert(
+          pool.setSelectionDuration(newSelectionDuration, { from: a.other }),
+          "Ownable: caller is not the owner",
+        );
+
+        expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
+      });
     });
 
     describe("Pool.setMembers()", async () => {
-      it("");
+      it("should have members set already by BEngine", async () => {
+        const members = await pool.getMembers();
+        expect(members.length).to.be.equal(4);
+
+        expect(members[0]).to.be.equal(a.member1);
+        expect(members[1]).to.be.equal(a.member2);
+        expect(members[2]).to.be.equal(a.member3);
+        expect(members[3]).to.be.equal(a.member4);
+      });
+
+      it("should set members", async () => {
+        const newMemebers = [a.dummy1, a.dummy2, a.dummy3, a.dummy4];
+        const tx = await pool.setMembers(newMemebers, { from: a.deployer });
+        expectEvent(tx, "MembersSet", { members: newMemebers });
+
+        const members = await pool.getMembers();
+        expect(members.length).to.be.equal(4);
+
+        expect(members[0]).to.be.equal(a.dummy1);
+        expect(members[1]).to.be.equal(a.dummy2);
+        expect(members[2]).to.be.equal(a.dummy3);
+        expect(members[3]).to.be.equal(a.dummy4);
+      });
+
+      it("should fail when non-owner try to set members", async () => {
+        const newMemebers = [a.dummy1, a.dummy2, a.dummy3, a.dummy4];
+        await expectRevert(
+          pool.setMembers(newMemebers, { from: a.other }),
+          "Ownable: caller is not the owner",
+        );
+
+        const members = await pool.getMembers();
+        expect(members.length).to.be.equal(4);
+
+        expect(members[0]).to.be.equal(a.member1);
+        expect(members[1]).to.be.equal(a.member2);
+        expect(members[2]).to.be.equal(a.member3);
+        expect(members[3]).to.be.equal(a.member4);
+      });
     });
 
     describe("Pool.deposit()", async () => {
-      it("");
+      it("member should deposit ETH", async () => {
+        expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ZERO);
+
+        const tx = await pool.methods["deposit()"]({ from: a.member1, value: ONE_ETH });
+        expectEvent(tx, "MemberDeposit", {
+          member: a.member1,
+          underlying: ETH_ADDR,
+          amount: ONE_ETH,
+        });
+
+        expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ONE_ETH);
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ONE_ETH);
+      });
+
+      it("each member can deposit ETH", async () => {
+        const members = await pool.getMembers();
+
+        let ethBalanceAtPool = new BN(0);
+        await Promise.all(
+          members.map(async (member) => {
+            expect(await pool.balance(member, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+            expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ZERO);
+
+            const tx = await pool.methods["deposit()"]({ from: member, value: ONE_ETH });
+            expectEvent(tx, "MemberDeposit", {
+              member: member,
+              underlying: ETH_ADDR,
+              amount: ONE_ETH,
+            });
+
+            expect(await pool.balance(member, ETH_ADDR)).to.be.bignumber.equal(ONE_ETH);
+            ethBalanceAtPool = ethBalanceAtPool.add(ONE_ETH);
+            expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ethBalanceAtPool);
+          }),
+        );
+      });
+
+      it("should fail when non-member try to deposit ETH", async () => {
+        expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ZERO);
+
+        await expectRevert(
+          pool.methods["deposit()"]({ from: a.other, value: ONE_ETH }),
+          "Pool: not-member",
+        );
+
+        expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ZERO);
+      });
+    });
+
+    describe("Pool.deposit(underlying, amount)", async () => {
+      it("member should deposit ZRX", async () => {
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+
+        await ZRX.approve(pool.address, ONE_THOUSAND_ZRX, { from: a.member1 });
+        const tx = await pool.methods["deposit(address,uint256)"](ZRX_addr, ONE_THOUSAND_ZRX, {
+          from: a.member1,
+        });
+        expectEvent(tx, "MemberDeposit", {
+          member: a.member1,
+          underlying: ZRX_addr,
+          amount: ONE_THOUSAND_ZRX,
+        });
+
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+      });
+
+      it("each member can deposit ZRX", async () => {
+        const members = await pool.getMembers();
+
+        let zrxBalanceAtPool = new BN(0);
+        await Promise.all(
+          members.map(async (member) => {
+            expect(await pool.balance(member, ZRX_addr)).to.be.bignumber.equal(ZERO);
+            expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+
+            await ZRX.approve(pool.address, ONE_THOUSAND_ZRX, { from: member });
+            const tx = await pool.methods["deposit(address,uint256)"](ZRX_addr, ONE_THOUSAND_ZRX, {
+              from: member,
+            });
+            expectEvent(tx, "MemberDeposit", {
+              member: member,
+              underlying: ZRX_addr,
+              amount: ONE_THOUSAND_ZRX,
+            });
+
+            expect(await pool.balance(member, ZRX_addr)).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+            zrxBalanceAtPool = zrxBalanceAtPool.add(ONE_THOUSAND_ZRX);
+            expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(zrxBalanceAtPool);
+          }),
+        );
+      });
+
+      it("should fail when non-member try to deposit ZRX", async () => {
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+
+        await ZRX.approve(pool.address, ONE_THOUSAND_ZRX, { from: a.member1 });
+        await expectRevert(
+          pool.methods["deposit(address,uint256)"](ZRX_addr, ONE_THOUSAND_ZRX, {
+            from: a.other,
+          }),
+          "Pool: not-member",
+        );
+
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+      });
     });
 
     describe("Pool.withdraw()", async () => {
-      it("");
+      let members: string[];
+
+      beforeEach(async () => {
+        members = await pool.getMembers();
+
+        await Promise.all(
+          members.map(async (member) => {
+            // deposit ETH
+            await pool.methods["deposit()"]({ from: member, value: ONE_ETH });
+
+            // deposit ZRX
+            await ZRX.approve(pool.address, ONE_THOUSAND_ZRX, { from: member });
+            await pool.methods["deposit(address,uint256)"](ZRX_addr, ONE_THOUSAND_ZRX, {
+              from: member,
+            });
+          }),
+        );
+
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(
+          ONE_ETH.mul(new BN(4)),
+        );
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          ONE_THOUSAND_ZRX.mul(new BN(4)),
+        );
+      });
+
+      it("should withdraw ETH balance", async () => {
+        let ethBalanceInPool = ONE_ETH.mul(new BN(4));
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ethBalanceInPool);
+
+        await Promise.all(
+          members.map(async (member) => {
+            const tx = await pool.withdraw(ETH_ADDR, ONE_ETH, { from: member });
+            expectEvent(tx, "MemberWithdraw", {
+              member: member,
+              underlying: ETH_ADDR,
+              amount: ONE_ETH,
+            });
+            ethBalanceInPool = ethBalanceInPool.sub(ONE_ETH);
+            expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ethBalanceInPool);
+          }),
+        );
+
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should withdraw ETH balance partially", async () => {
+        let ethBalanceInPool = ONE_ETH.mul(new BN(4));
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ethBalanceInPool);
+
+        await Promise.all(
+          members.map(async (member) => {
+            let tx = await pool.withdraw(ETH_ADDR, HALF_ETH, { from: member });
+            expectEvent(tx, "MemberWithdraw", {
+              member: member,
+              underlying: ETH_ADDR,
+              amount: HALF_ETH,
+            });
+            ethBalanceInPool = ethBalanceInPool.sub(HALF_ETH);
+            expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ethBalanceInPool);
+
+            tx = await pool.withdraw(ETH_ADDR, HALF_ETH, { from: member });
+            expectEvent(tx, "MemberWithdraw", {
+              member: member,
+              underlying: ETH_ADDR,
+              amount: HALF_ETH,
+            });
+            ethBalanceInPool = ethBalanceInPool.sub(HALF_ETH);
+            expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ethBalanceInPool);
+          }),
+        );
+
+        expect(await web3.eth.getBalance(pool.address)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should withdraw ZRX balance", async () => {
+        let zrxBalanceInPool = ONE_THOUSAND_ZRX.mul(new BN(4));
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(zrxBalanceInPool);
+
+        await Promise.all(
+          members.map(async (member) => {
+            const tx = await pool.withdraw(ZRX_addr, ONE_THOUSAND_ZRX, { from: member });
+            expectEvent(tx, "MemberWithdraw", {
+              member: member,
+              underlying: ZRX_addr,
+              amount: ONE_THOUSAND_ZRX,
+            });
+            zrxBalanceInPool = zrxBalanceInPool.sub(ONE_THOUSAND_ZRX);
+            expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(zrxBalanceInPool);
+          }),
+        );
+
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+      });
+
+      it("should withdraw ZRX balance partially", async () => {
+        let zrxBalanceInPool = ONE_THOUSAND_ZRX.mul(new BN(4));
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(zrxBalanceInPool);
+
+        await Promise.all(
+          members.map(async (member) => {
+            let tx = await pool.withdraw(ZRX_addr, FIVE_HUNDRED_ZRX, { from: member });
+            expectEvent(tx, "MemberWithdraw", {
+              member: member,
+              underlying: ZRX_addr,
+              amount: FIVE_HUNDRED_ZRX,
+            });
+            zrxBalanceInPool = zrxBalanceInPool.sub(FIVE_HUNDRED_ZRX);
+            expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(zrxBalanceInPool);
+
+            tx = await pool.withdraw(ZRX_addr, FIVE_HUNDRED_ZRX, { from: member });
+            expectEvent(tx, "MemberWithdraw", {
+              member: member,
+              underlying: ZRX_addr,
+              amount: FIVE_HUNDRED_ZRX,
+            });
+            zrxBalanceInPool = zrxBalanceInPool.sub(FIVE_HUNDRED_ZRX);
+            expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(zrxBalanceInPool);
+          }),
+        );
+
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+      });
     });
 
     describe("Pool.liquidateBorrow()", async () => {

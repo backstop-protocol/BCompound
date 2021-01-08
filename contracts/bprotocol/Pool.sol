@@ -188,6 +188,9 @@ contract Pool is Exponential, Ownable {
     event ProfitParamsChanged(uint numerator, uint denominator);
     event MembersSet(address[] members);
     event SelectionDurationChanged(uint oldDuration, uint newDuration);
+    event MinTopupBpsChanged(uint oldMinTopupBps, uint newMinTopupBps);
+    event HoldingTimeChanged(uint oldHoldingTime, uint newHoldingTime);
+    event MinSharingThresholdChanged(address indexed bToken, uint oldThreshold, uint newThreshold);
 
     modifier onlyMember() {
         bool member = false;
@@ -197,7 +200,7 @@ contract Pool is Exponential, Ownable {
                 break;
             }
         }
-        require(member, "pool: not-member");
+        require(member, "Pool: not-member");
         _;
     }
 
@@ -218,38 +221,44 @@ contract Pool is Exponential, Ownable {
      */
     function() external payable {}
 
-    function setMinTopupBps(uint _minTopupBps) external onlyOwner {
-        require(_minTopupBps >= 0 && _minTopupBps <= 10000, "Pool: incorrect-minTopupBps");
-        minTopupBps = _minTopupBps;
+    function setMinTopupBps(uint newMinTopupBps) external onlyOwner {
+        require(newMinTopupBps >= 0 && newMinTopupBps <= 10000, "Pool: incorrect-minTopupBps");
+        uint oldMinTopupBps = minTopupBps;
+        minTopupBps = newMinTopupBps;
+        emit MinTopupBpsChanged(oldMinTopupBps, newMinTopupBps);
     }
 
-    function setHoldingTime(uint _holdingTime) external onlyOwner {
-        require(_holdingTime > 0, "Pool: incorrect-holdingTime");
-        holdingTime = _holdingTime;
+    function setHoldingTime(uint newHoldingTime) external onlyOwner {
+        require(newHoldingTime > 0 && newHoldingTime < 12 hours, "Pool: incorrect-holdingTime");
+        uint oldHoldingTime = holdingTime;
+        holdingTime = newHoldingTime;
+        emit HoldingTimeChanged(oldHoldingTime, newHoldingTime);
     }
 
-    function setMinSharingThreshold(address bToken, uint minThreshold) external onlyOwner {
-        require(minThreshold > 0, "Pool: incorrect-minThreshold");
-        minSharingThreshold[bToken] = minThreshold;
+    function setMinSharingThreshold(address bToken, uint newMinThreshold) external onlyOwner {
+        require(newMinThreshold > 0, "Pool: incorrect-minThreshold");
+        uint oldMinThreshold = minSharingThreshold[bToken];
+        minSharingThreshold[bToken] = newMinThreshold;
+        emit MinSharingThresholdChanged(bToken, oldMinThreshold, newMinThreshold);
     }
 
     function setProfitParams(uint numerator, uint denominator) external onlyOwner {
-        require(numerator < denominator, "pool: invalid-profit-params");
+        require(numerator < denominator, "Pool: invalid-profit-params");
         shareNumerator = numerator;
         shareDenominator = denominator;
         emit ProfitParamsChanged(numerator, denominator);
     }
 
     function setSelectionDuration(uint newDuration) external onlyOwner {
-        require(newDuration > 0, "pool: selection-duration-is-zero");
+        require(newDuration > 0, "Pool: selection-duration-is-zero");
         uint oldDuration = selectionDuration;
         selectionDuration = newDuration;
         emit SelectionDurationChanged(oldDuration, newDuration);
     }
 
-    function setMembers(address[] calldata members_) external onlyOwner {
-        members = members_;
-        emit MembersSet(members_);
+    function setMembers(address[] calldata newMembersList) external onlyOwner {
+        members = newMembersList;
+        emit MembersSet(newMembersList);
     }
 
     function deposit() external payable onlyMember {
