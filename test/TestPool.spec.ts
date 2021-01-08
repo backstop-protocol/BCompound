@@ -35,6 +35,10 @@ const USD_PER_ETH = new BN(100); // $100
 const ONE_ETH_RATE_IN_SCALE = SCALE;
 const ONE_USD_IN_SCALE = ONE_ETH_RATE_IN_SCALE.div(USD_PER_ETH);
 
+// Time Units
+const ONE_MINUTE = new BN(60);
+const ONE_HOUR = new BN(60).mul(ONE_MINUTE);
+
 contract("Pool", async (accounts) => {
   let snapshotId: string;
 
@@ -250,6 +254,7 @@ contract("Pool", async (accounts) => {
       let closeFactor: BN;
       let collateralFactorZRX: BN;
       let collateralFactorETH: BN;
+      let holdingTime = new BN(5).mul(ONE_HOUR); // 5 hours
 
       beforeEach("set pre-condition", async () => {
         // SET ORACLE PRICE
@@ -303,7 +308,7 @@ contract("Pool", async (accounts) => {
         // Precondition Setup:
         // -------------------
         await ZRX.transfer(a.user2, ONE_HUNDRED_ZRX, { from: a.deployer });
-        await pool.setMinSharingThreshold(cZRX_addr, new BN(100).mul(ONE_ZRX));
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(1000).mul(ONE_ZRX));
 
         // Test
         // ----
@@ -342,27 +347,26 @@ contract("Pool", async (accounts) => {
         await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: a.member1 });
 
         expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(TEN_ZRX);
-        let memberTopupInfo = await pool.getMemberTopupInfo(avatar1.address, a.member1);
+        let memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
         expectMemberTopupInfo(memberTopupInfo, {
           expectedExpire: ZERO,
           expectedAmountTopped: ZERO,
           expectedAmountLiquidated: ZERO,
         });
 
-        await pool.topup(avatar1.address, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
 
-        const debtTopupInfo = await pool.getDebtTopupInfo.call(avatar1.address, cZRX_addr);
-        // TODO borrow on Compound or on B???
-        const borrowAmt = FIFTY_ZRX.sub(TEN_ZRX);
+        const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
         expectDebtTopupInfo(debtTopupInfo, {
-          expectedMinDebt: borrowAmt.mul(new BN(250)).div(new BN(10000)), // borrowAmt * 250 / 10000 = 2.5%
+          // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: FIFTY_ZRX.mul(new BN(250)).div(new BN(10000)),
           expectedIsSmall: true,
         });
 
-        memberTopupInfo = await pool.getMemberTopupInfo(avatar1.address, a.member1);
-        // TODO expire is never set
+        memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
         expectMemberTopupInfo(memberTopupInfo, {
-          expectedExpire: ZERO,
+          expectedExpire: expectExpire,
           expectedAmountTopped: toppedUpZRX,
           expectedAmountLiquidated: ZERO,
         });

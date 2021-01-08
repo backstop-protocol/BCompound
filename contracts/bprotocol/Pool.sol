@@ -41,7 +41,7 @@ contract Pool is Exponential, Ownable {
     // avatar => TopupInfo
     mapping(address => TopupInfo) public topped;
 
-    // address is ctoken
+    // bToken => threshold
     mapping(address => uint) public minSharingThreshold; // debt above this size will be shared
     uint public minTopupBps = 250; // 2.5%
     uint public holdingTime = 5 hours; // after 5 hours, someone else can topup instead
@@ -61,7 +61,7 @@ contract Pool is Exponential, Ownable {
     }
 
     function getMemberTopupInfo(
-        address avatar,
+        address user,
         address member
     )
         public
@@ -72,35 +72,37 @@ contract Pool is Exponential, Ownable {
             uint amountLiquidated
         )
     {
+        address avatar = registry.avatarOf(user);
         MemberTopupInfo memory memberInfo = topped[avatar].memberInfo[member];
         expire = memberInfo.expire;
         amountTopped = memberInfo.amountTopped;
         amountLiquidated = memberInfo.amountLiquidated;
     }
 
-    function getDebtTopupInfo(address avatar, address cTokenDebt) public /* view */ returns(uint minDebt, bool isSmall){
-        // TODO this should be borrowBalanceCurrent on B ???
-        uint debt = ICToken(cTokenDebt).borrowBalanceCurrent(avatar);
+    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minDebt, bool isSmall){
+        // NOTICE: using `ICToken` to call fn on bToken, to avoid IBToken import
+        uint debt = ICToken(bTokenDebt).borrowBalanceCurrent(user);
         minDebt = mul_(debt, minTopupBps) / 10000;
-        isSmall = debt < minSharingThreshold[cTokenDebt];
+        isSmall = debt < minSharingThreshold[bTokenDebt];
     }
 
-    function untop(address avatar, uint underlyingAmount) public {
-        _untop(msg.sender, avatar, underlyingAmount);
+    function untop(address user, uint underlyingAmount) public onlyMember {
+        _untop(msg.sender, user, underlyingAmount);
     }
 
-    function _untopOnBehalf(address member, address avatar, uint underlyingAmount) internal {
-        _untop(member, avatar, underlyingAmount);
+    function _untopOnBehalf(address member, address user, uint underlyingAmount) internal {
+        _untop(member, user, underlyingAmount);
     }
 
-    function _untop(address member, address avatar, uint underlyingAmount) internal {
+    function _untop(address member, address user, uint underlyingAmount) internal {
         require(underlyingAmount > 0, "topup: 0-amount");
-
+        address avatar = registry.avatarOf(user);
         TopupInfo storage info = topped[avatar];
+        address bToken = bComptroller.c2b(info.ctoken);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[member];
         require(memberInfo.amountTopped == underlyingAmount, "untop: amount-too-big");
-        (uint minTopup,) = getDebtTopupInfo(avatar, info.ctoken);
+        (uint minTopup,) = getDebtTopupInfo(user, bToken);
         require(memberInfo.amountTopped == underlyingAmount ||
                 sub_(memberInfo.amountTopped, underlyingAmount) >= minTopup,
                 "untop: invalid-amount");
@@ -118,9 +120,10 @@ contract Pool is Exponential, Ownable {
         return members[chosen];
     }
 
-    function topup(address avatar, address bToken, uint amount, bool resetApprove) external onlyMember {
+    function topup(address user, address bToken, uint amount, bool resetApprove) external onlyMember {
+        address avatar = registry.avatarOf(user);
         address cToken = bComptroller.b2c(bToken);
-        (uint minDebt, bool small) = getDebtTopupInfo(avatar, cToken);
+        (uint minDebt, bool small) = getDebtTopupInfo(user, bToken);
 
         address underlying = _getUnderlying(cToken);
         uint memberBalance = balance[msg.sender][underlying];
@@ -148,6 +151,7 @@ contract Pool is Exponential, Ownable {
         }
 
         require(add_(amount, info.memberInfo[msg.sender].amountTopped) >= minDebt, "topup: amount-small");
+        // TODO if expired then check msg.sender's turn
         if(small && info.memberInfo[msg.sender].expire >= now) {
           // check it is member turn
           require(smallTopupWinner(avatar) == msg.sender, "topup: not-your-turn");
@@ -155,7 +159,8 @@ contract Pool is Exponential, Ownable {
 
         // topup is valid
         balance[msg.sender][underlying] = sub_(memberBalance, amount);
-        if(small && (info.memberInfo[msg.sender].expire) >= now) {
+        // TODO if smaller & already expired, then set new expiration time
+        if(small && (info.memberInfo[msg.sender].expire) <= now) {
           info.memberInfo[msg.sender].expire = add_(now, holdingTime);
         }
 
@@ -213,9 +218,19 @@ contract Pool is Exponential, Ownable {
      */
     function() external payable {}
 
-    function setMinSharingThreshold(address cToken, uint minThreshold) external onlyOwner {
+    function setMinTopupBps(uint _minTopupBps) external onlyOwner {
+        require(_minTopupBps >= 0 && _minTopupBps <= 10000, "Pool: incorrect-minTopupBps");
+        minTopupBps = _minTopupBps;
+    }
+
+    function setHoldingTime(uint _holdingTime) external onlyOwner {
+        require(_holdingTime > 0, "Pool: incorrect-holdingTime");
+        holdingTime = _holdingTime;
+    }
+
+    function setMinSharingThreshold(address bToken, uint minThreshold) external onlyOwner {
         require(minThreshold > 0, "Pool: incorrect-minThreshold");
-        minSharingThreshold[cToken] = minThreshold;
+        minSharingThreshold[bToken] = minThreshold;
     }
 
     function setProfitParams(uint numerator, uint denominator) external onlyOwner {
@@ -341,8 +356,8 @@ contract Pool is Exponential, Ownable {
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() > 0) {
             //info.debtToLiquidatePerMember = 0; // in theory this is not needed if delete works
-            // TODO delege might consume a lot of gas, so we can prefer setting debtToLiquidatePerMember = 0
             delete topped[avatar];
+            // TODO check in test if mapping gets deleted using `delete`
         }
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
     }
