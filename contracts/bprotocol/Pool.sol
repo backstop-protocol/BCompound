@@ -74,7 +74,7 @@ contract Pool is Exponential, Ownable {
     {
         MemberTopupInfo memory memberInfo = topped[avatar].memberInfo[member];
         expire = memberInfo.expire;
-        amountTopped = memberInfo.amountLiquidated;
+        amountTopped = memberInfo.amountTopped;
         amountLiquidated = memberInfo.amountLiquidated;
     }
 
