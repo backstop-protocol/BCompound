@@ -246,6 +246,11 @@ contract("Pool", async (accounts) => {
     });
 
     describe("Pool Integration Tests", async () => {
+      let liquidationIncentive: BN;
+      let closeFactor: BN;
+      let collateralFactorZRX: BN;
+      let collateralFactorETH: BN;
+
       beforeEach("set pre-condition", async () => {
         // SET ORACLE PRICE
         // =================
@@ -277,9 +282,21 @@ contract("Pool", async (accounts) => {
         await comptroller._setCollateralFactor(cETH_addr, FIFTY_PERCENT);
         await comptroller._setCollateralFactor(cZRX_addr, FIFTY_PERCENT);
 
-        const liquidationIncentive = await comptroller.liquidationIncentiveMantissa();
+        const ethMarket = await comptroller.markets(cETH_addr);
+        collateralFactorETH = ethMarket[1];
+        const zrxMarket = await comptroller.markets(cZRX_addr);
+        collateralFactorZRX = zrxMarket[1];
+
+        expect(collateralFactorETH).to.be.bignumber.equal(FIFTY_PERCENT);
+        expect(collateralFactorZRX).to.be.bignumber.equal(FIFTY_PERCENT);
+
+        liquidationIncentive = await comptroller.liquidationIncentiveMantissa();
         const expectLiqIncentive = SCALE.mul(new BN(110)).div(new BN(100));
         expect(expectLiqIncentive).to.be.bignumber.equal(liquidationIncentive);
+
+        closeFactor = await comptroller.closeFactorMantissa();
+        const expectCloseFactor = SCALE.div(new BN(2)); // 50%
+        expect(closeFactor).to.be.bignumber.equal(expectCloseFactor);
       });
 
       it("should do simple liquidation", async () => {
@@ -304,7 +321,11 @@ contract("Pool", async (accounts) => {
 
         // 4. Avatar1 not in liquidation
         let accLiquidityOfAvatar1 = await avatar1.methods["getAccountLiquidity()"]();
-        expectedLiquidity(accLiquidityOfAvatar1, ZERO, ZERO, ZERO);
+        expectedLiquidity(accLiquidityOfAvatar1, {
+          expectedErr: ZERO,
+          expectedLiquidityAmt: ZERO,
+          expectedShortFallAmt: ZERO,
+        });
 
         // 5. Change ZRX rate
         // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
@@ -331,12 +352,15 @@ contract("Pool", async (accounts) => {
         await pool.topup(avatar1.address, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
 
         const debtTopupInfo = await pool.getDebtTopupInfo.call(avatar1.address, cZRX_addr);
+        // TODO borrow on Compound or on B???
+        const borrowAmt = FIFTY_ZRX.sub(TEN_ZRX);
         expectDebtTopupInfo(debtTopupInfo, {
-          expectedMinDebt: FIFTY_ZRX.mul(new BN(250)).div(new BN(10000)), // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: borrowAmt.mul(new BN(250)).div(new BN(10000)), // borrowAmt * 250 / 10000 = 2.5%
           expectedIsSmall: true,
         });
 
         memberTopupInfo = await pool.getMemberTopupInfo(avatar1.address, a.member1);
+        // TODO expire is never set
         expectMemberTopupInfo(memberTopupInfo, {
           expectedExpire: ZERO,
           expectedAmountTopped: toppedUpZRX,
@@ -359,7 +383,11 @@ contract("Pool", async (accounts) => {
         // account liquidity on Avatar
         // expectShortFall = (borrowedOnCompound + toppedUpValue) - maxBorrowAllowed
         const expectShortFall = borrowedOnCompound.add(toppedUpValue).sub(maxBorrowAllowed);
-        expectedLiquidity(accLiquidityOfAvatar1, ZERO, ZERO, expectShortFall);
+        expectedLiquidity(accLiquidityOfAvatar1, {
+          expectedErr: ZERO,
+          expectedLiquidityAmt: ZERO,
+          expectedShortFallAmt: expectShortFall,
+        });
 
         expect(await avatar1.canLiquidate.call()).to.be.equal(true);
 
@@ -368,7 +396,11 @@ contract("Pool", async (accounts) => {
         // depositETH_USD - (borrowZRXToken * rate) + (topupZRXToken * rate)
         // $100 - ($50 * 1.1) + ($10 * 1.1) = $56 (which is $6 extra on $50)
         const expectedLiquidityInUSD = ONE_USD_IN_SCALE.mul(new BN(6)); // $6
-        expectedLiquidity(accLiqOfAvatar1OnCompound, ZERO, expectedLiquidityInUSD, ZERO);
+        expectedLiquidity(accLiqOfAvatar1OnCompound, {
+          expectedErr: ZERO,
+          expectedLiquidityAmt: expectedLiquidityInUSD,
+          expectedShortFallAmt: ZERO,
+        });
 
         // 9. member liquidate
         const maxLiquidationAmtZRX = await avatar1.getMaxLiquidationAmount.call(cZRX_addr);
@@ -398,16 +430,48 @@ contract("Pool", async (accounts) => {
         expect(await avatar1.canLiquidate.call()).to.be.equal(false);
 
         // 11. Validate account liquidity on B and Compound
-        console.log((await bETH.balanceOfUnderlying.call(a.user1)).toString());
+        const amtUpForLiquidationZRX = FIFTY_ZRX.mul(closeFactor).div(SCALE);
+        const amtUpForLiquidationUSD = amtUpForLiquidationZRX.mul(NEW_RATE).div(SCALE);
+        const amtUpForLiquidationUSD_with_incentive = amtUpForLiquidationUSD
+          .mul(liquidationIncentive)
+          .div(SCALE);
+        // ethInUsdRemainsAtAvatar1 = $100 - amtUpForLiquidationUSD_with_incentive
+        const ethRemainsAtAvatar1 = ONE_USD_IN_SCALE.mul(new BN(100)).sub(
+          amtUpForLiquidationUSD_with_incentive,
+        );
+        expect(await bETH.balanceOfUnderlying.call(a.user1)).to.be.bignumber.equal(
+          ethRemainsAtAvatar1,
+        );
 
-        // TODO Further calculations....
+        // zrxNewBorrowBal = FIFTY_ZRX - amtUpForLiquidation
+        const zrxNewBorrowBal = FIFTY_ZRX.sub(amtUpForLiquidationZRX);
+        expect(await bZRX.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(
+          zrxNewBorrowBal,
+        );
+
+        const newMaxBorrowAllowedWithETH = ethRemainsAtAvatar1.mul(collateralFactorETH).div(SCALE);
+        const newMaxBorrowAllowedUSD = newMaxBorrowAllowedWithETH
+          .mul(ONE_ETH_RATE_IN_SCALE)
+          .div(SCALE);
+        const newBorrowedUSD = zrxNewBorrowBal.mul(NEW_RATE).div(SCALE);
+        const availLiquidityUSD = newMaxBorrowAllowedUSD.sub(newBorrowedUSD);
+
         accLiquidityOfAvatar1 = await avatar1.methods["getAccountLiquidity()"]();
-        //expectedLiquidity(accLiquidityOfAvatar1, ZERO, ZERO, ZERO);
+        expectedLiquidity(accLiquidityOfAvatar1, {
+          expectedErr: ZERO,
+          expectedLiquidityAmt: availLiquidityUSD,
+          expectedShortFallAmt: ZERO,
+        });
 
         accLiqOfAvatar1OnCompound = await comptroller.getAccountLiquidity(avatar1.address);
-        //expectedLiquidity(accLiqOfAvatar1OnCompound, ZERO, ZERO, ZERO);
+        expectedLiquidity(accLiqOfAvatar1OnCompound, {
+          expectedErr: ZERO,
+          expectedLiquidityAmt: availLiquidityUSD,
+          expectedShortFallAmt: ZERO,
+        });
 
         // 12. member withdraw
+        // TODO
       });
     });
   });
@@ -415,9 +479,11 @@ contract("Pool", async (accounts) => {
 
 export function expectedLiquidity(
   accountLiquidity: [BN, BN, BN],
-  expectedErr: BN,
-  expectedLiquidityAmt: BN,
-  expectedShortFallAmt: BN,
+  param: {
+    expectedErr: BN;
+    expectedLiquidityAmt: BN;
+    expectedShortFallAmt: BN;
+  },
   debug: boolean = false,
 ) {
   if (debug) {
@@ -426,11 +492,11 @@ export function expectedLiquidity(
     console.log("ShortFall: " + accountLiquidity[2].toString());
   }
 
-  expect(expectedErr, "Unexpected Err").to.be.bignumber.equal(accountLiquidity[0]);
-  expect(expectedLiquidityAmt, "Unexpected Liquidity Amount").to.be.bignumber.equal(
+  expect(param.expectedErr, "Unexpected Err").to.be.bignumber.equal(accountLiquidity[0]);
+  expect(param.expectedLiquidityAmt, "Unexpected Liquidity Amount").to.be.bignumber.equal(
     accountLiquidity[1],
   );
-  expect(expectedShortFallAmt, "Unexpected ShortFall Amount").to.be.bignumber.equal(
+  expect(param.expectedShortFallAmt, "Unexpected ShortFall Amount").to.be.bignumber.equal(
     accountLiquidity[2],
   );
 }
