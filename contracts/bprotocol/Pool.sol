@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { IRegistry } from "./interfaces/IRegistry.sol";
 import { ICToken, ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
+import { IBToken } from "./interfaces/IBToken.sol";
 import {
     IAvatar,
     IAvatarCErc20,
@@ -80,8 +81,7 @@ contract Pool is Exponential, Ownable {
     }
 
     function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minDebt, bool isSmall){
-        // NOTICE: using `ICToken` to call fn on bToken, to avoid IBToken import
-        uint debt = ICToken(bTokenDebt).borrowBalanceCurrent(user);
+        uint debt = IBToken(bTokenDebt).borrowBalanceCurrent(user);
         minDebt = mul_(debt, minTopupBps) / 10000;
         isSmall = debt < minSharingThreshold[bTokenDebt];
     }
@@ -237,6 +237,7 @@ contract Pool is Exponential, Ownable {
 
     function setMinSharingThreshold(address bToken, uint newMinThreshold) external onlyOwner {
         require(newMinThreshold > 0, "Pool: incorrect-minThreshold");
+        require(bComptroller.isBToken(bToken), "Pool: not-a-BToken");
         uint oldMinThreshold = minSharingThreshold[bToken];
         minSharingThreshold[bToken] = newMinThreshold;
         emit MinSharingThresholdChanged(bToken, oldMinThreshold, newMinThreshold);
