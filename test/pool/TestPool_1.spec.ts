@@ -267,7 +267,15 @@ contract("Pool", async (accounts) => {
     });
 
     describe("Pool.untop()", async () => {
-      it("");
+      it("should untop a user");
+
+      it("should fail when a non-member calls untop");
+
+      it("should fail when underlyingAmount is zero");
+
+      it("should fail when underlyingAmount is too big");
+
+      it("should fail when invalid amount");
     });
 
     describe("Pool.smallTopupWinner()", async () => {
@@ -465,6 +473,8 @@ contract("Pool", async (accounts) => {
         expect(await avatar3.isToppedUp()).to.be.equal(true);
       });
 
+      it("should fail when a non-member calls topup");
+
       it("should fail when member balance is insuffecient");
 
       it("should fail when remaining liquidation amount is zero");
@@ -472,6 +482,8 @@ contract("Pool", async (accounts) => {
       it("should topup big loan");
 
       it("should fail when another member try to topup small loan before expire");
+
+      it("shoud allow another member to topup small loan after expire from prev member");
     });
 
     describe("Pool.setMinTopupBps()", async () => {

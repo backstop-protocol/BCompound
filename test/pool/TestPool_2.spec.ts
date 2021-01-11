@@ -474,7 +474,15 @@ contract("Pool", async (accounts) => {
     });
 
     describe("Pool.liquidateBorrow()", async () => {
-      it("");
+      it("member should liquidation a user (borrowed ETH)");
+
+      it("member should liquidation a user (borrowed ZRX)");
+
+      it("should fail when a non-member calls function");
+
+      it("should when a member didn't toppedUp");
+
+      it("should fail when amount is too big");
     });
 
     describe("Pool.membersLength()", async () => {
@@ -521,7 +529,9 @@ contract("Pool", async (accounts) => {
     });
 
     describe("Pool.getMemberTopupInfo()", async () => {
-      it("");
+      it("should get member topup info");
+
+      it("delete on topupInfo should delete memberInfo");
     });
   });
 });
