@@ -56,9 +56,8 @@ contract Pool is Exponential, Ownable {
 
     struct TopupInfo {
         mapping(address => MemberTopupInfo) memberInfo; // info per member
-
-        uint    debtToLiquidatePerMember; // total debt avail to liquidate
-        address ctoken;          // underlying debt ctoken address
+        uint debtToLiquidatePerMember; // total debt avail to liquidate
+        address cToken;          // underlying debt cToken address
     }
 
     function getMemberTopupInfo(
@@ -98,7 +97,7 @@ contract Pool is Exponential, Ownable {
         require(underlyingAmount > 0, "topup: 0-amount");
         address avatar = registry.avatarOf(user);
         TopupInfo storage info = topped[avatar];
-        address bToken = bComptroller.c2b(info.ctoken);
+        address bToken = bComptroller.c2b(info.cToken);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[member];
         require(memberInfo.amountTopped == underlyingAmount, "untop: amount-too-big");
@@ -108,7 +107,7 @@ contract Pool is Exponential, Ownable {
                 "untop: invalid-amount");
 
         if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
-        address underlying = _getUnderlying(info.ctoken);
+        address underlying = _getUnderlying(info.cToken);
         balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
 
         memberInfo.amountTopped = 0;
@@ -128,8 +127,8 @@ contract Pool is Exponential, Ownable {
         address underlying = _getUnderlying(cToken);
         uint memberBalance = balance[msg.sender][underlying];
 
-        require(memberBalance >= amount, "topup: insufficient balance");
-        require(ICushion(avatar).remainingLiquidationAmount() == 0, "topup: cannot-topup-in-liquidation");
+        require(memberBalance >= amount, "Pool: topup-insufficient-balance");
+        require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: topup-cannot-topup-in-liquidation");
 
         uint realCushion = ICushion(avatar).toppedUpAmount();
         TopupInfo storage info = topped[avatar];
@@ -137,39 +136,40 @@ contract Pool is Exponential, Ownable {
             address member = members[i];
             if(info.memberInfo[member].amountTopped > 0) {
                 if(realCushion == 0) {
-                  _untopOnBehalf(member, avatar, amount);
-                  // now it is 0 topup
-                  continue;
+                    _untopOnBehalf(member, avatar, amount);
+                    // now it is 0 topup
+                    continue;
                 }
 
-                require(info.ctoken == cToken, "ctoken-miss-match");
+                require(info.cToken == cToken, "Pool: cToken-miss-match");
 
                 if(member == msg.sender) continue;
                 if(! small) continue; // can share
-                require(info.memberInfo[member].expire < now, "topup: other-member-topped");
+                require(info.memberInfo[member].expire < now, "Pool: topup-other-member-topped");
             }
         }
 
-        require(add_(amount, info.memberInfo[msg.sender].amountTopped) >= minDebt, "topup: amount-small");
+        MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
+        require(add_(amount, memberInfo.amountTopped) >= minDebt, "Pool: topup-amount-small");
         // TODO if expired then check msg.sender's turn
-        if(small && info.memberInfo[msg.sender].expire >= now) {
-          // check it is member turn
-          require(smallTopupWinner(avatar) == msg.sender, "topup: not-your-turn");
+        if(small && memberInfo.expire >= now) {
+            // check it is member turn
+            require(smallTopupWinner(avatar) == msg.sender, "Pool: topup-not-your-turn");
         }
 
         // topup is valid
         balance[msg.sender][underlying] = sub_(memberBalance, amount);
         // TODO if smaller & already expired, then set new expiration time
-        if(small && (info.memberInfo[msg.sender].expire) <= now) {
-          info.memberInfo[msg.sender].expire = add_(now, holdingTime);
+        if(small && memberInfo.expire <= now) {
+            memberInfo.expire = add_(now, holdingTime);
         }
 
-        info.memberInfo[msg.sender].amountTopped = add_(info.memberInfo[msg.sender].amountTopped, amount);
+        memberInfo.amountTopped = add_(memberInfo.amountTopped, amount);
         // in all the below, as sload will soon cost 2k gas, we use sstore without
         // checking if the value really changed
-        info.memberInfo[msg.sender].amountLiquidated = 0;
+        memberInfo.amountLiquidated = 0;
         info.debtToLiquidatePerMember = 0;
-        info.ctoken = cToken;
+        info.cToken = cToken;
 
         if(_isCEther(cToken)) {
             ICushionCEther(avatar).topup.value(amount)();
