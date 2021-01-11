@@ -55,6 +55,13 @@ contract("Pool", async (accounts) => {
   let compoundUtil: CompoundUtils;
   let pool: b.PoolInstance;
   let priceOracle: b.FakePriceOracleInstance;
+  let registry: b.RegistryInstance;
+
+  let liquidationIncentive: BN;
+  let closeFactor: BN;
+  let collateralFactorZRX: BN;
+  let collateralFactorETH: BN;
+  let holdingTime = new BN(5).mul(ONE_HOUR); // 5 hours
 
   before(async () => {
     await engine.deployCompound();
@@ -65,6 +72,7 @@ contract("Pool", async (accounts) => {
     compoundUtil = bProtocol.compound.compoundUtil;
     pool = bProtocol.pool;
     priceOracle = bProtocol.compound.priceOracle;
+    registry = bProtocol.registry;
   });
 
   beforeEach(async () => {
@@ -92,7 +100,8 @@ contract("Pool", async (accounts) => {
     const ONE_THOUSAND_ZRX = new BN(1000).mul(ONE_ZRX);
 
     const ONE_BAT = new BN(10).pow(new BN(18));
-    const HUNDRED_BAT = new BN(100).mul(ONE_BAT);
+    const FIFTY_BAT = new BN(50).mul(ONE_BAT);
+    const ONE_HUNDRED_BAT = new BN(100).mul(ONE_BAT);
     const FIVE_HUNDRED_BAT = new BN(500).mul(ONE_BAT);
     const ONE_THOUSAND_BAT = new BN(1000).mul(ONE_BAT);
 
@@ -136,6 +145,54 @@ contract("Pool", async (accounts) => {
 
     let cETH_addr: string;
     let cETH: b.CEtherInstance;
+
+    async function initSetupCompound() {
+      // SET ORACLE PRICE
+      // =================
+      // ETH price is Oracle is always set to 1e18, represents full 1 ETH rate
+      // Assume ETH rate is $100, hence 1e18 represents $100 = 1 ETH rate
+      // =>> 1 ETH rate in contract = 1e18, (represents $100)
+      // Assume 1 ZRX rate is $1
+      // =>> 1 ZRX rate in contract = 1e18 / 100 = 1e16, (represents $1)
+      const ONE_ETH_RATE_IN_USD = USD_PER_ETH; // $100
+      const ONE_ZRX_RATE_IN_USD = new BN(1); // $1
+
+      // DIVISOR = 100 / 1 = 100
+      const DIVISOR = ONE_ETH_RATE_IN_USD.div(ONE_ZRX_RATE_IN_USD);
+
+      // PRICE_ONE_ZRX_IN_CONTRACT = 1e18 / 100 = 1e16
+      const PRICE_ONE_ZRX_IN_CONTRACT = ONE_ETH_RATE_IN_SCALE.div(DIVISOR);
+
+      await priceOracle.setPrice(cZRX_addr, PRICE_ONE_ZRX_IN_CONTRACT);
+
+      expect(PRICE_ONE_ZRX_IN_CONTRACT).to.be.bignumber.equal(
+        await priceOracle.getUnderlyingPrice(cZRX_addr),
+      );
+
+      const ethPrice = await priceOracle.getUnderlyingPrice(cETH_addr);
+      expect(ONE_ETH_RATE_IN_SCALE).to.be.bignumber.equal(ethPrice);
+
+      // SET COLLATERAL FACTOR
+      // =======================
+      await comptroller._setCollateralFactor(cETH_addr, FIFTY_PERCENT);
+      await comptroller._setCollateralFactor(cZRX_addr, FIFTY_PERCENT);
+
+      const ethMarket = await comptroller.markets(cETH_addr);
+      collateralFactorETH = ethMarket[1];
+      const zrxMarket = await comptroller.markets(cZRX_addr);
+      collateralFactorZRX = zrxMarket[1];
+
+      expect(collateralFactorETH).to.be.bignumber.equal(FIFTY_PERCENT);
+      expect(collateralFactorZRX).to.be.bignumber.equal(FIFTY_PERCENT);
+
+      liquidationIncentive = await comptroller.liquidationIncentiveMantissa();
+      const expectLiqIncentive = SCALE.mul(new BN(110)).div(new BN(100));
+      expect(expectLiqIncentive).to.be.bignumber.equal(liquidationIncentive);
+
+      closeFactor = await comptroller.closeFactorMantissa();
+      const expectCloseFactor = SCALE.div(new BN(2)); // 50%
+      expect(closeFactor).to.be.bignumber.equal(expectCloseFactor);
+    }
 
     beforeEach(async () => {
       // ZRX
@@ -214,11 +271,207 @@ contract("Pool", async (accounts) => {
     });
 
     describe("Pool.smallTopupWinner()", async () => {
-      it("");
+      let members: string[];
+
+      beforeEach(async () => {
+        members = await pool.getMembers();
+      });
+
+      it("should get smallTopupWinner", async () => {
+        expect(await pool.membersLength()).to.be.bignumber.equal(new BN(4));
+
+        const chosenMember = await pool.smallTopupWinner(avatar1.address);
+        expect(isValidaMember(chosenMember, members)).to.be.equal(true);
+      });
+
+      it("should get the same smallTopupWinner for an hour", async () => {
+        // reset time
+        const selectionDuration = await pool.selectionDuration();
+        let nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
+        const extra = nowTime.mod(selectionDuration); // extra = nowTime % 60mins
+        const diffToSeek = selectionDuration.sub(extra); // diffToSeek = 60mins - extra
+        await time.increase(diffToSeek);
+        nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
+        expect(nowTime.mod(selectionDuration)).to.be.bignumber.equal(ZERO);
+
+        let chosenMember1 = await pool.smallTopupWinner(avatar1.address);
+        expect(isValidaMember(chosenMember1, members)).to.be.equal(true);
+
+        await time.increase(1);
+
+        let chosenMember2 = await pool.smallTopupWinner(avatar1.address);
+        expect(isValidaMember(chosenMember2, members)).to.be.equal(true);
+        expect(chosenMember1).to.be.equal(chosenMember2);
+
+        // 20 second before next hour
+        await time.increase(selectionDuration.sub(new BN(20)));
+
+        let chosenMember3 = await pool.smallTopupWinner(avatar1.address);
+        expect(isValidaMember(chosenMember3, members)).to.be.equal(true);
+        expect(chosenMember2).to.be.equal(chosenMember3);
+      });
+
+      it("should change the smallTopupWinner next hour", async () => {
+        // reset time
+        const selectionDuration = await pool.selectionDuration();
+        let nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
+        const extra = nowTime.mod(selectionDuration); // extra = nowTime % 60mins
+        const diffToSeek = selectionDuration.sub(extra); // diffToSeek = 60mins - extra
+        await time.increase(diffToSeek);
+        nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
+        expect(nowTime.mod(selectionDuration)).to.be.bignumber.equal(ZERO);
+
+        let chosenMember1 = await pool.smallTopupWinner(avatar1.address);
+        expect(isValidaMember(chosenMember1, members)).to.be.equal(true);
+
+        // increase 1 hour
+        await time.increase(selectionDuration.add(new BN(1)));
+
+        let chosenMember2 = await pool.smallTopupWinner(avatar1.address);
+        expect(isValidaMember(chosenMember2, members)).to.be.equal(true);
+        // NOTICE: 1/3 probability of passing
+        // TODO: commented our as we cannot predict
+        // expect(chosenMember1).to.be.not.equal(chosenMember2);
+      });
+
+      it("should get member only from members list", async () => {
+        // reset time
+        const selectionDuration = await pool.selectionDuration();
+        let nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
+        const extra = nowTime.mod(selectionDuration); // extra = nowTime % 60mins
+        const diffToSeek = selectionDuration.sub(extra); // diffToSeek = 60mins - extra
+        await time.increase(diffToSeek);
+        nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
+        expect(nowTime.mod(selectionDuration)).to.be.bignumber.equal(ZERO);
+
+        for (let i = 0; i < 10; i++) {
+          await time.increase(selectionDuration.add(new BN((i + 1) * 3)));
+
+          let chosenMember = await pool.smallTopupWinner(avatar1.address);
+          expect(isValidaMember(chosenMember, members)).to.be.equal(true);
+        }
+      });
     });
 
     describe("Pool.topup()", async () => {
-      it("");
+      beforeEach(async () => {
+        await initSetupCompound();
+
+        // Precondition Setup:
+        // -------------------
+        await ZRX.transfer(a.user2, ONE_HUNDRED_ZRX, { from: a.deployer });
+        await BAT.transfer(a.user3, ONE_HUNDRED_BAT, { from: a.deployer });
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(1000).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+        await pool.setMinSharingThreshold(bETH_addr, new BN(100).mul(ONE_ETH), {
+          from: a.deployer,
+        });
+
+        // deposit
+        // 1. User-1 mint cETH with ETH : $100
+        await bETH.mint({ from: a.user1, value: ONE_ETH });
+
+        // 2.1 User-2 mint cZRX with ZRX
+        await ZRX.approve(bZRX.address, ONE_HUNDRED_ZRX, { from: a.user2 });
+        await bZRX.mint(ONE_HUNDRED_ZRX, { from: a.user2 });
+
+        // 2.2 User-3 mint cBAT with BAT
+        await BAT.approve(bBAT.address, ONE_HUNDRED_BAT, { from: a.user3 });
+        await bBAT.mint(ONE_HUNDRED_BAT, { from: a.user3 });
+
+        // borrow
+        // 3.1 User1 borrow ZRX : $50
+        await bZRX.borrow(FIFTY_ZRX, { from: a.user1 });
+
+        // 3.2 User3 borrow ETH: $50
+        await bETH.borrow(HALF_ETH, { from: a.user3 });
+
+        // 5. Member1 deposits 10 ZRX to pool
+        await ZRX.approve(pool.address, TEN_ZRX, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: a.member1 });
+
+        // 5. Member2 deposits 0.1 ETH to pool
+        await pool.methods["deposit()"]({ from: a.member2, value: ONE_ETH.div(new BN(10)) });
+      });
+
+      it("should topup with ZRX", async () => {
+        // user1 borrowed ZRX
+        // member1 toppedUp
+
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+
+        const result = await pool.topped(avatar1.address);
+        const debtToLiquidatePerMember = result[0];
+        const cToken = result[1];
+        expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
+        expect(cToken).to.be.equal(await bComptroller.b2c(bZRX_addr));
+
+        const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
+        expectDebtTopupInfo(debtTopupInfo, {
+          // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: FIFTY_ZRX.mul(new BN(250)).div(new BN(10000)),
+          expectedIsSmall: true,
+        });
+
+        const memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
+        expectMemberTopupInfo(memberTopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpZRX,
+          expectedAmountLiquidated: ZERO,
+        });
+
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        expect(await avatar1.isToppedUp()).to.be.equal(true);
+      });
+
+      it("should topup with ETH", async () => {
+        // user3 borrowed ETH
+        // member2 toppedUp
+
+        // Change ETH rate
+        // ONE_USD_IN_SCALE * 110 = $110 per ETH (IN SCALE)
+        const NEW_RATE_ETH = ONE_USD_IN_SCALE.mul(new BN(110));
+        await priceOracle.setPrice(cETH_addr, NEW_RATE_ETH);
+
+        const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
+        await pool.topup(a.user3, bETH_addr, toppedUpETH, false, { from: a.member2 });
+        const result = await pool.topped(avatar3.address);
+        const debtToLiquidatePerMember = result[0];
+        const cToken = result[1];
+        expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
+        expect(cToken).to.be.equal(await bComptroller.b2c(bETH_addr));
+        const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user3, bETH_addr);
+        expectDebtTopupInfo(debtTopupInfo, {
+          // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: HALF_ETH.mul(new BN(250)).div(new BN(10000)),
+          expectedIsSmall: true,
+        });
+        const memberTopupInfo = await pool.getMemberTopupInfo(a.user3, a.member2);
+        const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
+        expectMemberTopupInfo(memberTopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpETH,
+          expectedAmountLiquidated: ZERO,
+        });
+        expect(await pool.balance(a.member2, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+        expect(await avatar3.isToppedUp()).to.be.equal(true);
+      });
+
+      it("should fail when member balance is insuffecient");
+
+      it("should fail when remaining liquidation amount is zero");
+
+      it("should topup big loan");
+
+      it("should fail when another member try to topup small loan before expire");
     });
 
     describe("Pool.setMinTopupBps()", async () => {
@@ -646,4 +899,27 @@ export function expectDebtTopupInfo(
 
   expect(param.expectedMinDebt, "Unexpected minDebt").to.be.bignumber.equal(debtTopupInfo[0]);
   expect(param.expectedIsSmall, "Unexpected isSmall").to.be.equal(debtTopupInfo[1]);
+}
+
+export function isValidaMember(member: string, members: string[], debug: boolean = false) {
+  if (debug) {
+    console.log("member: " + member);
+    console.log("members: " + members);
+  }
+  let found: boolean = false;
+
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i];
+
+    if (debug) {
+      console.log(member);
+      console.log(m);
+    }
+
+    if (m === member) {
+      found = true;
+      break;
+    }
+  }
+  return found;
 }
