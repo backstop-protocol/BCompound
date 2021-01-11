@@ -1,8 +1,8 @@
-import * as b from "../types/index";
-import { BProtocolEngine, BProtocol } from "../test-utils/BProtocolEngine";
-import { CompoundUtils } from "../test-utils/CompoundUtils";
-import { BAccounts } from "../test-utils/BAccounts";
-import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
+import * as b from "../../types/index";
+import { BProtocolEngine, BProtocol } from "../../test-utils/BProtocolEngine";
+import { CompoundUtils } from "../../test-utils/CompoundUtils";
+import { BAccounts } from "../../test-utils/BAccounts";
+import { takeSnapshot, revertToSnapShot } from "../../test-utils/SnapshotUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
 import { boolean } from "hardhat/internal/core/params/argumentTypes";
