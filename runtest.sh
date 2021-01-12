@@ -12,8 +12,7 @@ find ./test -type f -name "*.spec.ts" | while read file; do
   cmd="npx hardhat test $file"
   $cmd
   status=$?
-  
-  if [ $? -eq 0 ]
+  if [ $status -eq 0 ]
   then
     echo "'$cmd' command was successful"
   else
@@ -27,9 +26,4 @@ find ./test -type f -name "*.spec.ts" | while read file; do
   echo "Done."
 done
 
-if [ $failed -eq 1 ]
-then
-  exit 1
-else
-  exit 0
-fi
+exit $failed
