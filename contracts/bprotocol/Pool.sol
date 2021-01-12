@@ -37,9 +37,9 @@ contract Pool is Exponential, Ownable {
     // member share profit params
     uint public shareNumerator;
     uint public shareDenominator;
-    // member => underlaying => amount
+    // member => underlying => amount
     mapping(address => mapping(address => uint)) public balance;
-    // member => underlaying => amount
+    // member => underlying => amount
     mapping(address => mapping(address => uint)) public topupBalance;
     // avatar => TopupInfo
     mapping(address => TopupInfo) public topped;
