@@ -3,6 +3,7 @@ pragma solidity 0.5.16;
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { GnosisSafeProxy } from "./proxy/GnosisSafeProxy.sol";
 import { IAvatar } from "./interfaces/IAvatar.sol";
+import { Avatar } from "./avatar/Avatar.sol";
 
 /**
  * @dev Registry contract to maintain Compound, BProtocol and avatar address.
@@ -16,11 +17,13 @@ contract Registry is Ownable {
 
     // BProtocol Contracts
     address public pool;
-    address public bComptroller;
     address public score;
+    address public compVoter;
+    address public bComptroller;
+
 
     // Avatar
-    address public avatarMaster;
+    address public avatarImpl;
 
     // Owner => Avatar
     mapping (address => address) public avatarOf;
@@ -49,7 +52,8 @@ contract Registry is Ownable {
         address _cEther,
         address _pool,
         address _bComptroller,
-        address _score
+        address _score,
+        address _compVoter
     )
         public
     {
@@ -59,7 +63,9 @@ contract Registry is Ownable {
         pool = _pool;
         bComptroller = _bComptroller;
         score = _score;
+        compVoter = _compVoter;
 
+        avatarImpl = address(new Avatar());
         dummyCaller = new DummyCaller();
     }
 
@@ -75,11 +81,6 @@ contract Registry is Ownable {
         address oldScore = score;
         score = newScore;
         emit NewScore(oldScore, newScore);
-    }
-
-    function setAvatarMaster(address _avatarMaster) external onlyOwner {
-        require(avatarMaster == address(0), "Registry: avatar-master-already-set");
-        avatarMaster = _avatarMaster;
     }
 
     function newAvatar() external returns (address) {
@@ -129,7 +130,7 @@ contract Registry is Ownable {
         // Deploy GnosisSafeProxy with the Avatar contract as logic contract
         address _avatar = _deployAvatarProxy(_owner);
         // Initialize Avatar
-        IAvatar(_avatar).initialize(address(this));
+        IAvatar(_avatar).initialize(address(this), comp, compVoter);
 
         avatarOf[_owner] = _avatar;
         ownerOf[_avatar] = _owner;
@@ -141,7 +142,7 @@ contract Registry is Ownable {
     function _deployAvatarProxy(address _owner) internal returns (address proxy) {
         bytes32 salt = keccak256(abi.encodePacked(_owner));
         bytes memory proxyCode = type(GnosisSafeProxy).creationCode;
-        bytes memory deploymentData = abi.encodePacked(proxyCode, uint256(avatarMaster));
+        bytes memory deploymentData = abi.encodePacked(proxyCode, uint256(avatarImpl));
 
         assembly {
             proxy := create2(0, add(deploymentData, 0x20), mload(deploymentData), salt)

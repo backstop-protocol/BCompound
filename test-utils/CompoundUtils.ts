@@ -19,7 +19,7 @@ export class CompoundUtils {
 
   public getComp(): string {
     this.loanJson();
-    return this.compound.Contracts.COMP;
+    return this.compound.Contracts.Comp;
   }
 
   public getContracts(key: string): string {
