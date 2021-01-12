@@ -37,8 +37,10 @@ contract Pool is Exponential, Ownable {
     // member share profit params
     uint public shareNumerator;
     uint public shareDenominator;
-    // member => underlaying => amount
+    // member => underlying => amount
     mapping(address => mapping(address => uint)) public balance;
+    // member => underlying => amount
+    mapping(address => mapping(address => uint)) public topupBalance;
     // avatar => TopupInfo
     mapping(address => TopupInfo) public topped;
 
@@ -111,6 +113,7 @@ contract Pool is Exponential, Ownable {
         if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
         address underlying = _getUnderlying(info.cToken);
         balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
+        topupBalance[member][underlying] = sub_(topupBalance[member][underlying] , underlyingAmount);
 
         memberInfo.amountTopped = 0;
         memberInfo.expire = 0;
@@ -161,6 +164,7 @@ contract Pool is Exponential, Ownable {
 
         // topup is valid
         balance[msg.sender][underlying] = sub_(memberBalance, amount);
+        topupBalance[msg.sender][underlying] = add_(topupBalance[msg.sender][underlying], amount);
         // TODO if smaller & already expired, then set new expiration time
         if(small && memberInfo.expire <= now) {
             memberInfo.expire = add_(now, holdingTime);
@@ -364,6 +368,7 @@ contract Pool is Exponential, Ownable {
         // TODO this SSTORE can be saved if toppedUpAmount() > 0
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+        topupBalance[msg.sender][debtUnderlying] = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() > 0) {
