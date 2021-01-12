@@ -3,11 +3,8 @@ pragma solidity 0.5.16;
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
 import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+import { IComp } from "../interfaces/IComp.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-interface CompLike {
-    function delegate(address delegatee) external;
-}
 
 /**
  * @title An Avatar contract deployed per account. The contract holds cTokens and directly interacts
@@ -24,7 +21,7 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function initialize(address _registry, address comp, address compVoter) external {
         _initAvatarBase(_registry);
-        CompLike(comp).delegate(compVoter);
+        IComp(comp).delegate(compVoter);
     }
 
     //override
