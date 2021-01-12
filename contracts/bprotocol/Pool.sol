@@ -94,17 +94,19 @@ contract Pool is Exponential, Ownable {
     }
 
     function _untop(address member, address user, uint underlyingAmount) internal {
-        require(underlyingAmount > 0, "topup: 0-amount");
+        require(underlyingAmount > 0, "Pool: amount-is-zero");
         address avatar = registry.avatarOf(user);
         TopupInfo storage info = topped[avatar];
         address bToken = bComptroller.c2b(info.cToken);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[member];
-        require(memberInfo.amountTopped == underlyingAmount, "untop: amount-too-big");
+        require(memberInfo.amountTopped >= underlyingAmount, "Pool: amount-too-big");
         (uint minTopup,) = getDebtTopupInfo(user, bToken);
-        require(memberInfo.amountTopped == underlyingAmount ||
-                sub_(memberInfo.amountTopped, underlyingAmount) >= minTopup,
-                "untop: invalid-amount");
+        require(
+            memberInfo.amountTopped == underlyingAmount ||
+            sub_(memberInfo.amountTopped, underlyingAmount) >= minTopup,
+            "Pool invalid-amount"
+        );
 
         if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
         address underlying = _getUnderlying(info.cToken);
@@ -128,7 +130,7 @@ contract Pool is Exponential, Ownable {
         uint memberBalance = balance[msg.sender][underlying];
 
         require(memberBalance >= amount, "Pool: topup-insufficient-balance");
-        require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: topup-cannot-topup-in-liquidation");
+        require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: cannot-topup-in-liquidation");
 
         uint realCushion = ICushion(avatar).toppedUpAmount();
         TopupInfo storage info = topped[avatar];
