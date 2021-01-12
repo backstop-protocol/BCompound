@@ -473,11 +473,39 @@ contract("Pool", async (accounts) => {
         expect(await avatar3.isToppedUp()).to.be.equal(true);
       });
 
-      it("should fail when a non-member calls topup");
+      it("should fail when a non-member calls topup", async () => {
+        // user1 borrowed ZRX
+        // other try to topup
 
-      it("should fail when member balance is insuffecient");
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
 
-      it("should fail when remaining liquidation amount is zero");
+        const toppedUpZRX = TEN_ZRX;
+        await expectRevert(
+          pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.other }),
+          "Pool: not-member",
+        );
+      });
+
+      it("should fail when member balance is insuffecient", async () => {
+        // user1 borrowed ZRX
+        // member3 try to topup
+
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+
+        const toppedUpZRX = TEN_ZRX;
+        await expectRevert(
+          pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member3 }),
+          "Pool: topup-insufficient-balance",
+        );
+      });
+
+      it("should fail when an avatar is already in liquidation");
 
       it("should topup big loan");
 
