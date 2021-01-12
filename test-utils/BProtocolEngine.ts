@@ -94,9 +94,6 @@ export class BProtocolEngine {
     _bProtocol.bComptroller = await this.deployBComptroller();
     _bProtocol.registry = await this.deployRegistry();
 
-    const avatarMaster = await Avatar.new();
-    await _bProtocol.registry.setAvatarMaster(avatarMaster.address);
-
     await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
     await _bProtocol.score.setRegistry(_bProtocol.registry.address);
     await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
@@ -145,12 +142,18 @@ export class BProtocolEngine {
     const pool = this.bProtocol.pool;
     const bComptroller = this.bProtocol.bComptroller.address;
     const bScore = this.bProtocol.score.address;
-    return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, bScore);
+    const compVoter = this.getCompVoterAddress();
+    return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, bScore, compVoter);
   }
 
   public getBProtocol(): BProtocol {
     return this.bProtocol;
   }
+
+  public getCompVoterAddress(): string {
+    return "0x0011223344556677889900112233445566778899"; // TODO - assign a value of a multisig
+  }
+
 
   // Child Contract Creation
   // ========================
