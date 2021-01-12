@@ -7,7 +7,7 @@ contract IERC20 {
 }
 
 contract IAvatar is IERC20 {
-    function initialize(address registry) external;
+    function initialize(address _registry, address comp, address compVoter) external;
     function quit() external returns (bool);
     function canUntop() public returns (bool);
     function toppedUpCToken() external returns (address);

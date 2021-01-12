@@ -193,6 +193,22 @@ contract("Registry", async (accounts) => {
       expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
     });
 
+    it("should delegate comp avatar to voter", async () => {
+      let avatar1 = await registry.avatarOf(a.user1);
+      expect(ZERO_ADDRESS).to.be.equal(avatar1);
+
+      const tx = await registry.newAvatar({ from: a.user1 });
+      avatar1 = await registry.avatarOf(a.user1);
+      expectEvent(tx, "NewAvatar", { avatar: avatar1, owner: a.user1 });
+
+      expect(a.user1).to.be.equal(await registry.ownerOf(avatar1));
+      expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
+
+      const compToken = bProtocol.compound.comp;
+      const delegatee = engine.getCompVoterAddress();
+      expect(await compToken.delegates(avatar1)).to.be.equal(delegatee);
+    });
+
     it("should fail when avatar already exists", async () => {
       await registry.newAvatar({ from: a.user1 });
 
