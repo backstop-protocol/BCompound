@@ -78,11 +78,11 @@ contract Cushion is AvatarBase {
         if(!isToppedUp()) return;
 
         // 1. Udpdate storage for toppedUp details
-        require(toppedUpAmount >= amount, "untop: amount >= toppedUpAmount");
+        require(toppedUpAmount >= amount, "Cushion: amount >= toppedUpAmount");
         toppedUpAmount = sub_(toppedUpAmount, amount);
 
         // 2. Borrow from Compound and send tokens to Pool
-        require(toppedUpCToken.borrow(amount) == 0, "borrow-failed");
+        require(toppedUpCToken.borrow(amount) == 0, "Cushion: borrow-failed");
 
         address payable pool = pool();
 

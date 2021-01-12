@@ -81,7 +81,10 @@ contract Pool is Exponential, Ownable {
         amountLiquidated = memberInfo.amountLiquidated;
     }
 
-    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minDebt, bool isSmall){
+    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minDebt, bool isSmall) {
+        console.log("in getDebtTopupInfo");
+        console.log("user: %s", user);
+        console.log("bTokenDebt: %s", bTokenDebt);
         uint debt = IBToken(bTokenDebt).borrowBalanceCurrent(user);
         minDebt = mul_(debt, minTopupBps) / 10000;
         isSmall = debt < minSharingThreshold[bTokenDebt];
@@ -96,27 +99,33 @@ contract Pool is Exponential, Ownable {
     }
 
     function _untop(address member, address user, uint underlyingAmount) internal {
+        console.log("in _untop()");
         require(underlyingAmount > 0, "Pool: amount-is-zero");
         address avatar = registry.avatarOf(user);
         TopupInfo storage info = topped[avatar];
+
         address bToken = bComptroller.c2b(info.cToken);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[member];
-        require(memberInfo.amountTopped >= underlyingAmount, "Pool: amount-too-big");
+        // cannot untop more than topped up amount
+        require(memberInfo.amountTopped <= underlyingAmount, "Pool: amount-too-big");
+
         (uint minTopup,) = getDebtTopupInfo(user, bToken);
+
         require(
             memberInfo.amountTopped == underlyingAmount ||
             sub_(memberInfo.amountTopped, underlyingAmount) >= minTopup,
-            "Pool invalid-amount"
+            "Pool: invalid-amount"
         );
 
         if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
         address underlying = _getUnderlying(info.cToken);
         balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
-        topupBalance[member][underlying] = sub_(topupBalance[member][underlying] , underlyingAmount);
+        topupBalance[member][underlying] = sub_(topupBalance[member][underlying], underlyingAmount);
 
         memberInfo.amountTopped = 0;
         memberInfo.expire = 0;
+        console.log("exit from _untop()");
     }
 
     function smallTopupWinner(address avatar) public view returns(address) {
@@ -135,30 +144,15 @@ contract Pool is Exponential, Ownable {
         require(memberBalance >= amount, "Pool: topup-insufficient-balance");
         require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: cannot-topup-in-liquidation");
 
-        uint realCushion = ICushion(avatar).toppedUpAmount();
         TopupInfo storage info = topped[avatar];
-        for(uint i = 0 ; i < members.length ; i++) {
-            address member = members[i];
-            if(info.memberInfo[member].amountTopped > 0) {
-                if(realCushion == 0) {
-                    _untopOnBehalf(member, avatar, amount);
-                    // now it is 0 topup
-                    continue;
-                }
-
-                require(info.cToken == cToken, "Pool: cToken-miss-match");
-
-                if(member == msg.sender) continue;
-                if(! small) continue; // can share
-                require(info.memberInfo[member].expire < now, "Pool: topup-other-member-topped");
-            }
-        }
+        _untopOnMembers(user, avatar, amount, cToken, small);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
         require(add_(amount, memberInfo.amountTopped) >= minDebt, "Pool: topup-amount-small");
-        // TODO if expired then check msg.sender's turn
+
+        // For first topup skip this check as `expire = 0`
+        // From next topup, check for turn of msg.sender (new member)
         if(small && memberInfo.expire >= now) {
-            // check it is member turn
             require(smallTopupWinner(avatar) == msg.sender, "Pool: topup-not-your-turn");
         }
 
@@ -183,6 +177,31 @@ contract Pool is Exponential, Ownable {
             if(resetApprove) IERC20(underlying).safeApprove(avatar, 0);
             IERC20(underlying).safeApprove(avatar, amount);
             ICushionCErc20(avatar).topup(cToken, amount);
+        }
+    }
+
+    // created this function to avoid stack too deep error
+    function _untopOnMembers(address user, address avatar, uint amount, address cToken, bool small) internal {
+        uint realCushion = ICushion(avatar).toppedUpAmount();
+        TopupInfo memory info = topped[avatar];
+        for(uint i = 0 ; i < members.length ; i++) {
+            address member = members[i];
+            MemberTopupInfo memory memberInfo = topped[avatar].memberInfo[member];
+            if(memberInfo.amountTopped > 0) {
+                if(realCushion == 0) {
+                    _untopOnBehalf(member, user, amount);
+                    // now it is 0 topup
+                    continue;
+                }
+
+                require(info.cToken == cToken, "Pool: cToken-miss-match");
+
+                if(member == msg.sender) continue; // skil below check for me(member)
+                if(! small) continue; // if big loan, share with it with other members
+                // me(member) checking for other member's expire
+                require(memberInfo.expire < now, "Pool: other-member-topped");
+                _untopOnBehalf(member, user, amount);
+            }
         }
     }
 
