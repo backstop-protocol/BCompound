@@ -113,7 +113,7 @@ contract Pool is Exponential, Ownable {
         if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
         address underlying = _getUnderlying(info.cToken);
         balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
-        topupBalance[member][underlying] = sub(topupBalance[member][underlying] , underlyingAmount);
+        topupBalance[member][underlying] = sub_(topupBalance[member][underlying] , underlyingAmount);
 
         memberInfo.amountTopped = 0;
         memberInfo.expire = 0;
@@ -368,7 +368,7 @@ contract Pool is Exponential, Ownable {
         // TODO this SSTORE can be saved if toppedUpAmount() > 0
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
-        topupBalance[member][underlying] = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+        topupBalance[msg.sender][debtUnderlying] = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() > 0) {
