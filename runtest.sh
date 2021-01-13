@@ -14,9 +14,9 @@ find ./test -type f -name "*.spec.ts" | while read file; do
   status=$?
   if [ $status -eq 0 ]
   then
-    echo "'$cmd' command was successful"
+    echo "'$cmd' command was successful: $status"
   else
-    echo "'$cmd' failed"
+    echo "'$cmd' failed: $status"
     failed=1
   fi 
 
@@ -26,4 +26,5 @@ find ./test -type f -name "*.spec.ts" | while read file; do
   echo "Done."
 done
 
+echo "Failed Status: $failed"
 exit $failed
