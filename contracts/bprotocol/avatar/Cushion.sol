@@ -23,15 +23,20 @@ contract Cushion is AvatarBase {
     function topup() external payable onlyPool {
         require(! quit, "Cushion: user-quit-B");
 
+        address cEtherAddr = registry.cEther();
         // when already topped
-        if(isToppedUp()) return;
+        bool isToppedUp = isToppedUp();
+        if(isToppedUp) {
+            require(address(toppedUpCToken) == cEtherAddr, "Cushion: already-topped-with-other-cToken");
+        }
 
         // 2. Repay borrows from Pool to topup
-        ICEther cEther = ICEther(registry.cEther());
+        ICEther cEther = ICEther(cEtherAddr);
         cEther.repayBorrow.value(msg.value)();
 
         // 3. Store Topped-up details
-        _topupAndStoreDetails(cEther, msg.value);
+        if(! isToppedUp) toppedUpCToken = cEther;
+        toppedUpAmount = add_(toppedUpAmount, msg.value);
     }
 
     /**
@@ -44,7 +49,10 @@ contract Cushion is AvatarBase {
         require(! quit, "Cushion: user-quit-B");
 
         // when already topped
-        if(isToppedUp()) return;
+        bool isToppedUp = isToppedUp();
+        if(isToppedUp) {
+            require(toppedUpCToken == cToken, "Cushion: already-topped-with-other-cToken");
+        }
 
         // 1. Transfer funds from the Pool contract
         IERC20 underlying = cToken.underlying();
@@ -55,12 +63,8 @@ contract Cushion is AvatarBase {
         require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-failed");
 
         // 3. Store Topped-up details
-        _topupAndStoreDetails(cToken, topupAmount);
-    }
-
-    function _topupAndStoreDetails(ICToken cToken, uint256 topupAmount) internal {
-        toppedUpCToken = cToken;
-        toppedUpAmount = topupAmount;
+        if(! isToppedUp) toppedUpCToken = cToken;
+        toppedUpAmount = add_(toppedUpAmount, topupAmount);
     }
 
     function untop(uint amount) external onlyPool {

@@ -6,7 +6,7 @@ import { takeSnapshot, revertToSnapShot } from "../../test-utils/SnapshotUtils";
 import { toWei } from "web3-utils";
 import BN from "bn.js";
 import { boolean } from "hardhat/internal/core/params/argumentTypes";
-import { ONE } from "user-rating/test-utils/constants";
+import { ONE, TEN } from "user-rating/test-utils/constants";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { balance, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
@@ -254,19 +254,60 @@ contract("Pool", async (accounts) => {
       expect(avatar4.address).to.be.not.equal(ZERO_ADDRESS);
     });
 
-    describe("Pool.getDebtTopupInfo()", async () => {
-      beforeEach(async () => {
-        // user has debt position
-      });
+    // describe("Pool.getDebtTopupInfo()", async () => {
+    //   beforeEach(async () => {
+    //     // user has debt position
+    //   });
 
-      it("should get minDebt and isSmall of user's debt");
+    //   it("should get minDebt and isSmall of user's debt");
 
-      it("should get isSmall=true when debt below minSharingThreshold");
+    //   it("should get isSmall=true when debt below minSharingThreshold");
 
-      it("should get isSmall=false when debt above or equal minSharingThreshold");
-    });
+    //   it("should get isSmall=false when debt above or equal minSharingThreshold");
+    // });
 
     describe("Pool.untop()", async () => {
+      beforeEach(async () => {
+        await initSetupCompound();
+
+        // Precondition Setup:
+        // -------------------
+        await ZRX.transfer(a.user2, ONE_HUNDRED_ZRX, { from: a.deployer });
+        await BAT.transfer(a.user3, ONE_HUNDRED_BAT, { from: a.deployer });
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(1000).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+        await pool.setMinSharingThreshold(bETH_addr, new BN(100).mul(ONE_ETH), {
+          from: a.deployer,
+        });
+
+        // deposit
+        // 1. User-1 mint cETH with ETH : $100
+        await bETH.mint({ from: a.user1, value: ONE_ETH });
+
+        // 2.1 User-2 mint cZRX with ZRX
+        await ZRX.approve(bZRX.address, ONE_HUNDRED_ZRX, { from: a.user2 });
+        await bZRX.mint(ONE_HUNDRED_ZRX, { from: a.user2 });
+
+        // 2.2 User-3 mint cBAT with BAT
+        await BAT.approve(bBAT.address, ONE_HUNDRED_BAT, { from: a.user3 });
+        await bBAT.mint(ONE_HUNDRED_BAT, { from: a.user3 });
+
+        // borrow
+        // 3.1 User1 borrow ZRX : $50
+        await bZRX.borrow(FIFTY_ZRX, { from: a.user1 });
+
+        // 3.2 User3 borrow ETH: $50
+        await bETH.borrow(HALF_ETH, { from: a.user3 });
+
+        // 5. Member1 deposits 10 ZRX to pool
+        await ZRX.approve(pool.address, TEN_ZRX, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: a.member1 });
+
+        // 5. Member2 deposits 0.1 ETH to pool
+        await pool.methods["deposit()"]({ from: a.member2, value: ONE_ETH.div(new BN(10)) });
+      });
+
       it("should untop a user");
 
       it("should fail when a non-member calls untop");
@@ -276,6 +317,78 @@ contract("Pool", async (accounts) => {
       it("should fail when underlyingAmount is too big");
 
       it("should fail when invalid amount");
+
+      it("should untop when same member topped up twice after his holdingTime expired", async () => {
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfZRXAtCToken = await ZRX.balanceOf(cZRX_addr);
+        const balOfZRXAtPool = await ZRX.balanceOf(pool.address);
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX),
+        );
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(new BN(TEN_ZRX)),
+        );
+
+        // reset time
+        await time.increase(holdingTime.add(new BN(1)));
+
+        let newMember: string;
+        const selectionDuration = await pool.selectionDuration();
+
+        // ensure that its member1 turn again
+        while (true) {
+          newMember = await pool.smallTopupWinner(avatar1.address);
+          // Ensure new member is again member1
+          if (newMember === a.member1) {
+            break;
+          } else {
+            await time.increase(selectionDuration);
+            continue;
+          }
+        }
+        expect(newMember).to.be.equal(a.member1);
+
+        // member1 try to topup
+        await ZRX.approve(pool.address, TEN_ZRX, { from: newMember });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: newMember });
+
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX).add(TEN_ZRX),
+        );
+
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: newMember });
+
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX).add(TEN_ZRX).sub(TEN_ZRX),
+        );
+
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(new BN(TEN_ZRX).mul(new BN(2))),
+        );
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX.mul(new BN(2)));
+
+        const totalToppedUp = TEN_ZRX.add(TEN_ZRX);
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+
+        // member1 untop
+        await pool.untop(a.user1, totalToppedUp, { from: a.member1 });
+
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool
+            .sub(TEN_ZRX) // topup
+            .add(TEN_ZRX) // deposit
+            .sub(TEN_ZRX) // topup
+            .add(TEN_ZRX.mul(new BN(2))), //untop
+        );
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(balanceOfZRXAtCToken);
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(totalToppedUp);
+      });
     });
 
     describe("Pool.smallTopupWinner()", async () => {
@@ -403,148 +516,146 @@ contract("Pool", async (accounts) => {
         await pool.methods["deposit()"]({ from: a.member2, value: ONE_ETH.div(new BN(10)) });
       });
 
-      //   it("should topup with ZRX", async () => {
-      //     // user1 borrowed ZRX
-      //     // member1 toppedUp
+      it("should topup with ZRX", async () => {
+        // user1 borrowed ZRX
+        // member1 toppedUp
 
-      //     // Change ZRX rate
-      //     // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
-      //     const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
-      //     await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
 
-      //     const toppedUpZRX = TEN_ZRX;
-      //     await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
 
-      //     const result = await pool.topped(avatar1.address);
-      //     const debtToLiquidatePerMember = result[0];
-      //     const cToken = result[1];
-      //     expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
-      //     expect(cToken).to.be.equal(await bComptroller.b2c(bZRX_addr));
+        const result = await pool.topped(avatar1.address);
+        const debtToLiquidatePerMember = result[0];
+        const cToken = result[1];
+        expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
+        expect(cToken).to.be.equal(await bComptroller.b2c(bZRX_addr));
 
-      //     const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
-      //     expectDebtTopupInfo(debtTopupInfo, {
-      //       // borrowAmt * 250 / 10000 = 2.5%
-      //       expectedMinDebt: FIFTY_ZRX.mul(new BN(250)).div(new BN(10000)),
-      //       expectedIsSmall: true,
-      //     });
+        const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
+        expectDebtTopupInfo(debtTopupInfo, {
+          // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: FIFTY_ZRX.mul(new BN(250)).div(new BN(10000)),
+          expectedIsSmall: true,
+        });
 
-      //     const memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
-      //     const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
-      //     expectMemberTopupInfo(memberTopupInfo, {
-      //       expectedExpire: expectExpire,
-      //       expectedAmountTopped: toppedUpZRX,
-      //       expectedAmountLiquidated: ZERO,
-      //     });
+        const memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
+        expectMemberTopupInfo(memberTopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpZRX,
+          expectedAmountLiquidated: ZERO,
+        });
 
-      //     expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
-      //     expect(await avatar1.isToppedUp()).to.be.equal(true);
-      //   });
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        expect(await avatar1.isToppedUp()).to.be.equal(true);
+      });
 
-      //   it("should topup with ETH", async () => {
-      //     // user3 borrowed ETH
-      //     // member2 toppedUp
+      it("should topup with ETH", async () => {
+        // user3 borrowed ETH
+        // member2 toppedUp
 
-      //     // Change ETH rate
-      //     // ONE_USD_IN_SCALE * 110 = $110 per ETH (IN SCALE)
-      //     const NEW_RATE_ETH = ONE_USD_IN_SCALE.mul(new BN(110));
-      //     await priceOracle.setPrice(cETH_addr, NEW_RATE_ETH);
+        // Change ETH rate
+        // ONE_USD_IN_SCALE * 110 = $110 per ETH (IN SCALE)
+        const NEW_RATE_ETH = ONE_USD_IN_SCALE.mul(new BN(110));
+        await priceOracle.setPrice(cETH_addr, NEW_RATE_ETH);
 
-      //     const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
-      //     await pool.topup(a.user3, bETH_addr, toppedUpETH, false, { from: a.member2 });
-      //     const result = await pool.topped(avatar3.address);
-      //     const debtToLiquidatePerMember = result[0];
-      //     const cToken = result[1];
-      //     expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
-      //     expect(cToken).to.be.equal(await bComptroller.b2c(bETH_addr));
-      //     const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user3, bETH_addr);
-      //     expectDebtTopupInfo(debtTopupInfo, {
-      //       // borrowAmt * 250 / 10000 = 2.5%
-      //       expectedMinDebt: HALF_ETH.mul(new BN(250)).div(new BN(10000)),
-      //       expectedIsSmall: true,
-      //     });
-      //     const memberTopupInfo = await pool.getMemberTopupInfo(a.user3, a.member2);
-      //     const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
-      //     expectMemberTopupInfo(memberTopupInfo, {
-      //       expectedExpire: expectExpire,
-      //       expectedAmountTopped: toppedUpETH,
-      //       expectedAmountLiquidated: ZERO,
-      //     });
-      //     expect(await pool.balance(a.member2, ETH_ADDR)).to.be.bignumber.equal(ZERO);
-      //     expect(await avatar3.isToppedUp()).to.be.equal(true);
-      //   });
+        const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
+        await pool.topup(a.user3, bETH_addr, toppedUpETH, false, { from: a.member2 });
+        const result = await pool.topped(avatar3.address);
+        const debtToLiquidatePerMember = result[0];
+        const cToken = result[1];
+        expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
+        expect(cToken).to.be.equal(await bComptroller.b2c(bETH_addr));
+        const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user3, bETH_addr);
+        expectDebtTopupInfo(debtTopupInfo, {
+          // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: HALF_ETH.mul(new BN(250)).div(new BN(10000)),
+          expectedIsSmall: true,
+        });
+        const memberTopupInfo = await pool.getMemberTopupInfo(a.user3, a.member2);
+        const expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
+        expectMemberTopupInfo(memberTopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpETH,
+          expectedAmountLiquidated: ZERO,
+        });
+        expect(await pool.balance(a.member2, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+        expect(await avatar3.isToppedUp()).to.be.equal(true);
+      });
 
-      //   it("should fail when a non-member calls topup", async () => {
-      //     // user1 borrowed ZRX
-      //     // other try to topup
+      it("should fail when a non-member calls topup", async () => {
+        // user1 borrowed ZRX
+        // other try to topup
 
-      //     // Change ZRX rate
-      //     // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
-      //     const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
-      //     await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
 
-      //     const toppedUpZRX = TEN_ZRX;
-      //     await expectRevert(
-      //       pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.other }),
-      //       "Pool: not-member",
-      //     );
-      //   });
+        const toppedUpZRX = TEN_ZRX;
+        await expectRevert(
+          pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.other }),
+          "Pool: not-member",
+        );
+      });
 
-      //   it("should fail when member balance is insuffecient", async () => {
-      //     // user1 borrowed ZRX
-      //     // member3 try to topup
+      it("should fail when member balance is insuffecient", async () => {
+        // user1 borrowed ZRX
+        // member3 try to topup
 
-      //     // Change ZRX rate
-      //     // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
-      //     const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
-      //     await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
 
-      //     const toppedUpZRX = TEN_ZRX;
-      //     await expectRevert(
-      //       pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member3 }),
-      //       "Pool: topup-insufficient-balance",
-      //     );
-      //   });
-
-      it("should fail when an avatar is already in liquidation");
+        const toppedUpZRX = TEN_ZRX;
+        await expectRevert(
+          pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member3 }),
+          "Pool: topup-insufficient-balance",
+        );
+      });
 
       it("should topup big loan");
 
-      //   it("should fail when another member try to topup small loan before expire", async () => {
-      //     // user1 borrowed ZRX
-      //     // member1 toppedUp
+      it("should fail when another member try to topup small loan before expire", async () => {
+        // user1 borrowed ZRX
+        // member1 toppedUp
 
-      //     // Change ZRX rate
-      //     // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
-      //     const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
-      //     await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
 
-      //     // member1 topped up
-      //     const toppedUpZRX = TEN_ZRX;
-      //     await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
-      //     let member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
-      //     let expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
-      //     expectMemberTopupInfo(member1TopupInfo, {
-      //       expectedExpire: expectExpire,
-      //       expectedAmountTopped: toppedUpZRX,
-      //       expectedAmountLiquidated: ZERO,
-      //     });
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        let member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        let expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
+        expectMemberTopupInfo(member1TopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpZRX,
+          expectedAmountLiquidated: ZERO,
+        });
 
-      //     // member2 try to topup
-      //     await ZRX.approve(pool.address, TEN_ZRX, { from: a.member2 });
-      //     await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: a.member2 });
-      //     await expectRevert(
-      //       pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member2 }),
-      //       "Pool: other-member-topped",
-      //     );
+        // member2 try to topup
+        await ZRX.approve(pool.address, TEN_ZRX, { from: a.member2 });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: a.member2 });
+        await expectRevert(
+          pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member2 }),
+          "Pool: other-member-topped",
+        );
 
-      //     // validate that nothing changed
-      //     member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
-      //     expectMemberTopupInfo(member1TopupInfo, {
-      //       expectedExpire: expectExpire,
-      //       expectedAmountTopped: toppedUpZRX,
-      //       expectedAmountLiquidated: ZERO,
-      //     });
-      //   });
+        // validate that nothing changed
+        member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        expectMemberTopupInfo(member1TopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpZRX,
+          expectedAmountLiquidated: ZERO,
+        });
+      });
 
       it("shoud allow another member to topup small loan after expire from prev member", async () => {
         // user1 borrowed ZRX
@@ -622,7 +733,74 @@ contract("Pool", async (accounts) => {
         );
       });
 
-      it("should allow same member to topup small loan after his first chance expires");
+      it("should allow same member to topup small loan after his first chance expires", async () => {
+        // user1 borrowed ZRX
+        // member1 toppedUp
+
+        // NOTICE: No price update, otherwise member1's untopOnBehalf will fail in borrow.
+        // // Change ZRX rate
+        // // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        // // const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        // // await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        let member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        let member1ExpectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(
+          holdingTime,
+        );
+        expectMemberTopupInfo(member1TopupInfo, {
+          expectedExpire: member1ExpectExpire,
+          expectedAmountTopped: toppedUpZRX,
+          expectedAmountLiquidated: ZERO,
+        });
+        // member1 balance = depositedZRX - toppedUpZRX
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(
+          TEN_ZRX.sub(toppedUpZRX),
+        );
+
+        // reset time
+        await time.increaseTo(member1ExpectExpire.add(new BN(1)));
+
+        let newMember: string;
+        const selectionDuration = await pool.selectionDuration();
+
+        // ensure that its member1 turn again
+        while (true) {
+          newMember = await pool.smallTopupWinner(avatar1.address);
+          // Ensure new member is again member1
+          if (newMember === a.member1) {
+            break;
+          } else {
+            await time.increase(selectionDuration);
+            continue;
+          }
+        }
+        expect(newMember).to.be.equal(a.member1);
+
+        // member1 try to topup
+        await ZRX.approve(pool.address, TEN_ZRX, { from: newMember });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: newMember });
+        const tx = await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: newMember });
+        const topupTimestamp = new BN((await web3.eth.getBlock(tx.receipt.blockNumber)).timestamp);
+        const newExpectExpire = topupTimestamp.add(holdingTime);
+
+        // member1 storage should be updated
+        // member1 balance = depositedZRX - toppedUpZRX
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(
+          TEN_ZRX.sub(toppedUpZRX),
+        );
+        const totalAmountToppedUp = TEN_ZRX.add(TEN_ZRX);
+        member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        expectMemberTopupInfo(member1TopupInfo, {
+          expectedExpire: newExpectExpire,
+          expectedAmountTopped: totalAmountToppedUp,
+          expectedAmountLiquidated: ZERO,
+        });
+      });
+
+      it("should fail topup when an avatar under liquidation");
 
       it("should fail when avatar is under liquidation and member1 chance expired, newMember is choosen to topup", async () => {
         // member1 topped up
