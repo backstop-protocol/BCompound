@@ -3,7 +3,8 @@
 failed=0
 
 # Run each test file individually
-find ./test -type f -name "*.spec.ts" | while read file; do
+for file in $(find ./test -type f -name "*.spec.ts");
+do 
   echo "Starting Ganache..."
   npx hardhat node > /dev/null 2>&1 &
   export NODE_PID=$!
