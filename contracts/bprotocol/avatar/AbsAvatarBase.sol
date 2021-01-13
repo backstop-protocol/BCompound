@@ -10,11 +10,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Initializable } from "openzeppelin-upgrades/packages/core/contracts/Initializable.sol";
 import { ICToken, ICErc20, ICEther } from "../interfaces/CTokenInterfaces.sol";
 
-contract ProxyStorage {
-    address internal masterCopy;
-}
-
-contract AbsAvatarBase is ProxyStorage, Exponential, Initializable {
+contract AbsAvatarBase is Exponential, Initializable {
     using SafeERC20 for IERC20;
 
     IRegistry public registry;
