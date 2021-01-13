@@ -133,8 +133,8 @@ contract AbsAvatarBase is Exponential, Initializable {
 
         address cEtherAddr = registry.cEther();
         // when already topped
-        bool isToppedUp = isToppedUp();
-        if(isToppedUp) {
+        bool _isToppedUp = isToppedUp();
+        if(_isToppedUp) {
             require(address(toppedUpCToken) == cEtherAddr, "Cushion: already-topped-with-other-cToken");
         }
 
@@ -143,7 +143,7 @@ contract AbsAvatarBase is Exponential, Initializable {
         cEther.repayBorrow.value(msg.value)();
 
         // 3. Store Topped-up details
-        if(! isToppedUp) toppedUpCToken = cEther;
+        if(! _isToppedUp) toppedUpCToken = cEther;
         toppedUpAmount = add_(toppedUpAmount, msg.value);
     }
 
@@ -157,8 +157,8 @@ contract AbsAvatarBase is Exponential, Initializable {
         require(! quit, "Cushion: user-quit-B");
 
         // when already topped
-        bool isToppedUp = isToppedUp();
-        if(isToppedUp) {
+        bool _isToppedUp = isToppedUp();
+        if(_isToppedUp) {
             require(toppedUpCToken == cToken, "Cushion: already-topped-with-other-cToken");
         }
 
@@ -171,7 +171,7 @@ contract AbsAvatarBase is Exponential, Initializable {
         require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-failed");
 
         // 3. Store Topped-up details
-        if(! isToppedUp) toppedUpCToken = cToken;
+        if(! _isToppedUp) toppedUpCToken = cToken;
         toppedUpAmount = add_(toppedUpAmount, topupAmount);
     }
 
@@ -196,17 +196,15 @@ contract AbsAvatarBase is Exponential, Initializable {
         // 2. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(amount) == 0, "Cushion: borrow-failed");
 
-        address payable pool = pool();
-
         if(address(toppedUpCToken) == registry.cEther()) {
             // 3. Send borrowed ETH to Pool contract
             // Sending ETH to Pool using `.send()` to avoid DoS attack
-            bool success = pool.send(amount);
+            bool success = pool().send(amount);
             success; // shh: Not checking return value to avoid DoS attack
         } else {
             // 3. Transfer borrowed amount to Pool contract
             IERC20 underlying = toppedUpCToken.underlying();
-            underlying.safeTransfer(pool, amount);
+            underlying.safeTransfer(pool(), amount);
         }
     }
 
