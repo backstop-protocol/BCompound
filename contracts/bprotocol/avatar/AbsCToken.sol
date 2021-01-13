@@ -4,10 +4,10 @@ import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IScore } from "../interfaces/IScore.sol";
 import { IAvatar } from "../interfaces/IAvatar.sol";
 import { IBComptroller } from "../interfaces/IBComptroller.sol";
-import { Cushion } from "./Cushion.sol";
+import { AbsAvatarBase } from "./AbsAvatarBase.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AbsCToken is Cushion {
+contract AbsCToken is AbsAvatarBase {
 
     modifier onlyBToken() {
         require(isValidBToken(msg.sender), "only-BToken-is-authorized");
@@ -23,17 +23,6 @@ contract AbsCToken is Cushion {
         uint256 borrowBalanceCurr = cToken.borrowBalanceCurrent(address(this));
         if(toppedUpCToken == cToken) return add_(borrowBalanceCurr, toppedUpAmount);
         return borrowBalanceCurr;
-    }
-
-    function _untopPartial(ICToken cToken, uint256 repayAmount) internal returns (uint256 amtToRepayOnCompound) {
-        if(toppedUpAmount > 0 && cToken == toppedUpCToken) {
-            // consume debt from cushion first
-            uint256 amtToUntopFromB = repayAmount >= toppedUpAmount ? toppedUpAmount : repayAmount;
-            super._untopPartial(amtToUntopFromB);
-            amtToRepayOnCompound = sub_(repayAmount, amtToUntopFromB);
-        } else {
-            amtToRepayOnCompound = repayAmount;
-        }
     }
 
     function _toUnderlying(ICToken cToken, uint256 redeemTokens) internal returns (uint256) {
@@ -56,7 +45,7 @@ contract AbsCToken is Cushion {
         postPoolOp(false)
     {
         ICEther cEther = ICEther(registry.cEther());
-        uint256 amtToRepayOnCompound = _untopPartial(cEther, msg.value);
+        uint256 amtToRepayOnCompound = _untopBeforeRepay(cEther, msg.value);
         if(amtToRepayOnCompound > 0) cEther.repayBorrow.value(amtToRepayOnCompound)(); // fails on compound in case of err
         if(! quit) _score().updateDebtScore(address(this), address(cEther), -toInt256(msg.value));
     }
@@ -81,7 +70,7 @@ contract AbsCToken is Cushion {
         postPoolOp(false)
         returns (uint256)
     {
-        uint256 amtToRepayOnCompound = _untopPartial(cToken, repayAmount);
+        uint256 amtToRepayOnCompound = _untopBeforeRepay(cToken, repayAmount);
         uint256 result = 0;
         if(amtToRepayOnCompound > 0) {
             IERC20 underlying = cToken.underlying();
