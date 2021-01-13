@@ -30,9 +30,9 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @notice onlyBToken can call this function, as `super.mint()` is protected with `onlyBToken` modifier
      */
     function mint() public payable {
-        super.mint();
         ICEther cEther = ICEther(registry.cEther());
         require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
+        super.mint();
     }
 
     //override
