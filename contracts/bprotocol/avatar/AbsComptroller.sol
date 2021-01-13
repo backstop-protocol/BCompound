@@ -1,6 +1,6 @@
 pragma solidity 0.5.16;
 
-import { AvatarBase } from "./AvatarBase.sol";
+import { AbsAvatarBase } from "./AbsAvatarBase.sol";
 import { IPriceOracle, ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IBToken } from "../interfaces/IBToken.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
@@ -9,7 +9,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title Abstract Comptroller contract for Avatar
  */
-contract AbsComptroller is AvatarBase {
+contract AbsComptroller is AbsAvatarBase {
 
     function enterMarket(address bToken) external onlyBComptroller returns (uint256) {
         address cToken = IBToken(bToken).cToken();
