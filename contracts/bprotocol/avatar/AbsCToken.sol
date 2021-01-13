@@ -58,6 +58,8 @@ contract AbsCToken is AbsAvatarBase {
     // CErc20
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
+        IERC20 underlying = cToken.underlying();
+        underlying.safeApprove(address(cToken), mintAmount);
         uint result = cToken.mint(mintAmount);
         require(result == 0, "AbsCToken: mint-failed");
         if(! quit) _score().updateCollScore(address(this), address(cToken), toInt256(mintAmount));
@@ -75,7 +77,7 @@ contract AbsCToken is AbsAvatarBase {
         if(amtToRepayOnCompound > 0) {
             IERC20 underlying = cToken.underlying();
             // use resetApprove() in case ERC20.approve() has front-running attack protection
-            underlying.safeApprove(address(cToken), repayAmount);
+            underlying.safeApprove(address(cToken), amtToRepayOnCompound);
             result = cToken.repayBorrow(amtToRepayOnCompound);
             require(result == 0, "AbsCToken: repayBorrow-failed");
             if(! quit) _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
