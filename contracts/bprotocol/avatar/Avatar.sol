@@ -30,9 +30,9 @@ contract Avatar is AbsComptroller, AbsCToken {
      * @notice onlyBToken can call this function, as `super.mint()` is protected with `onlyBToken` modifier
      */
     function mint() public payable {
-        super.mint();
         ICEther cEther = ICEther(registry.cEther());
         require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
+        super.mint();
     }
 
     //override
@@ -42,8 +42,6 @@ contract Avatar is AbsComptroller, AbsCToken {
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
         require(_enterMarket(address(cToken)) == 0, "enterMarket-failed");
-        IERC20 underlying = cToken.underlying();
-        underlying.safeApprove(address(cToken), mintAmount);
         uint256 result = super.mint(cToken, mintAmount);
         return result;
     }
