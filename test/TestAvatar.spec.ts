@@ -53,7 +53,7 @@ contract("Avatar", async (accounts) => {
             bProtocol.compound.comp.address,
             engine.getCompVoterAddress(),
           ),
-          "Contract instance has already been initialized",
+          "avatar-already-init",
         );
 
         expect(await avatar1.registry()).to.be.equal(registry.address);

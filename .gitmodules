@@ -6,6 +6,3 @@
 [submodule "user-rating"]
 	path = user-rating
 	url = https://github.com/backstop-protocol/user-rating.git
-[submodule "openzeppelin-upgrades"]
-	path = openzeppelin-upgrades
-	url = https://github.com/jchittoda/openzeppelin-upgrades.git
