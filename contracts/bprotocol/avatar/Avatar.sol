@@ -67,4 +67,14 @@ contract Avatar is AbsComptroller, AbsCToken {
         address payable ownerPayable = address(uint160(owner));
         ownerPayable.transfer(amount);
     }
+
+    function emergencyCall(address payable target, bytes calldata data) external payable onlyAvatarOwner {
+        uint first4Bytes = uint(uint8(data[0])) | uint(uint8(data[1])) << 8 | uint(uint8(data[2])) << 16 | uint(uint8(data[3])) << 24;
+        bytes4 functionSig = bytes4(uint32(first4Bytes));
+
+        require(registry.whitelistedAvatarCalls(target, functionSig), "emergencyCall: not-listed");
+        (bool succ, bytes memory err) = target.call.value(msg.value)(data);
+
+        require(succ, string(err));
+    }
 }
