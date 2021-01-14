@@ -7,10 +7,9 @@ import { IScore } from "../interfaces/IScore.sol";
 import { Exponential } from "../lib/Exponential.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Initializable } from "openzeppelin-upgrades/packages/core/contracts/Initializable.sol";
 import { ICToken, ICErc20, ICEther } from "../interfaces/CTokenInterfaces.sol";
 
-contract AbsAvatarBase is Exponential, Initializable {
+contract AbsAvatarBase is Exponential {
     using SafeERC20 for IERC20;
 
     IRegistry public registry;
@@ -46,7 +45,8 @@ contract AbsAvatarBase is Exponential, Initializable {
         _reevaluate(debtIncrease);
     }
 
-    function _initAvatarBase(address _registry) internal initializer {
+    function _initAvatarBase(address _registry) internal {
+        require(registry == IRegistry(0x0), "avatar-already-init");
         registry = IRegistry(_registry);
     }
 

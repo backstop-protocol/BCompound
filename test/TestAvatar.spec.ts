@@ -7,6 +7,7 @@ const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
 import BN from "bn.js";
 
+
 const chai = require("chai");
 const expect = chai.expect;
 let snapshotId: string;
@@ -14,6 +15,7 @@ const ZERO = new BN(0);
 
 const Avatar: b.AvatarContract = artifacts.require("Avatar");
 const EmergencyMock: b.EmergencyMockContract = artifacts.require("EmergencyMock");
+
 
 contract("Avatar", async (accounts) => {
   let bProtocol: BProtocol;
