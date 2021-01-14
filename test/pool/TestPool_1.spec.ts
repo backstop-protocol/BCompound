@@ -23,6 +23,9 @@ const expect = chai.expect;
 
 const ONE_ETH = new BN(10).pow(new BN(18));
 const HALF_ETH = ONE_ETH.div(new BN(2));
+const TEN_ETH = ONE_ETH.mul(new BN(10));
+const TWENTY_ETH = ONE_ETH.mul(new BN(20));
+const ONE_HUNDRED_ETH = ONE_ETH.mul(new BN(100));
 const ZERO = new BN(0);
 
 const ETH_ADDR = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -254,17 +257,17 @@ contract("Pool", async (accounts) => {
       expect(avatar4.address).to.be.not.equal(ZERO_ADDRESS);
     });
 
-    // describe("Pool.getDebtTopupInfo()", async () => {
-    //   beforeEach(async () => {
-    //     // user has debt position
-    //   });
+    describe("Pool.getDebtTopupInfo()", async () => {
+      beforeEach(async () => {
+        // user has debt position
+      });
 
-    //   it("should get minDebt and isSmall of user's debt");
+      it("should get minDebt and isSmall of user's debt");
 
-    //   it("should get isSmall=true when debt below minSharingThreshold");
+      it("should get isSmall=true when debt below minSharingThreshold");
 
-    //   it("should get isSmall=false when debt above or equal minSharingThreshold");
-    // });
+      it("should get isSmall=false when debt above or equal minSharingThreshold");
+    });
 
     describe("Pool.untop()", async () => {
       beforeEach(async () => {
@@ -661,6 +664,129 @@ contract("Pool", async (accounts) => {
         expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(ZERO);
         expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(totalToppedUp);
       });
+
+      it("member should untop big loan", async () => {
+        // pre-requisite
+        await ZRX.transfer(a.user1, ONE_THOUSAND_ZRX, { from: a.deployer });
+        // user1 deposit to provide liquidity
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        // 100 ZRX as minSharingThreshold
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(100).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+
+        const member = a.member3;
+        const user = a.user4;
+
+        // User ETH deposit collateral
+        // 20 ETH = 20 * $100 = $2000
+        await bETH.mint({ from: user, value: TWENTY_ETH });
+
+        // User borrow ZRX
+        // 1000 ZRX = 1000 * $1 = $1000
+        await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
+
+        const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
+        const minDebt = debtInfo[0];
+        const isSmall = debtInfo[1];
+
+        const debt = ONE_THOUSAND_ZRX;
+        const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
+        expect(minDebt).to.be.bignumber.equal(expectedMinDebt);
+        expect(isSmall).to.be.equal(false);
+
+        // member deposit minDebt
+        await ZRX.approve(pool.address, minDebt, { from: member });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minDebt, { from: member });
+        // member topup
+        await pool.topup(user, bZRX_addr, minDebt, false, { from: member });
+        // member untop
+        await pool.untop(user, minDebt, { from: member });
+
+        // validate
+        const memberInfo = await pool.getMemberTopupInfo(user, member);
+        const expectedExpire = ZERO;
+        const expectedAmountTopped = ZERO;
+        const expectedAmountLiquidated = ZERO;
+
+        expectMemberTopupInfo(memberInfo, {
+          expectedExpire: expectedExpire,
+          expectedAmountTopped: expectedAmountTopped,
+          expectedAmountLiquidated: expectedAmountLiquidated,
+        });
+      });
+
+      it("multiple members should share big loan and untop", async () => {
+        // pre-requisite
+        await ZRX.transfer(a.user1, ONE_THOUSAND_ZRX, { from: a.deployer });
+        // user1 deposit to provide liquidity
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        // 100 ZRX as minSharingThreshold
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(100).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+
+        const user = a.user4;
+
+        // User ETH deposit collateral
+        // 20 ETH = 20 * $100 = $2000
+        await bETH.mint({ from: user, value: TWENTY_ETH });
+
+        // User borrow ZRX
+        // 1000 ZRX = 1000 * $1 = $1000
+        await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
+
+        const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
+        const minDebt = debtInfo[0];
+        const isSmall = debtInfo[1];
+
+        const debt = ONE_THOUSAND_ZRX;
+        const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
+        expect(minDebt).to.be.bignumber.equal(expectedMinDebt);
+        expect(isSmall).to.be.equal(false);
+
+        // member3 deposit minDebt
+        await ZRX.approve(pool.address, minDebt, { from: a.member3 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minDebt, { from: a.member3 });
+        // member3 topup
+        await pool.topup(user, bZRX_addr, minDebt, false, { from: a.member3 });
+        // member4 topup
+        await pool.untop(user, minDebt, { from: a.member3 });
+
+        // validate
+        const member3Info = await pool.getMemberTopupInfo(user, a.member3);
+        const member3ExpectedExpire = ZERO;
+        const member3ExpectedAmountTopped = ZERO;
+        const member3ExpectedAmountLiquidated = ZERO;
+
+        expectMemberTopupInfo(member3Info, {
+          expectedExpire: member3ExpectedExpire,
+          expectedAmountTopped: member3ExpectedAmountTopped,
+          expectedAmountLiquidated: member3ExpectedAmountLiquidated,
+        });
+
+        // member4 deposit minDebt
+        await ZRX.approve(pool.address, minDebt, { from: a.member4 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minDebt, { from: a.member4 });
+        // member3 topup
+        await pool.topup(user, bZRX_addr, minDebt, false, { from: a.member4 });
+        // member4 topup
+        await pool.untop(user, minDebt, { from: a.member4 });
+
+        // validate
+        const member4Info = await pool.getMemberTopupInfo(user, a.member4);
+        const member4ExpectedExpire = ZERO;
+        const member4ExpectedAmountTopped = ZERO;
+        const member4ExpectedAmountLiquidated = ZERO;
+
+        expectMemberTopupInfo(member4Info, {
+          expectedExpire: member4ExpectedExpire,
+          expectedAmountTopped: member4ExpectedAmountTopped,
+          expectedAmountLiquidated: member4ExpectedAmountLiquidated,
+        });
+      });
     });
 
     describe("Pool.smallTopupWinner()", async () => {
@@ -890,7 +1016,122 @@ contract("Pool", async (accounts) => {
         );
       });
 
-      it("should topup big loan");
+      it("member should topup big loan", async () => {
+        // pre-requisite
+        await ZRX.transfer(a.user1, ONE_THOUSAND_ZRX, { from: a.deployer });
+        // user1 deposit to provide liquidity
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        // 100 ZRX as minSharingThreshold
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(100).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+
+        const member = a.member3;
+        const user = a.user4;
+
+        // User ETH deposit collateral
+        // 20 ETH = 20 * $100 = $2000
+        await bETH.mint({ from: user, value: TWENTY_ETH });
+
+        // User borrow ZRX
+        // 1000 ZRX = 1000 * $1 = $1000
+        await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
+
+        const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
+        const minDebt = debtInfo[0];
+        const isSmall = debtInfo[1];
+
+        const debt = ONE_THOUSAND_ZRX;
+        const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
+        expect(minDebt).to.be.bignumber.equal(expectedMinDebt);
+        expect(isSmall).to.be.equal(false);
+
+        // member deposit minDebt
+        await ZRX.approve(pool.address, minDebt, { from: member });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minDebt, { from: member });
+        // member topup
+        await pool.topup(user, bZRX_addr, minDebt, false, { from: member });
+
+        // validate
+        const memberInfo = await pool.getMemberTopupInfo(user, member);
+        const expectedExpire = ZERO;
+        const expectedAmountTopped = minDebt;
+        const expectedAmountLiquidated = ZERO;
+
+        expectMemberTopupInfo(memberInfo, {
+          expectedExpire: expectedExpire,
+          expectedAmountTopped: expectedAmountTopped,
+          expectedAmountLiquidated: expectedAmountLiquidated,
+        });
+      });
+
+      it("multiple members should share big loan", async () => {
+        // pre-requisite
+        await ZRX.transfer(a.user1, ONE_THOUSAND_ZRX, { from: a.deployer });
+        // user1 deposit to provide liquidity
+        await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+        // 100 ZRX as minSharingThreshold
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(100).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+
+        const user = a.user4;
+
+        // User ETH deposit collateral
+        // 20 ETH = 20 * $100 = $2000
+        await bETH.mint({ from: user, value: TWENTY_ETH });
+
+        // User borrow ZRX
+        // 1000 ZRX = 1000 * $1 = $1000
+        await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
+
+        const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
+        const minDebt = debtInfo[0];
+        const isSmall = debtInfo[1];
+
+        const debt = ONE_THOUSAND_ZRX;
+        const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
+        expect(minDebt).to.be.bignumber.equal(expectedMinDebt);
+        expect(isSmall).to.be.equal(false);
+
+        // member3 deposit minDebt
+        await ZRX.approve(pool.address, minDebt, { from: a.member3 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minDebt, { from: a.member3 });
+        // member3 topup
+        await pool.topup(user, bZRX_addr, minDebt, false, { from: a.member3 });
+
+        // validate
+        const member3Info = await pool.getMemberTopupInfo(user, a.member3);
+        const member3ExpectedExpire = ZERO;
+        const member3ExpectedAmountTopped = minDebt;
+        const member3ExpectedAmountLiquidated = ZERO;
+
+        expectMemberTopupInfo(member3Info, {
+          expectedExpire: member3ExpectedExpire,
+          expectedAmountTopped: member3ExpectedAmountTopped,
+          expectedAmountLiquidated: member3ExpectedAmountLiquidated,
+        });
+
+        // member4 deposit minDebt
+        await ZRX.approve(pool.address, minDebt, { from: a.member4 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minDebt, { from: a.member4 });
+        // member3 topup
+        await pool.topup(user, bZRX_addr, minDebt, false, { from: a.member4 });
+
+        // validate
+        const member4Info = await pool.getMemberTopupInfo(user, a.member4);
+        const member4ExpectedExpire = ZERO;
+        const member4ExpectedAmountTopped = minDebt;
+        const member4ExpectedAmountLiquidated = ZERO;
+
+        expectMemberTopupInfo(member4Info, {
+          expectedExpire: member4ExpectedExpire,
+          expectedAmountTopped: member4ExpectedAmountTopped,
+          expectedAmountLiquidated: member4ExpectedAmountLiquidated,
+        });
+      });
 
       it("should fail when another member try to topup small loan before expire", async () => {
         // user1 borrowed ZRX
