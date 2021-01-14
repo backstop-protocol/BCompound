@@ -6,12 +6,16 @@ import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IComp } from "../interfaces/IComp.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+contract ProxyStorage {
+    address internal masterCopy;
+}
+
 /**
  * @title An Avatar contract deployed per account. The contract holds cTokens and directly interacts
  *        with Compound finance.
  * @author Smart Future Labs Ltd.
  */
-contract Avatar is AbsComptroller, AbsCToken {
+contract Avatar is ProxyStorage, AbsComptroller, AbsCToken {
 
     // @NOTICE: NO CONSTRUCTOR AS ITS USED AS AN IMPLEMENTATION CONTRACT FOR PROXY
 
