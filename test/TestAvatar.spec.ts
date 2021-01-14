@@ -40,6 +40,27 @@ contract("Avatar", async (accounts) => {
     await revertToSnapShot(snapshotId);
   });
 
+  describe("Avatar.initialize()", async () => {
+    it("should fail when explicitly called initialize on an avatar", async () => {
+      await registry.newAvatar({ from: a.user1 });
+      const avatar1_addr = await registry.avatarOf(a.user1);
+      expect(avatar1_addr).to.be.not.equal(ZERO_ADDRESS);
+
+      const avatar1 = await Avatar.at(avatar1_addr);
+      expect(await avatar1.registry()).to.be.equal(registry.address);
+
+      await expectRevert(
+          avatar1.initialize(
+          a.dummy1,
+          bProtocol.compound.comp.address,
+          engine.getCompVoterAddress(),
+        ),
+        "avatar-already-init",
+      );
+
+      expect(await avatar1.registry()).to.be.equal(registry.address);
+    });
+  });
 
   describe("Avatar.emergencyCall", async () => {
     let mockEmergency1: b.EmergencyMockInstance;
