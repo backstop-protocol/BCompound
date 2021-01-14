@@ -308,15 +308,287 @@ contract("Pool", async (accounts) => {
         await pool.methods["deposit()"]({ from: a.member2, value: ONE_ETH.div(new BN(10)) });
       });
 
-      it("should untop a user");
+      it("member should untop an avatar", async () => {
+        const member = a.member1;
+        const user = a.user1;
+        const avatar = avatar1;
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfZRXAtCToken = await ZRX.balanceOf(cZRX_addr);
+        const balOfZRXAtPool = await ZRX.balanceOf(pool.address);
 
-      it("should fail when a non-member calls untop");
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(user, bZRX_addr, toppedUpZRX, false, { from: member });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(new BN(TEN_ZRX)),
+        );
 
-      it("should fail when underlyingAmount is zero");
+        // member1 untop
+        await pool.untop(user, toppedUpZRX, { from: member });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(balOfZRXAtPool);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(balanceOfZRXAtCToken);
+      });
 
-      it("should fail when underlyingAmount is too big");
+      it("member should untop an avatar (ETH)", async () => {
+        const member = a.member2;
+        const user = a.user3;
+        const avatar = avatar3;
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfETHAtCToken = await balance.current(cETH_addr);
+        const balOfETHAtPool = await balance.current(pool.address);
 
-      it("should fail when invalid amount");
+        // member2 topped up
+        const pointOneETH = ONE_ETH.div(new BN(10));
+        const toppedUpETH = pointOneETH; // 0.1 ETH
+        await pool.topup(user, bETH_addr, toppedUpETH, false, { from: member });
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(
+          balOfETHAtPool.sub(pointOneETH),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          balanceOfETHAtCToken.add(pointOneETH),
+        );
+
+        // member2 untop
+        await pool.untop(user, toppedUpETH, { from: member });
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(balOfETHAtPool);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(balanceOfETHAtCToken);
+      });
+
+      it("member should do partial untop of an avatar", async () => {
+        const member = a.member1;
+        const user = a.user1;
+        const avatar = avatar1;
+
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfZRXAtCToken = await ZRX.balanceOf(cZRX_addr);
+        const balOfZRXAtPool = await ZRX.balanceOf(pool.address);
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(user, bZRX_addr, toppedUpZRX, false, { from: member });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(new BN(TEN_ZRX)),
+        );
+
+        // member1 untop
+        const untopAmount = ONE_ZRX.mul(new BN(5));
+        await pool.untop(user, untopAmount, { from: member });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(balOfZRXAtPool);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(balanceOfZRXAtCToken);
+      });
+
+      it("member should do partial untop of an avatar (ETH)", async () => {
+        const member = a.member2;
+        const user = a.user3;
+        const avatar = avatar3;
+
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfETHAtCToken = await balance.current(cETH_addr);
+        const balOfETHAtPool = await balance.current(pool.address);
+
+        // member2 topped up
+        const pointOneETH = ONE_ETH.div(new BN(10));
+        const toppedUpETH = pointOneETH;
+        await pool.topup(user, bETH_addr, toppedUpETH, false, { from: member });
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(
+          balOfETHAtPool.sub(pointOneETH),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          balanceOfETHAtCToken.add(pointOneETH),
+        );
+
+        // member2 untop
+        const untopAmount = pointOneETH.div(new BN(2)); // 0.05 ETH
+        await pool.untop(user, untopAmount, { from: member });
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(balOfETHAtPool);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(balanceOfETHAtCToken);
+      });
+
+      it("should fail when other member try to untop of member1 topup", async () => {
+        const member1 = a.member1;
+        const member2 = a.member2;
+        const user = a.user1;
+        const avatar = avatar1;
+
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfZRXAtCToken = await ZRX.balanceOf(cZRX_addr);
+        const balOfZRXAtPool = await ZRX.balanceOf(pool.address);
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(user, bZRX_addr, toppedUpZRX, false, { from: member1 });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(TEN_ZRX),
+        );
+
+        // member2 untop
+        await expectRevert(
+          pool.untop(user, toppedUpZRX, { from: member2 }),
+          "Pool: amount-too-big",
+        );
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX),
+        );
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(TEN_ZRX),
+        );
+      });
+
+      it("should fail when other member try to untop of member2 topup (ETH)", async () => {
+        const member1 = a.member2;
+        const member2 = a.member3;
+        const user = a.user3;
+        const avatar = avatar3;
+
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfETHAtCToken = await balance.current(cETH_addr);
+        const balOfETHAtPool = await balance.current(pool.address);
+
+        const pointOneETH = ONE_ETH.div(new BN(10));
+        // member1 topped up
+        const toppedUpETH = pointOneETH;
+        await pool.topup(user, bETH_addr, toppedUpETH, false, { from: member1 });
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(
+          balOfETHAtPool.sub(pointOneETH),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          balanceOfETHAtCToken.add(pointOneETH),
+        );
+
+        // member2 untop
+        await expectRevert(
+          pool.untop(user, toppedUpETH, { from: member2 }),
+          "Pool: amount-too-big",
+        );
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(
+          balOfETHAtPool.sub(pointOneETH),
+        );
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          balanceOfETHAtCToken.add(pointOneETH),
+        );
+      });
+
+      it("should fail when a non-member calls untop", async () => {
+        const user = a.user1;
+        const member = a.member1;
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(user, bZRX_addr, toppedUpZRX, false, { from: member });
+
+        await expectRevert(pool.untop(user, toppedUpZRX, { from: a.dummy1 }), "Pool: not-member");
+      });
+
+      it("should fail when a non-member calls untop (ETH)", async () => {
+        const user = a.user3;
+        const member = a.member2;
+
+        // member1 topped up
+        const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
+        await pool.topup(user, bETH_addr, toppedUpETH, false, { from: member });
+
+        await expectRevert(pool.untop(user, toppedUpETH, { from: a.dummy1 }), "Pool: not-member");
+      });
+
+      it("should fail when underlyingAmount is zero", async () => {
+        const user = a.user1;
+        const member = a.member1;
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(user, bZRX_addr, toppedUpZRX, false, { from: member });
+
+        await expectRevert(pool.untop(user, ZERO, { from: member }), "Pool: amount-is-zero");
+      });
+
+      it("should fail when underlyingAmount is zero (ETH)", async () => {
+        const user = a.user3;
+        const member = a.member2;
+
+        // member1 topped up
+        const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
+        await pool.topup(user, bETH_addr, toppedUpETH, false, { from: member });
+
+        await expectRevert(pool.untop(user, ZERO, { from: member }), "Pool: amount-is-zero");
+      });
+
+      it("should fail when underlyingAmount is too big", async () => {
+        const member = a.member1;
+        const user = a.user1;
+
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(user, bZRX_addr, toppedUpZRX, false, { from: member });
+
+        await expectRevert(
+          pool.untop(user, toppedUpZRX.add(new BN(1)), { from: member }),
+          "Pool: amount-too-big",
+        );
+      });
+
+      it("should fail when underlyingAmount is too big (ETH)", async () => {
+        const member = a.member2;
+        const user = a.user3;
+
+        // member1 topped up
+        const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
+        await pool.topup(user, bETH_addr, toppedUpETH, false, { from: member });
+
+        await expectRevert(
+          pool.untop(user, toppedUpETH.add(new BN(1)), { from: member }),
+          "Pool: amount-too-big",
+        );
+      });
+
+      it("should fail when invalid amount", async () => {
+        // member1 topped up
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+
+        // 2.5%
+        const minTopup = toppedUpZRX.mul(new BN(250)).div(new BN(10000));
+        const littleMoreThenMinTopup = toppedUpZRX.sub(minTopup).sub(new BN(1));
+        await expectRevert(
+          pool.untop(a.user1, littleMoreThenMinTopup, { from: a.member1 }),
+          "Pool: invalid-amount",
+        );
+      });
+
+      it("should fail when invalid ETH amount", async () => {
+        // user3
+        // member2 topped up
+        const toppedUpETH = ONE_ETH.div(new BN(10)); // 0.1 ETH
+        await pool.topup(a.user3, bETH_addr, toppedUpETH, false, { from: a.member2 });
+
+        // 2.5%
+        const minTopup = toppedUpETH.mul(new BN(250)).div(new BN(10000));
+        const littleMoreThenMinTopup = toppedUpETH.sub(minTopup).sub(new BN(1));
+        await expectRevert(
+          pool.untop(a.user3, littleMoreThenMinTopup, { from: a.member2 }),
+          "Pool: invalid-amount",
+        );
+      });
 
       it("should untop when same member topped up twice after his holdingTime expired", async () => {
         expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(ZERO);
