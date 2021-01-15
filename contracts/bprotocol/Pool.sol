@@ -353,9 +353,9 @@ contract Pool is Exponential, Ownable {
         require(add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate) <= debtToLiquidatePerMember,
                 "Pool: amount-too-big");
 
+        address debtUnderlying = _getUnderlying(cTokenDebt);
         require(balance[msg.sender][debtUnderlying] >= amtToRepayOnCompound, "Pool: low-member-balance");
 
-        address debtUnderlying = _getUnderlying(cTokenDebt);
         if(! _isCEther(cTokenDebt)) {
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
@@ -379,7 +379,7 @@ contract Pool is Exponential, Ownable {
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() == 0) {
             //info.debtToLiquidatePerMember = 0; // in theory this is not needed if delete works
-            delete topped[avatar]; // this will reset debtToLiquidatePerMember 
+            delete topped[avatar]; // this will reset debtToLiquidatePerMember
             // TODO check in test if mapping gets deleted using `delete`
         }
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
