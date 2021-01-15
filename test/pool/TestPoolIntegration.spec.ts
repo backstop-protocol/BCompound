@@ -367,7 +367,6 @@ contract("Pool", async (accounts) => {
 
         const resetApprove = false;
         await pool.liquidateBorrow(
-          bZRX.address,
           a.user1,
           bETH_addr,
           bZRX_addr,

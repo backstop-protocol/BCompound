@@ -1510,15 +1510,6 @@ contract("Pool", async (accounts) => {
         expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
       });
 
-      it("should fail when holdingTime is out-of-bound", async () => {
-        const newHoldingTime = new BN(12).mul(ONE_HOUR);
-        await expectRevert(
-          pool.setHoldingTime(newHoldingTime, { from: a.deployer }),
-          "Pool: incorrect-holdingTime",
-        );
-        expect(await pool.holdingTime()).to.be.bignumber.equal(defaultHoldingTime);
-      });
-
       it("should fail when called by non-owner", async () => {
         const newHoldingTime = new BN(6).mul(ONE_HOUR);
         await expectRevert(

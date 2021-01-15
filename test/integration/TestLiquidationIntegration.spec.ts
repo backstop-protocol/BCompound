@@ -248,7 +248,7 @@ contract("Pool performs liquidation", async (accounts) => {
     await ZRX.approve(pool.address, TEN_ZRX, { from: member1 });
     await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: member1 });
 
-    await pool.topup(avatarUser1.address, bZRX_addr, topupAmount, false, { from: member1 });
+    await pool.topup(user1, bZRX_addr, topupAmount, false, { from: member1 });
 
     const zrxBalAfter = await ZRX.balanceOf(pool.address);
 
@@ -346,10 +346,10 @@ contract("Pool performs liquidation", async (accounts) => {
         let underlyingAmtToLiquidate = ONE_ZRX.mul(new BN(2));
 
         const maxLiquidationAmount = await avatarUser1.getMaxLiquidationAmount.call(cZRX_addr);
-        const memberInfo = await pool.getMemberTopupInfo(avatarUser1.address, member1);
-        const amountLiquidated = memberInfo[2];
+        const memberInfo = await pool.getMemberTopupInfo(user1, member1);
+        const amountLiquidated = memberInfo["amountLiquidated"];
         console.log("amountLiquidated: " + amountLiquidated.toString());
-        const amtAvailForLiquidation = maxLiquidationAmount.sub(amountLiquidated);
+        const amtAvailForLiquidation = maxLiquidationAmount;
         console.log("maxLiquidationAmount: " + maxLiquidationAmount.toString());
 
         const toppedUpAmount = await avatarUser1.toppedUpAmount();
@@ -379,7 +379,6 @@ contract("Pool performs liquidation", async (accounts) => {
           new BN(0),
         );
         await pool.liquidateBorrow(
-          bZRX.address,
           user1,
           bETH_addr,
           bZRX_addr,
@@ -404,9 +403,11 @@ contract("Pool performs liquidation", async (accounts) => {
 
   it("10. Member should perform untop via Pool", async () => {
     const pool = bProtocol.pool;
-    const toppedUpAmount = await avatarUser1.toppedUpAmount();
-    await pool.untop(avatarUser1.address, toppedUpAmount, { from: member1 });
+    let toppedUpAmount = await avatarUser1.toppedUpAmount();
 
+    await pool.untop(user1, toppedUpAmount, { from: member1 });
+
+    toppedUpAmount = await avatarUser1.toppedUpAmount();
     expect(ZERO).to.be.bignumber.equal(toppedUpAmount);
 
     const isToppedUp = await avatarUser1.isToppedUp();

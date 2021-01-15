@@ -120,7 +120,7 @@ contract AbsAvatarBase is Exponential {
      * @return `true` when this Avatar can be liquidated, `false` otherwise
      */
     function canLiquidate() public returns (bool) {
-        bool result = (remainingLiquidationAmount > 0) || (!canUntop());
+        bool result = isToppedUp() && (remainingLiquidationAmount > 0) || (!canUntop());
 
         return result;
     }
@@ -320,6 +320,8 @@ contract AbsAvatarBase is Exponential {
     }
 
     function getMaxLiquidationAmount(ICToken debtCToken) public returns (uint256) {
+        if(isPartiallyLiquidated()) return remainingLiquidationAmount;
+
         uint256 avatarDebt = debtCToken.borrowBalanceCurrent(address(this));
         // `toppedUpAmount` is also called poolDebt;
         uint256 totalDebt = add_(avatarDebt, toppedUpAmount);
