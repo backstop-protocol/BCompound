@@ -17,6 +17,7 @@ const CErc20: b.CErc20Contract = artifacts.require("CErc20");
 const CEther: b.CEtherContract = artifacts.require("CEther");
 
 const BErc20: b.BErc20Contract = artifacts.require("BErc20");
+const FakePriceOracle: b.FakePriceOracleContract = artifacts.require("FakePriceOracle");
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -55,6 +56,7 @@ contract("Pool", async (accounts) => {
   let compoundUtil: CompoundUtils;
   let pool: b.PoolInstance;
   let priceOracle: b.FakePriceOracleInstance;
+  let jar: string;
 
   before(async () => {
     await engine.deployCompound();
@@ -64,6 +66,7 @@ contract("Pool", async (accounts) => {
     comptroller = bProtocol.compound.comptroller;
     compoundUtil = bProtocol.compound.compoundUtil;
     pool = bProtocol.pool;
+    jar = await pool.jar();
     priceOracle = bProtocol.compound.priceOracle;
   });
 
@@ -76,6 +79,13 @@ contract("Pool", async (accounts) => {
   });
 
   describe("Pool", async () => {
+    let liquidationIncentive: BN;
+    let closeFactor: BN;
+    let collateralFactorZRX: BN;
+    let collateralFactorETH: BN;
+    let collateralFactorBAT: BN;
+    let holdingTime = new BN(5).mul(ONE_HOUR); // 5 hours
+
     let avatar1: b.AvatarInstance;
     let avatar2: b.AvatarInstance;
     let avatar3: b.AvatarInstance;
@@ -92,8 +102,9 @@ contract("Pool", async (accounts) => {
     const ONE_THOUSAND_ZRX = new BN(1000).mul(ONE_ZRX);
 
     const ONE_BAT = new BN(10).pow(new BN(18));
-    const HUNDRED_BAT = new BN(100).mul(ONE_BAT);
+    const ONE_HUNDRED_BAT = new BN(100).mul(ONE_BAT);
     const FIVE_HUNDRED_BAT = new BN(500).mul(ONE_BAT);
+    const FIFTY_BAT = new BN(50).mul(ONE_ZRX);
     const ONE_THOUSAND_BAT = new BN(1000).mul(ONE_BAT);
 
     const ONE_USDT = new BN(10).pow(new BN(6));
@@ -136,6 +147,65 @@ contract("Pool", async (accounts) => {
 
     let cETH_addr: string;
     let cETH: b.CEtherInstance;
+
+    async function initSetupCompound() {
+      // SET ORACLE PRICE
+      // =================
+      // ETH price is Oracle is always set to 1e18, represents full 1 ETH rate
+      // Assume ETH rate is $100, hence 1e18 represents $100 = 1 ETH rate
+      // =>> 1 ETH rate in contract = 1e18, (represents $100)
+      // Assume 1 ZRX rate is $1
+      // =>> 1 ZRX rate in contract = 1e18 / 100 = 1e16, (represents $1)
+      const ONE_ETH_RATE_IN_USD = USD_PER_ETH; // $100
+      const ONE_ZRX_RATE_IN_USD = new BN(1); // $1
+      const ONE_BAT_RATE_IN_USD = new BN(1); // $1
+
+      // DIVISOR = 100 / 1 = 100
+      const DIVISOR = ONE_ETH_RATE_IN_USD.div(ONE_ZRX_RATE_IN_USD);
+
+      // PRICE_ONE_ZRX_IN_CONTRACT = 1e18 / 100 = 1e16
+      const PRICE_ONE_ZRX_IN_CONTRACT = ONE_ETH_RATE_IN_SCALE.div(DIVISOR);
+
+      await priceOracle.setPrice(cZRX_addr, PRICE_ONE_ZRX_IN_CONTRACT);
+      // set the same $1 price for BAT
+      await priceOracle.setPrice(cBAT_addr, PRICE_ONE_ZRX_IN_CONTRACT);
+
+      expect(PRICE_ONE_ZRX_IN_CONTRACT).to.be.bignumber.equal(
+        await priceOracle.getUnderlyingPrice(cZRX_addr),
+      );
+      // NOTICE: BAT rate same as ZRX = $1
+      expect(PRICE_ONE_ZRX_IN_CONTRACT).to.be.bignumber.equal(
+        await priceOracle.getUnderlyingPrice(cBAT_addr),
+      );
+
+      const ethPrice = await priceOracle.getUnderlyingPrice(cETH_addr);
+      expect(ONE_ETH_RATE_IN_SCALE).to.be.bignumber.equal(ethPrice);
+
+      // SET COLLATERAL FACTOR
+      // =======================
+      await comptroller._setCollateralFactor(cETH_addr, FIFTY_PERCENT);
+      await comptroller._setCollateralFactor(cZRX_addr, FIFTY_PERCENT);
+      await comptroller._setCollateralFactor(cBAT_addr, FIFTY_PERCENT);
+
+      const ethMarket = await comptroller.markets(cETH_addr);
+      collateralFactorETH = ethMarket[1];
+      const zrxMarket = await comptroller.markets(cZRX_addr);
+      collateralFactorZRX = zrxMarket[1];
+      const batMarket = await comptroller.markets(cBAT_addr);
+      collateralFactorBAT = batMarket[1];
+
+      expect(collateralFactorETH).to.be.bignumber.equal(FIFTY_PERCENT);
+      expect(collateralFactorZRX).to.be.bignumber.equal(FIFTY_PERCENT);
+      expect(collateralFactorBAT).to.be.bignumber.equal(FIFTY_PERCENT);
+
+      liquidationIncentive = await comptroller.liquidationIncentiveMantissa();
+      const expectLiqIncentive = SCALE.mul(new BN(110)).div(new BN(100));
+      expect(expectLiqIncentive).to.be.bignumber.equal(liquidationIncentive);
+
+      closeFactor = await comptroller.closeFactorMantissa();
+      const expectCloseFactor = SCALE.div(new BN(2)); // 50%
+      expect(closeFactor).to.be.bignumber.equal(expectCloseFactor);
+    }
 
     beforeEach(async () => {
       // ZRX
@@ -474,7 +544,191 @@ contract("Pool", async (accounts) => {
     });
 
     describe("Pool.liquidateBorrow()", async () => {
-      it("member should liquidation a user (borrowed ETH)");
+      const pointOneETH = ONE_ETH.div(new BN(10));
+      let shareNumerator: BN;
+      let shareDenominator: BN;
+
+      beforeEach(async () => {
+        await initSetupCompound();
+
+        shareNumerator = await pool.shareNumerator();
+        shareDenominator = await pool.shareDenominator();
+        expect(shareNumerator).to.be.not.equal(ZERO);
+        expect(shareDenominator).to.be.not.equal(ZERO);
+
+        // Precondition Setup:
+        // -------------------
+        await ZRX.transfer(a.user2, ONE_HUNDRED_ZRX, { from: a.deployer });
+        await BAT.transfer(a.user3, ONE_HUNDRED_BAT, { from: a.deployer });
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(1000).mul(ONE_ZRX), {
+          from: a.deployer,
+        });
+        await pool.setMinSharingThreshold(bETH_addr, new BN(100).mul(ONE_ETH), {
+          from: a.deployer,
+        });
+
+        // deposit
+        // 1. User-1 mint cETH with ETH : $100
+        await bETH.mint({ from: a.user1, value: ONE_ETH });
+
+        // 2.1 User-2 mint cZRX with ZRX
+        await ZRX.approve(bZRX.address, ONE_HUNDRED_ZRX, { from: a.user2 });
+        await bZRX.mint(ONE_HUNDRED_ZRX, { from: a.user2 });
+
+        // 2.2 User-3 mint cBAT with BAT
+        await BAT.approve(bBAT.address, ONE_HUNDRED_BAT, { from: a.user3 });
+        await bBAT.mint(ONE_HUNDRED_BAT, { from: a.user3 });
+
+        // borrow
+        // 3.1 User1 borrow ZRX : $50
+        await bZRX.borrow(FIFTY_ZRX, { from: a.user1 });
+
+        // 3.2 User3 borrow ETH: $50
+        await bETH.borrow(HALF_ETH, { from: a.user3 });
+
+        // 5. Member1 deposits 10 ZRX to pool
+        await ZRX.approve(pool.address, TEN_ZRX, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: a.member1 });
+
+        // 5. Member2 deposits 0.1 ETH to pool
+        await pool.methods["deposit()"]({ from: a.member2, value: ONE_ETH.div(new BN(10)) });
+
+        // member1 TOP UP user1
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfZRXAtCToken = await ZRX.balanceOf(cZRX_addr);
+        const balOfZRXAtPool = await ZRX.balanceOf(pool.address);
+
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
+          balOfZRXAtPool.sub(TEN_ZRX),
+        );
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(new BN(TEN_ZRX)),
+        );
+
+        // member2 TOP UP user3
+        expect(await avatar3.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        const balanceOfETHAtCToken = await balance.current(cETH_addr);
+        const balOfETHAtPool = await balance.current(pool.address);
+
+        // member2 topped up
+        const toppedUpETH = pointOneETH; // 0.1 ETH
+        await pool.topup(a.user3, bETH_addr, toppedUpETH, false, { from: a.member2 });
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(
+          balOfETHAtPool.sub(pointOneETH),
+        );
+        expect(await avatar3.toppedUpAmount()).to.be.bignumber.equal(pointOneETH);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          balanceOfETHAtCToken.add(pointOneETH),
+        );
+      });
+
+      it("member should liquidation a user (borrowed ETH)", async () => {
+        // user3 collateral 100 BAT = 100 * $1 = $100
+        // user3 borrowed 0.5 ETH = 0.5 * $100 = $50
+
+        // user3 borrowed ETH
+        const user = a.user3;
+        const avatar = avatar3;
+        // member2 liquidating
+        const member = a.member2;
+
+        const oracle = await bProtocol.bComptroller.oracle();
+        const priceOracle = await FakePriceOracle.at(oracle);
+        // ETH rate always = 1e18
+        expect(await priceOracle.getUnderlyingPrice(cETH_addr)).to.be.bignumber.equal(SCALE);
+        // BAR rate is = 1e16
+        expect(await priceOracle.getUnderlyingPrice(cBAT_addr)).to.be.bignumber.equal(
+          ONE_USD_IN_SCALE,
+        );
+
+        expect(await bBAT.balanceOfUnderlying.call(user)).to.be.bignumber.equal(ONE_HUNDRED_BAT);
+        expect(await bETH.borrowBalanceCurrent.call(user)).to.be.bignumber.equal(HALF_ETH);
+
+        expect(await avatar.canLiquidate.call()).to.be.equal(false);
+        expect(await avatar.isToppedUp()).to.be.equal(true);
+
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH);
+        expect(await avatar.toppedUpCToken()).to.be.equal(cETH_addr);
+
+        // Change ETH rate
+        // ONE_USD_IN_SCALE * 110 = $110 per ETH (IN SCALE)
+        const NEW_RATE_ETH = ONE_USD_IN_SCALE.mul(new BN(110));
+        await priceOracle.setPrice(cETH_addr, NEW_RATE_ETH);
+
+        expect(await priceOracle.getUnderlyingPrice(cETH_addr)).to.be.bignumber.equal(NEW_RATE_ETH);
+
+        // After set price
+        // user3 collateral 100 BAT = 100 * $1 = $100
+        // user3 borrowed 0.5 ETH = 0.5 * $110 = $55
+        // toppedUp = 0.1 ETH = 0.1 * $110 = $11
+        // currentBorrowAtCompound = $55 - $11 = $44
+        // borrowAllowed = $100 * 50% = $50 - $44 = $6
+
+        expect(await avatar.canLiquidate.call()).to.be.equal(true);
+
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(ZERO);
+        expect(await pool.topupBalance(member, ETH_ADDR)).to.be.bignumber.equal(pointOneETH);
+
+        const expectedMaxLiquidationAmt = (await bETH.borrowBalanceCurrent.call(user))
+          .mul(closeFactor)
+          .div(SCALE);
+        const maxLiquidationAmt = await avatar.getMaxLiquidationAmount.call(cETH_addr);
+
+        expect(expectedMaxLiquidationAmt).to.be.bignumber.equal(maxLiquidationAmt);
+
+        const result = await avatar.calcAmountToLiquidate.call(cETH_addr, maxLiquidationAmt);
+        const amtToDeductFromTopup = result[0]; // 10
+        const amtToRepayOnCompound = result[1]; // 15
+
+        // Liquidate
+        await pool.liquidateBorrow(
+          bETH_addr,
+          user,
+          bBAT_addr,
+          bETH_addr,
+          maxLiquidationAmt,
+          amtToRepayOnCompound,
+          false,
+          { from: member, value: amtToRepayOnCompound },
+        );
+
+        // validate
+        // validate avatar storage
+        expect(await avatar.canLiquidate.call()).to.be.equal(false);
+        expect(await avatar.isToppedUp()).to.be.equal(false);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+
+        // validate pool storage
+        expect(await pool.balance(member, ETH_ADDR)).to.be.bignumber.equal(pointOneETH);
+        expect(await pool.topupBalance(member, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+
+        // validate balances
+        // $100 collateral
+        // $55 borrowed, hence $55 worth of BAT will be liquidated
+        // 1 BAT = $1, hence 55 BAT = $55
+        const batUnderlayingOpenForLiquidation = ONE_BAT.mul(new BN(55))
+          .mul(liquidationIncentive)
+          .div(ONE_ETH);
+        const batUnderlyingLiquidated = batUnderlayingOpenForLiquidation
+          .mul(closeFactor)
+          .div(SCALE);
+        const batSizedTokens = batUnderlyingLiquidated
+          .mul(ONE_ETH)
+          .div(await cBAT.exchangeRateCurrent.call());
+
+        const memberShare = batSizedTokens.mul(shareNumerator).div(shareDenominator);
+        const jarShare = batSizedTokens.sub(memberShare);
+
+        // member
+        expect(await cBAT.balanceOf(member)).to.be.bignumber.equal(memberShare);
+        // jar
+        expect(await cBAT.balanceOf(jar)).to.be.bignumber.equal(jarShare);
+        // pool
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(ZERO);
+      });
 
       it("member should liquidation a user (borrowed ZRX)");
 

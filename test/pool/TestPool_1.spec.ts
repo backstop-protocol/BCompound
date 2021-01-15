@@ -847,7 +847,7 @@ contract("Pool", async (accounts) => {
         let chosenMember2 = await pool.smallTopupWinner(avatar1.address);
         expect(isValidaMember(chosenMember2, members)).to.be.equal(true);
         // NOTICE: 1/3 probability of passing
-        // TODO: commented our as we cannot predict
+        // TODO: commented out as we cannot predict
         // expect(chosenMember1).to.be.not.equal(chosenMember2);
       });
 

@@ -50,11 +50,6 @@ contract AbsCToken is AbsAvatarBase {
         if(! quit) _score().updateDebtScore(address(this), address(cEther), -toInt256(msg.value));
     }
 
-    function liquidateBorrow(ICToken cTokenCollateral) external payable onlyBToken {
-        _liquidateBorrow(msg.value, cTokenCollateral);
-    }
-
-
     // CErc20
     // ======
     function mint(ICErc20 cToken, uint256 mintAmount) public onlyBToken postPoolOp(false) returns (uint256) {
@@ -85,12 +80,12 @@ contract AbsCToken is AbsAvatarBase {
         return result; // in case of err, tx fails at BToken
     }
 
-    function liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external onlyBToken returns (uint256) {
+    // CEther / CErc20
+    // ===============
+    function liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external payable onlyBToken returns (uint256) {
         return _liquidateBorrow(underlyingAmtToLiquidate, cTokenCollateral);
     }
 
-    // CEther / CErc20
-    // ===============
     function _liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) internal returns (uint256) {
         // 1. Can liquidate?
         require(canLiquidate(), "cannot-liquidate");

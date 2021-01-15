@@ -309,6 +309,7 @@ contract Pool is Exponential, Ownable {
         emit MemberWithdraw(msg.sender, underlying, amount);
     }
 
+    // TODO can remove bToken param as its a bTokenDebt
     function liquidateBorrow(
         address bToken,
         address borrower,
@@ -318,7 +319,7 @@ contract Pool is Exponential, Ownable {
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
     )
-        external
+        external payable
     {
         address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
         address cTokenDebt = bComptroller.b2c(bTokenDebt);
@@ -356,33 +357,21 @@ contract Pool is Exponential, Ownable {
                 "Pool: amount-too-big");
 
         address debtUnderlying = _getUnderlying(cTokenDebt);
-
-        if(_isCEther(cTokenDebt)) {
-            // sending `underlyingAmtToLiquidate` ETH to Avatar
-            // Avatar will split into `amtToRepayOnCompound` and `amtToDeductFromTopup`
-            // Avatar will send back `amtToDeductFromTopup` ETH back to Pool contract
-            ICEther(bToken).liquidateBorrow.value(underlyingAmtToLiquidate)(borrower, cTokenCollateral);
-        } else {
+        if(! _isCEther(cTokenDebt)) {
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
-            require(
-                ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral) == 0,
-                "Pool: liquidateBorrow-failed"
-            );
         }
 
-        balance[msg.sender][debtUnderlying] = sub_(balance[msg.sender][debtUnderlying], amtToRepayOnCompound);
+        require(
+            IBToken(bToken).liquidateBorrow.value(msg.value)(borrower, underlyingAmtToLiquidate, cTokenCollateral) == 0,
+            "Pool: liquidateBorrow-failed"
+        );
 
-        //uint seizedTokens = sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore);
-        // code block to remove stack too deep error
-        {
-            uint cbalanceBefore = IERC20(cTokenCollateral).balanceOf(address(this));
-            _shareLiquidationProceeds(
-                cTokenCollateral,
-                msg.sender,
-                sub_(IERC20(cTokenCollateral).balanceOf(address(this)), cbalanceBefore)
-            );
-        }
+        // adding released-topped-up amount back to member balance
+        balance[msg.sender][debtUnderlying] = add_(balance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+
+        // share siezed cTokens with `member` and `jar`
+        _shareLiquidationProceeds(cTokenCollateral, msg.sender);
 
         // TODO this SSTORE can be saved if toppedUpAmount() > 0
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
@@ -398,7 +387,8 @@ contract Pool is Exponential, Ownable {
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
     }
 
-    function _shareLiquidationProceeds(address cTokenCollateral, address member, uint seizedTokens) internal {
+    function _shareLiquidationProceeds(address cTokenCollateral, address member) internal {
+        uint seizedTokens = IERC20(cTokenCollateral).balanceOf(address(this));
         uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
         uint jarShare = sub_(seizedTokens, memberShare);
 
