@@ -358,7 +358,6 @@ contract Pool is Exponential, Ownable {
 
         if(! _isCEther(cTokenDebt)) {
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
-            IERC20(debtUnderlying).safeTransferFrom(msg.sender, address(this), amtToRepayOnCompound);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
         }
 

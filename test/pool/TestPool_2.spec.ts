@@ -811,7 +811,6 @@ contract("Pool", async (accounts) => {
 
         // Liquidate
         await pool.liquidateBorrow(
-          bZRX_addr,
           user,
           bETH_addr,
           bZRX_addr,
