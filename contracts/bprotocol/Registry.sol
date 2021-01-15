@@ -40,11 +40,17 @@ contract Registry is Ownable {
     // dummy caller, for safer delegate and execute
     DummyCaller public dummyCaller;
 
+    // (target, 4 bytes) => boolean. For each target address and function call, can avatar call it?
+    // this is to support upgradable features in compound
+    // calls that allow user to change collateral and debt size, and enter/exit market should not be listed
+    mapping (address => mapping(bytes4 => bool)) public whitelistedAvatarCalls;
+
     event NewAvatar(address indexed avatar, address owner);
     event Delegate(address indexed delegator, address avatar, address delegatee);
     event RevokeDelegate(address indexed delegator, address avatar, address delegatee);
     event NewPool(address oldPool, address newPool);
     event NewScore(address oldScore, address newScore);
+    event AvatarCallWhitelisted(address target, bytes4 functionSig, bool whitelist);
 
     constructor(
         address _comptroller,
@@ -81,6 +87,11 @@ contract Registry is Ownable {
         address oldScore = score;
         score = newScore;
         emit NewScore(oldScore, newScore);
+    }
+
+    function setWhitelistAvatarCall(address target, bytes4 functionSig, bool list) external onlyOwner {
+        whitelistedAvatarCalls[target][functionSig] = list;
+        emit AvatarCallWhitelisted(target, functionSig, list);
     }
 
     function newAvatar() external returns (address) {
