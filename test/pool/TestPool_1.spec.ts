@@ -837,8 +837,6 @@ contract("Pool", async (accounts) => {
         const extra = nowTime.mod(selectionDuration); // extra = nowTime % 60mins
         const diffToSeek = selectionDuration.sub(extra); // diffToSeek = 60mins - extra
         await time.increase(diffToSeek);
-        nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
-        expect(nowTime.mod(selectionDuration)).to.be.bignumber.equal(ZERO);
 
         let chosenMember1 = await pool.smallTopupWinner(avatar1.address);
         expect(isValidaMember(chosenMember1, members)).to.be.equal(true);
