@@ -51,24 +51,13 @@ contract Avatar is ProxyStorage, AbsComptroller, AbsCToken {
     }
 
     // EMERGENCY FUNCTIONS
-    function resetApprove(IERC20 token, address spender) external onlyAvatarOwner {
-        // NOTICE: not enclosing in require()
-        token.approve(spender, 0);
-    }
+    function emergencyCall(address payable target, bytes calldata data) external payable onlyAvatarOwner {
+        uint first4Bytes = uint(uint8(data[0])) << 24 | uint(uint8(data[1])) << 16 | uint(uint8(data[2])) << 8 | uint(uint8(data[3])) << 0;
+        bytes4 functionSig = bytes4(uint32(first4Bytes));
 
-    function transferERC20(address token, uint256 amount) external onlyAvatarOwner {
-        // ensure that token should not be a cToken, this is to protect user Score manipulation
-        require(ICToken(token).isCToken() == false, "Avatar: cToken-not-allowed");
+        require(quit || registry.whitelistedAvatarCalls(target, functionSig), "emergencyCall: not-listed");
+        (bool succ, bytes memory err) = target.call.value(msg.value)(data);
 
-        address owner = registry.ownerOf(address(this));
-        IERC20 erc20 = IERC20(token);
-        // NOTICE: not enclosing in require()
-        erc20.transfer(owner, amount);
-    }
-
-    function transferETH(uint256 amount) external onlyAvatarOwner {
-        address owner = registry.ownerOf(address(this));
-        address payable ownerPayable = address(uint160(owner));
-        ownerPayable.transfer(amount);
+        require(succ, string(err));
     }
 }
