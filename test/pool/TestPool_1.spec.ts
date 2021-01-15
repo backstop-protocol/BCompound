@@ -385,11 +385,14 @@ contract("Pool", async (accounts) => {
         );
 
         // member1 untop
-        const untopAmount = ONE_ZRX.mul(new BN(5)); // 5 ZRX
+        const FIVE_ZRX = ONE_ZRX.mul(new BN(5));
+        const untopAmount = FIVE_ZRX;
         await pool.untop(user, untopAmount, { from: member });
-        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(balOfZRXAtPool);
-        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ONE_ZRX.mul(new BN(5)));
-        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(balanceOfZRXAtCToken);
+        expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(FIVE_ZRX);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(FIVE_ZRX);
+        expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
+          balanceOfZRXAtCToken.add(TEN_ZRX).sub(FIVE_ZRX),
+        );
       });
 
       it("member should do partial untop of an avatar (ETH)", async () => {
@@ -414,11 +417,14 @@ contract("Pool", async (accounts) => {
         );
 
         // member2 untop
-        const untopAmount = pointOneETH.div(new BN(2)); // 0.05 ETH
+        const zeroPointFive = pointOneETH.div(new BN(2));
+        const untopAmount = zeroPointFive;
         await pool.untop(user, untopAmount, { from: member });
-        expect(await balance.current(pool.address)).to.be.bignumber.equal(balOfETHAtPool);
-        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH.div(new BN(2)));
-        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(balanceOfETHAtCToken);
+        expect(await balance.current(pool.address)).to.be.bignumber.equal(zeroPointFive);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(zeroPointFive);
+        expect(await balance.current(cETH_addr)).to.be.bignumber.equal(
+          balanceOfETHAtCToken.add(pointOneETH).sub(zeroPointFive),
+        );
       });
 
       it("should fail when other member try to untop of member1 topup", async () => {
