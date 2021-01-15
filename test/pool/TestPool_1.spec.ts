@@ -642,19 +642,24 @@ contract("Pool", async (accounts) => {
           balOfZRXAtPool.sub(TEN_ZRX).add(TEN_ZRX),
         );
 
-        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: newMember });
+        await expectRevert(
+          pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: newMember }),
+          "Pool: topup-amount-big",
+        );
+
+        await pool.topup(a.user1, bZRX_addr, ONE_ZRX, false, { from: newMember });
 
         expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(
-          balOfZRXAtPool.sub(TEN_ZRX).add(TEN_ZRX).sub(TEN_ZRX),
+          balOfZRXAtPool.sub(TEN_ZRX).add(TEN_ZRX).sub(ONE_ZRX),
         );
 
         expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(
-          balanceOfZRXAtCToken.add(new BN(TEN_ZRX).mul(new BN(2))),
+          balanceOfZRXAtCToken.add(new BN(TEN_ZRX).add(ONE_ZRX)),
         );
-        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX.mul(new BN(2)));
+        expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(TEN_ZRX.add(ONE_ZRX));
 
-        const totalToppedUp = TEN_ZRX.add(TEN_ZRX);
-        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        const totalToppedUp = TEN_ZRX.add(ONE_ZRX);
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(TEN_ZRX.sub(ONE_ZRX));
 
         // member1 untop
         await pool.untop(a.user1, totalToppedUp, { from: a.member1 });
@@ -663,12 +668,13 @@ contract("Pool", async (accounts) => {
           balOfZRXAtPool
             .sub(TEN_ZRX) // topup
             .add(TEN_ZRX) // deposit
-            .sub(TEN_ZRX) // topup
-            .add(TEN_ZRX.mul(new BN(2))), //untop
+            .sub(ONE_ZRX) // topup
+            .add(TEN_ZRX.add(ONE_ZRX)), //untop
         );
         expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(balanceOfZRXAtCToken);
         expect(await avatar1.toppedUpAmount()).to.be.bignumber.equal(ZERO);
-        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(totalToppedUp);
+        // user deposited 10 ZRX twice
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(TEN_ZRX.add(TEN_ZRX));
       });
 
       it("member should untop big loan", async () => {
@@ -694,8 +700,8 @@ contract("Pool", async (accounts) => {
         await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
 
         const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
-        const minDebt = debtInfo[0];
-        const isSmall = debtInfo[1];
+        const minDebt = debtInfo["minTopup"];
+        const isSmall = debtInfo["isSmall"];
 
         const debt = ONE_THOUSAND_ZRX;
         const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
@@ -745,8 +751,8 @@ contract("Pool", async (accounts) => {
         await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
 
         const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
-        const minDebt = debtInfo[0];
-        const isSmall = debtInfo[1];
+        const minDebt = debtInfo["minTopup"];
+        const isSmall = debtInfo["isSmall"];
 
         const debt = ONE_THOUSAND_ZRX;
         const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
@@ -1043,8 +1049,8 @@ contract("Pool", async (accounts) => {
         await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
 
         const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
-        const minDebt = debtInfo[0];
-        const isSmall = debtInfo[1];
+        const minDebt = debtInfo["minTopup"];
+        const isSmall = debtInfo["isSmall"];
 
         const debt = ONE_THOUSAND_ZRX;
         const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
@@ -1092,8 +1098,8 @@ contract("Pool", async (accounts) => {
         await bZRX.borrow(ONE_THOUSAND_ZRX, { from: user });
 
         const debtInfo = await pool.getDebtTopupInfo.call(user, bZRX_addr);
-        const minDebt = debtInfo[0];
-        const isSmall = debtInfo[1];
+        const minDebt = debtInfo["minTopup"];
+        const isSmall = debtInfo["isSmall"];
 
         const debt = ONE_THOUSAND_ZRX;
         const expectedMinDebt = debt.mul(new BN(250)).div(new BN(10000));
@@ -1299,16 +1305,16 @@ contract("Pool", async (accounts) => {
         // member1 try to topup
         await ZRX.approve(pool.address, TEN_ZRX, { from: newMember });
         await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: newMember });
-        const tx = await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: newMember });
+        const tx = await pool.topup(a.user1, bZRX_addr, ONE_ZRX, false, { from: newMember });
         const topupTimestamp = new BN((await web3.eth.getBlock(tx.receipt.blockNumber)).timestamp);
         const newExpectExpire = topupTimestamp.add(holdingTime);
 
         // member1 storage should be updated
         // member1 balance = depositedZRX - toppedUpZRX
         expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(
-          TEN_ZRX.sub(toppedUpZRX),
+          TEN_ZRX.sub(ONE_ZRX),
         );
-        const totalAmountToppedUp = TEN_ZRX.add(TEN_ZRX);
+        const totalAmountToppedUp = TEN_ZRX.add(ONE_ZRX);
         member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
         expectMemberTopupInfo(member1TopupInfo, {
           expectedExpire: newExpectExpire,
@@ -1423,13 +1429,13 @@ contract("Pool", async (accounts) => {
         await time.increase(ONE_HOUR);
 
         // topup second time
-        await ZRX.approve(pool.address, toppedUpZRX, { from: a.member1 });
-        await pool.methods["deposit(address,uint256)"](ZRX_addr, toppedUpZRX, { from: a.member1 });
-        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        await ZRX.approve(pool.address, ONE_ZRX, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, ONE_ZRX, { from: a.member1 });
+        await pool.topup(a.user1, bZRX_addr, ONE_ZRX, false, { from: a.member1 });
         memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
         expectMemberTopupInfo(memberTopupInfo, {
           expectedExpire: expectExpire, // this should not change
-          expectedAmountTopped: toppedUpZRX.mul(new BN(2)),
+          expectedAmountTopped: toppedUpZRX.add(ONE_ZRX),
           expectedAmountLiquidated: ZERO,
         });
       });
@@ -1837,7 +1843,7 @@ export function expectMemberTopupInfo(
 }
 
 export function expectDebtTopupInfo(
-  debtTopupInfo: [BN, boolean],
+  debtTopupInfo: [BN, BN, boolean],
   param: {
     expectedMinDebt: BN;
     expectedIsSmall: boolean;
@@ -1846,11 +1852,11 @@ export function expectDebtTopupInfo(
 ) {
   if (debug) {
     console.log("minDebt: " + debtTopupInfo[0].toString());
-    console.log("isSmall: " + debtTopupInfo[1]);
+    console.log("isSmall: " + debtTopupInfo[2]);
   }
 
   expect(param.expectedMinDebt, "Unexpected minDebt").to.be.bignumber.equal(debtTopupInfo[0]);
-  expect(param.expectedIsSmall, "Unexpected isSmall").to.be.equal(debtTopupInfo[1]);
+  expect(param.expectedIsSmall, "Unexpected isSmall").to.be.equal(debtTopupInfo[2]);
 }
 
 export function isValidaMember(member: string, members: string[], debug: boolean = false) {

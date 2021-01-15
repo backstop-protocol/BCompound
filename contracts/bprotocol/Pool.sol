@@ -81,12 +81,13 @@ contract Pool is Exponential, Ownable {
         amountLiquidated = memberInfo.amountLiquidated;
     }
 
-    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minDebt, bool isSmall) {
+    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minTopup, uint maxTopup, bool isSmall) {
         console.log("in getDebtTopupInfo");
         console.log("user: %s", user);
         console.log("bTokenDebt: %s", bTokenDebt);
         uint debt = IBToken(bTokenDebt).borrowBalanceCurrent(user);
-        minDebt = mul_(debt, minTopupBps) / 10000;
+        minTopup = mul_(debt, minTopupBps) / 10000;
+        maxTopup = debt / members.length;
         isSmall = debt < minSharingThreshold[bTokenDebt];
     }
 
@@ -110,7 +111,7 @@ contract Pool is Exponential, Ownable {
         // cannot untop more than topped up amount
         require(memberInfo.amountTopped >= underlyingAmount, "Pool: amount-too-big");
 
-        (uint minTopup,) = getDebtTopupInfo(user, bToken);
+        (uint minTopup,,) = getDebtTopupInfo(user, bToken);
 
         require(
             memberInfo.amountTopped == underlyingAmount ||
@@ -136,7 +137,7 @@ contract Pool is Exponential, Ownable {
     function topup(address user, address bToken, uint amount, bool resetApprove) external onlyMember {
         address avatar = registry.avatarOf(user);
         address cToken = bComptroller.b2c(bToken);
-        (uint minDebt, bool small) = getDebtTopupInfo(user, bToken);
+        (uint minTopup, uint maxTopup, bool small) = getDebtTopupInfo(user, bToken);
 
         address underlying = _getUnderlying(cToken);
         uint memberBalance = balance[msg.sender][underlying];
@@ -148,7 +149,8 @@ contract Pool is Exponential, Ownable {
         _untopOnMembers(user, avatar, cToken, small);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
-        require(add_(amount, memberInfo.amountTopped) >= minDebt, "Pool: topup-amount-small");
+        require(add_(amount, memberInfo.amountTopped) >= minTopup, "Pool: topup-amount-small");
+        require(add_(amount, memberInfo.amountTopped) <= maxTopup, "Pool: topup-amount-big");
 
         // For first topup skip this check as `expire = 0`
         // From next topup, check for turn of msg.sender (new member)
