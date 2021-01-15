@@ -376,7 +376,7 @@ contract Pool is Exponential, Ownable {
         // TODO this SSTORE can be saved if toppedUpAmount() > 0
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
-        topupBalance[msg.sender][debtUnderlying] = memberInfo.amountTopped;
+        topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
         // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() > 0) {
