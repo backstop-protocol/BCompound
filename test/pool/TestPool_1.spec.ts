@@ -1382,6 +1382,57 @@ contract("Pool", async (accounts) => {
         // newMember balance remains unchanged
         expect(await pool.balance(newMember, ZRX_addr)).to.be.bignumber.equal(TEN_ZRX);
       });
+
+      it("member should topup multiple times during his holding time", async () => {
+        // user1 borrowed ZRX
+        // member1 toppedUp
+
+        // Change ZRX rate
+        // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
+        const NEW_RATE_ZRX = ONE_USD_IN_SCALE.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, NEW_RATE_ZRX);
+
+        const toppedUpZRX = TEN_ZRX;
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+
+        const result = await pool.topped(avatar1.address);
+        const debtToLiquidatePerMember = result[0];
+        const cToken = result[1];
+        expect(debtToLiquidatePerMember).to.be.bignumber.equal(ZERO);
+        expect(cToken).to.be.equal(await bComptroller.b2c(bZRX_addr));
+
+        const debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
+        expectDebtTopupInfo(debtTopupInfo, {
+          // borrowAmt * 250 / 10000 = 2.5%
+          expectedMinDebt: FIFTY_ZRX.mul(new BN(250)).div(new BN(10000)),
+          expectedIsSmall: true,
+        });
+
+        let memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        let expectExpire = new BN((await web3.eth.getBlock("latest")).timestamp).add(holdingTime);
+        expectMemberTopupInfo(memberTopupInfo, {
+          expectedExpire: expectExpire,
+          expectedAmountTopped: toppedUpZRX,
+          expectedAmountLiquidated: ZERO,
+        });
+
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(ZERO);
+        expect(await avatar1.isToppedUp()).to.be.equal(true);
+
+        // advance time to 1 hour
+        await time.increase(ONE_HOUR);
+
+        // topup second time
+        await ZRX.approve(pool.address, toppedUpZRX, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, toppedUpZRX, { from: a.member1 });
+        await pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: a.member1 });
+        memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
+        expectMemberTopupInfo(memberTopupInfo, {
+          expectedExpire: expectExpire, // this should not change
+          expectedAmountTopped: toppedUpZRX.mul(new BN(2)),
+          expectedAmountLiquidated: ZERO,
+        });
+      });
     });
 
     describe("Pool.setMinTopupBps()", async () => {

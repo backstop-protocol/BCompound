@@ -152,7 +152,7 @@ contract Pool is Exponential, Ownable {
 
         // For first topup skip this check as `expire = 0`
         // From next topup, check for turn of msg.sender (new member)
-        if(small && memberInfo.expire >= now) {
+        if(small && memberInfo.expire != 0 && memberInfo.expire <= now) {
             require(smallTopupWinner(avatar) == msg.sender, "Pool: topup-not-your-turn");
         }
 
@@ -359,6 +359,7 @@ contract Pool is Exponential, Ownable {
         address debtUnderlying = _getUnderlying(cTokenDebt);
         if(! _isCEther(cTokenDebt)) {
             if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
+            IERC20(debtUnderlying).safeTransferFrom(msg.sender, address(this), amtToRepayOnCompound);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
         }
 
@@ -367,8 +368,7 @@ contract Pool is Exponential, Ownable {
             "Pool: liquidateBorrow-failed"
         );
 
-        // adding released-topped-up amount back to member balance
-        balance[msg.sender][debtUnderlying] = add_(balance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+        balance[msg.sender][debtUnderlying] = sub_(balance[msg.sender][debtUnderlying],  amtToRepayOnCompound);
 
         // share siezed cTokens with `member` and `jar`
         _shareLiquidationProceeds(cTokenCollateral, msg.sender);
