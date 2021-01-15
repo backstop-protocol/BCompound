@@ -118,7 +118,7 @@ contract Pool is Exponential, Ownable {
             "Pool: invalid-amount"
         );
 
-        if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(memberInfo.amountTopped);
+        if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(underlyingAmount);
         address underlying = _getUnderlying(info.cToken);
         balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
         topupBalance[member][underlying] = sub_(topupBalance[member][underlying], underlyingAmount);

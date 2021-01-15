@@ -385,10 +385,10 @@ contract("Pool", async (accounts) => {
         );
 
         // member1 untop
-        const untopAmount = ONE_ZRX.mul(new BN(5));
+        const untopAmount = ONE_ZRX.mul(new BN(5)); // 5 ZRX
         await pool.untop(user, untopAmount, { from: member });
         expect(await ZRX.balanceOf(pool.address)).to.be.bignumber.equal(balOfZRXAtPool);
-        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ONE_ZRX.mul(new BN(5)));
         expect(await ZRX.balanceOf(cZRX_addr)).to.be.bignumber.equal(balanceOfZRXAtCToken);
       });
 
@@ -417,7 +417,7 @@ contract("Pool", async (accounts) => {
         const untopAmount = pointOneETH.div(new BN(2)); // 0.05 ETH
         await pool.untop(user, untopAmount, { from: member });
         expect(await balance.current(pool.address)).to.be.bignumber.equal(balOfETHAtPool);
-        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
+        expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(pointOneETH.div(new BN(2)));
         expect(await balance.current(cETH_addr)).to.be.bignumber.equal(balanceOfETHAtCToken);
       });
 
