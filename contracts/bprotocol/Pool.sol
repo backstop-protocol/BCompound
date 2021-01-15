@@ -318,7 +318,7 @@ contract Pool is Exponential, Ownable {
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
     )
-        external payable
+        external
     {
         address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
         address cTokenDebt = bComptroller.b2c(bTokenDebt);
@@ -362,7 +362,9 @@ contract Pool is Exponential, Ownable {
         }
 
         require(
-            IBToken(bTokenCollateral).liquidateBorrow.value(msg.value)(borrower, underlyingAmtToLiquidate, cTokenCollateral) == 0,
+            IBToken(bTokenCollateral).liquidateBorrow.value(debtUnderlying == ETH_ADDR ?
+                                                            amtToRepayOnCompound :
+                                                            0)(borrower,underlyingAmtToLiquidate, cTokenCollateral) == 0,
             "Pool: liquidateBorrow-failed"
         );
 

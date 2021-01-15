@@ -683,16 +683,18 @@ contract("Pool", async (accounts) => {
         const amtToDeductFromTopup = result[0]; // 10
         const amtToRepayOnCompound = result[1]; // 15
 
+        expect(await pool.balance(member, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+        await pool.methods["deposit()"]({ from: member, value: amtToRepayOnCompound });
+
         // Liquidate
         await pool.liquidateBorrow(
-          bETH_addr,
           user,
           bBAT_addr,
           bETH_addr,
           maxLiquidationAmt,
           amtToRepayOnCompound,
           false,
-          { from: member, value: amtToRepayOnCompound },
+          { from: member },
         );
 
         // validate
@@ -702,7 +704,7 @@ contract("Pool", async (accounts) => {
         expect(await avatar.toppedUpAmount()).to.be.bignumber.equal(ZERO);
 
         // validate pool storage
-        expect(await pool.balance(member, ETH_ADDR)).to.be.bignumber.equal(pointOneETH);
+        expect(await pool.balance(member, ETH_ADDR)).to.be.bignumber.equal(ZERO);
         expect(await pool.topupBalance(member, ETH_ADDR)).to.be.bignumber.equal(ZERO);
 
         // validate balances
