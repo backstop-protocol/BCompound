@@ -331,8 +331,8 @@ contract Pool is Exponential, Ownable {
         address avatar = registry.avatarOf(borrower);
         TopupInfo storage info = topped[avatar];
 
+        require(info.memberInfo[msg.sender].amountTopped > 0, "Pool: member-didnt-topup");
         uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
-
         // code block to remove stack too deep error
         {
             console.log("debtToLiquidatePerMember: %s", debtToLiquidatePerMember);
@@ -348,7 +348,6 @@ contract Pool is Exponential, Ownable {
                 debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
                 info.debtToLiquidatePerMember = debtToLiquidatePerMember;
             }
-            require(info.memberInfo[msg.sender].amountTopped > 0, "Pool: member-didnt-topup");
         }
 
         MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
