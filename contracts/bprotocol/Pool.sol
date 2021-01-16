@@ -105,6 +105,7 @@ contract Pool is Exponential, Ownable {
         MemberTopupInfo storage memberInfo = info.memberInfo[member];
         // cannot untop more than topped up amount
         require(memberInfo.amountTopped >= underlyingAmount, "Pool: amount-too-big");
+        require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: cannot-untop-in-liquidation");
 
         (uint minTopup,,) = getDebtTopupInfo(user, bToken);
 
