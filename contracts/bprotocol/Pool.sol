@@ -221,19 +221,23 @@ contract Pool is Exponential, Ownable {
     event MinSharingThresholdChanged(address indexed bToken, uint oldThreshold, uint newThreshold);
 
     modifier onlyMember() {
-        bool member = false;
-        for(uint i = 0 ; i < members.length ; i++) {
-            if(members[i] == msg.sender) {
-                member = true;
-                break;
-            }
-        }
-        require(member, "Pool: not-member");
+        require(_isMember(msg.sender), "Pool: not-member");
         _;
     }
 
     constructor(address _jar) public {
         jar = _jar;
+    }
+
+    // Added to avoid stack-too-deep-error
+    // This also reduce the code size as modifier code is copied to function
+    function _isMember(address member) internal view returns (bool isMember) {
+        for(uint i = 0 ; i < members.length ; i++) {
+            if(members[i] == member) {
+                isMember = true;
+                break;
+            }
+        }
     }
 
     function setRegistry(address _registry) external onlyOwner {
@@ -320,7 +324,7 @@ contract Pool is Exponential, Ownable {
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
     )
-        external
+        external onlyMember
     {
         address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
         address cTokenDebt = bComptroller.b2c(bTokenDebt);
