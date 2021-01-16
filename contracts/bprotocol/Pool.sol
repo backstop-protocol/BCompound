@@ -80,9 +80,10 @@ contract Pool is Exponential, Ownable {
         amountLiquidated = memberInfo.amountLiquidated;
     }
 
-    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minDebt, bool isSmall) {
+    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minTopup, uint maxTopup, bool isSmall) {
         uint debt = IBToken(bTokenDebt).borrowBalanceCurrent(user);
-        minDebt = mul_(debt, minTopupBps) / 10000;
+        minTopup = mul_(debt, minTopupBps) / 10000;
+        maxTopup = debt / members.length;
         isSmall = debt < minSharingThreshold[bTokenDebt];
     }
 
@@ -105,7 +106,7 @@ contract Pool is Exponential, Ownable {
         // cannot untop more than topped up amount
         require(memberInfo.amountTopped >= underlyingAmount, "Pool: amount-too-big");
 
-        (uint minTopup,) = getDebtTopupInfo(user, bToken);
+        (uint minTopup,,) = getDebtTopupInfo(user, bToken);
 
         require(
             memberInfo.amountTopped == underlyingAmount ||
@@ -130,7 +131,7 @@ contract Pool is Exponential, Ownable {
     function topup(address user, address bToken, uint amount, bool resetApprove) external onlyMember {
         address avatar = registry.avatarOf(user);
         address cToken = bComptroller.b2c(bToken);
-        (uint minDebt, bool small) = getDebtTopupInfo(user, bToken);
+        (uint minTopup, uint maxTopup, bool small) = getDebtTopupInfo(user, bToken);
 
         address underlying = _getUnderlying(cToken);
         uint memberBalance = balance[msg.sender][underlying];
@@ -142,11 +143,12 @@ contract Pool is Exponential, Ownable {
         _untopOnMembers(user, avatar, cToken, small);
 
         MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
-        require(add_(amount, memberInfo.amountTopped) >= minDebt, "Pool: topup-amount-small");
+        require(add_(amount, memberInfo.amountTopped) >= minTopup, "Pool: topup-amount-small");
+        require(add_(amount, memberInfo.amountTopped) <= maxTopup, "Pool: topup-amount-big");
 
         // For first topup skip this check as `expire = 0`
         // From next topup, check for turn of msg.sender (new member)
-        if(small && memberInfo.expire >= now) {
+        if(small && memberInfo.expire != 0 && memberInfo.expire <= now) {
             require(smallTopupWinner(avatar) == msg.sender, "Pool: topup-not-your-turn");
         }
 
@@ -213,19 +215,23 @@ contract Pool is Exponential, Ownable {
     event MinSharingThresholdChanged(address indexed bToken, uint oldThreshold, uint newThreshold);
 
     modifier onlyMember() {
-        bool member = false;
-        for(uint i = 0 ; i < members.length ; i++) {
-            if(members[i] == msg.sender) {
-                member = true;
-                break;
-            }
-        }
-        require(member, "Pool: not-member");
+        require(_isMember(msg.sender), "Pool: not-member");
         _;
     }
 
     constructor(address _jar) public {
         jar = _jar;
+    }
+
+    // Added to avoid stack-too-deep-error
+    // This also reduce the code size as modifier code is copied to function
+    function _isMember(address member) internal view returns (bool isMember) {
+        for(uint i = 0 ; i < members.length ; i++) {
+            if(members[i] == member) {
+                isMember = true;
+                break;
+            }
+        }
     }
 
     function setRegistry(address _registry) external onlyOwner {
@@ -312,13 +318,14 @@ contract Pool is Exponential, Ownable {
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
     )
-        external
+        external onlyMember
     {
         address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
         address cTokenDebt = bComptroller.b2c(bTokenDebt);
         address avatar = registry.avatarOf(borrower);
         TopupInfo storage info = topped[avatar];
 
+        require(info.memberInfo[msg.sender].amountTopped > 0, "Pool: member-didnt-topup");
         uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
 
         if(debtToLiquidatePerMember == 0) {

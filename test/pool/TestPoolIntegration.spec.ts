@@ -477,7 +477,7 @@ export function expectMemberTopupInfo(
 }
 
 export function expectDebtTopupInfo(
-  debtTopupInfo: [BN, boolean],
+  debtTopupInfo: [BN, BN, boolean],
   param: {
     expectedMinDebt: BN;
     expectedIsSmall: boolean;
@@ -486,9 +486,9 @@ export function expectDebtTopupInfo(
 ) {
   if (debug) {
     console.log("minDebt: " + debtTopupInfo[0].toString());
-    console.log("isSmall: " + debtTopupInfo[1]);
+    console.log("isSmall: " + debtTopupInfo[2]);
   }
 
   expect(param.expectedMinDebt, "Unexpected minDebt").to.be.bignumber.equal(debtTopupInfo[0]);
-  expect(param.expectedIsSmall, "Unexpected isSmall").to.be.equal(debtTopupInfo[1]);
+  expect(param.expectedIsSmall, "Unexpected isSmall").to.be.equal(debtTopupInfo[2]);
 }
