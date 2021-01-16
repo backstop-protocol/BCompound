@@ -998,7 +998,8 @@ contract("Pool", async (accounts) => {
           expectedAmountLiquidated: ZERO,
         });
 
-        const result = await avatar1.calcAmountToLiquidate.call(cBAT_addr, expectedMaxTopup);
+        const debtToLiquidate = await avatar1.getMaxLiquidationAmount.call(cBAT_addr);
+        const result = await avatar1.calcAmountToLiquidate.call(cBAT_addr, debtToLiquidate);
         const amtToDeductFromTopup = result["amtToDeductFromTopup"];
         const amtToRepayOnCompound = result["amtToRepayOnCompound"];
 
@@ -1023,7 +1024,7 @@ contract("Pool", async (accounts) => {
           a.user1,
           bZRX_addr,
           bBAT_addr,
-          expectedMaxTopup,
+          debtToLiquidate,
           amtToRepayOnCompound,
           false,
           { from: a.member1 },
@@ -1039,7 +1040,7 @@ contract("Pool", async (accounts) => {
         expectMemberTopupInfo(memberTopupInfo, {
           expectedExpire: ZERO,
           expectedAmountTopped: ZERO,
-          expectedAmountLiquidated: ZERO,
+          expectedAmountLiquidated: debtToLiquidate,
         });
 
         // validate cZRX balances
