@@ -1,6 +1,5 @@
 pragma solidity 0.5.16;
 
-import "hardhat/console.sol";
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -82,9 +81,6 @@ contract Pool is Exponential, Ownable {
     }
 
     function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minTopup, uint maxTopup, bool isSmall) {
-        console.log("in getDebtTopupInfo");
-        console.log("user: %s", user);
-        console.log("bTokenDebt: %s", bTokenDebt);
         uint debt = IBToken(bTokenDebt).borrowBalanceCurrent(user);
         minTopup = mul_(debt, minTopupBps) / 10000;
         maxTopup = debt / members.length;
@@ -100,7 +96,6 @@ contract Pool is Exponential, Ownable {
     }
 
     function _untop(address member, address user, uint underlyingAmount) internal {
-        console.log("in _untop()");
         require(underlyingAmount > 0, "Pool: amount-is-zero");
         address avatar = registry.avatarOf(user);
         TopupInfo storage info = topped[avatar];
@@ -126,7 +121,6 @@ contract Pool is Exponential, Ownable {
 
         memberInfo.amountTopped = 0;
         memberInfo.expire = 0;
-        console.log("exit from _untop()");
     }
 
     function smallTopupWinner(address avatar) public view returns(address) {
@@ -333,28 +327,21 @@ contract Pool is Exponential, Ownable {
 
         require(info.memberInfo[msg.sender].amountTopped > 0, "Pool: member-didnt-topup");
         uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
-        // code block to remove stack too deep error
-        {
-            console.log("debtToLiquidatePerMember: %s", debtToLiquidatePerMember);
-            if(debtToLiquidatePerMember == 0) {
-                uint numMembers = 0;
-                for(uint i = 0 ; i < members.length ; i++) {
-                    if(info.memberInfo[members[i]].amountTopped > 0) {
-                        numMembers++;
-                    }
-                }
-                console.log("getMaxLiquidationAmount: %s", ICushion(avatar).getMaxLiquidationAmount(cTokenDebt));
-                console.log("numMembers: %s", numMembers);
-                debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
-                info.debtToLiquidatePerMember = debtToLiquidatePerMember;
+
+        if(debtToLiquidatePerMember == 0) {
+          uint numMembers = 0;
+          for(uint i = 0 ; i < members.length ; i++) {
+            if(info.memberInfo[members[i]].amountTopped > 0) {
+              numMembers++;
             }
+          }
+          debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
+          info.debtToLiquidatePerMember = debtToLiquidatePerMember;
         }
 
-        MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
+        MemberTopupInfo memory memberInfo = info.memberInfo[msg.sender];
 
-        console.log("amountLiquidated: %s", memberInfo.amountLiquidated);
-        console.log("underlyingAmtToLiquidate: %s", underlyingAmtToLiquidate);
-        console.log("debtToLiquidatePerMember: %s", debtToLiquidatePerMember);
+        require(memberInfo.amountTopped > 0, "Pool: member-didnt-topup");
         require(add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate) <= debtToLiquidatePerMember,
                 "Pool: amount-too-big");
 
@@ -383,11 +370,9 @@ contract Pool is Exponential, Ownable {
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
         topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
 
-        // TODO - if it is not possible to delete a strucutre with mapping, then reset debt per member
         if(IAvatar(avatar).toppedUpAmount() == 0) {
-            //info.debtToLiquidatePerMember = 0; // in theory this is not needed if delete works
+            //info.debtToLiquidatePerMember = 0; // this indicates the liquidation ended
             delete topped[avatar]; // this will reset debtToLiquidatePerMember
-            // TODO check in test if mapping gets deleted using `delete`
         }
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
     }
