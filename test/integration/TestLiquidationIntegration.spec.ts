@@ -343,7 +343,7 @@ contract("Pool performs liquidation", async (accounts) => {
       );
 
       if (canLiquidate) {
-        let underlyingAmtToLiquidate = ONE_ZRX.mul(new BN(2));
+        let underlyingAmtToLiquidate = ONE_ZRX.mul(new BN(3));
 
         const maxLiquidationAmount = await avatarUser1.getMaxLiquidationAmount.call(cZRX_addr);
         const memberInfo = await pool.getMemberTopupInfo(user1, member1);
@@ -401,13 +401,9 @@ contract("Pool performs liquidation", async (accounts) => {
     // expectedLiquidity(accLiquidityOnAvatar, ZERO, ZERO, ZERO);
   });
 
-  it("10. Member should perform untop via Pool", async () => {
+  it("10. Member topup should be 0 after full liquidation", async () => {
     const pool = bProtocol.pool;
     let toppedUpAmount = await avatarUser1.toppedUpAmount();
-
-    await pool.untop(user1, toppedUpAmount, { from: member1 });
-
-    toppedUpAmount = await avatarUser1.toppedUpAmount();
     expect(ZERO).to.be.bignumber.equal(toppedUpAmount);
 
     const isToppedUp = await avatarUser1.isToppedUp();
