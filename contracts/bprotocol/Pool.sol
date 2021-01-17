@@ -5,8 +5,8 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { IRegistry } from "./interfaces/IRegistry.sol";
-import { ICToken } from "./interfaces/CTokenInterfaces.sol";
-import { ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
+import { ICToken, ICErc20, ICEther } from "./interfaces/CTokenInterfaces.sol";
+import { IBToken } from "./interfaces/IBToken.sol";
 import {
     IAvatar,
     IAvatarCErc20,
@@ -33,21 +33,174 @@ contract Pool is Exponential, Ownable {
     address public jar;
     address public cEther;
     address[] public members;
-    // member selection duration for round robin, default 60 mins
-    uint public selectionDuration = 60 minutes;
     // member share profit params
     uint public shareNumerator;
     uint public shareDenominator;
-    // member => underlaying => amount
+    // member => underlying => amount
     mapping(address => mapping(address => uint)) public balance;
+    // member => underlying => amount
+    mapping(address => mapping(address => uint)) public topupBalance;
     // avatar => TopupInfo
     mapping(address => TopupInfo) public topped;
 
+    // bToken => threshold
+    mapping(address => uint) public minSharingThreshold; // debt above this size will be shared
+    uint public minTopupBps = 250; // 2.5%
+    uint public holdingTime = 5 hours; // after 5 hours, someone else can topup instead
+    uint public selectionDuration = 60 minutes;  // member selection duration for round robin, default 10 mins
+
+    struct MemberTopupInfo {
+        uint expire;        // after expire time, other member can topup. relevant only if small
+        uint amountTopped;  // amount of underlying tokens toppedUp
+        uint amountLiquidated; // how much was already liquidated
+    }
+
     struct TopupInfo {
-        address toppedBy;   // member who toppedUp
-        uint expire;        // after expire time, other member can topup
-        address underlying; // underlying token address
-        uint amount;        // amount of underlying tokens toppedUp
+        mapping(address => MemberTopupInfo) memberInfo; // info per member
+        uint debtToLiquidatePerMember; // total debt avail to liquidate
+        address cToken;          // underlying debt cToken address
+    }
+
+    function getMemberTopupInfo(
+        address user,
+        address member
+    )
+        public
+        view
+        returns (
+            uint expire,
+            uint amountTopped,
+            uint amountLiquidated
+        )
+    {
+        address avatar = registry.avatarOf(user);
+        MemberTopupInfo memory memberInfo = topped[avatar].memberInfo[member];
+        expire = memberInfo.expire;
+        amountTopped = memberInfo.amountTopped;
+        amountLiquidated = memberInfo.amountLiquidated;
+    }
+
+    function getDebtTopupInfo(address user, address bTokenDebt) public /* view */ returns(uint minTopup, uint maxTopup, bool isSmall) {
+        uint debt = IBToken(bTokenDebt).borrowBalanceCurrent(user);
+        minTopup = mul_(debt, minTopupBps) / 10000;
+        maxTopup = debt / members.length;
+        isSmall = debt < minSharingThreshold[bTokenDebt];
+    }
+
+    function untop(address user, uint underlyingAmount) public onlyMember {
+        _untop(msg.sender, user, underlyingAmount);
+    }
+
+    function _untopOnBehalf(address member, address user, uint underlyingAmount) internal {
+        _untop(member, user, underlyingAmount);
+    }
+
+    function _untop(address member, address user, uint underlyingAmount) internal {
+        require(underlyingAmount > 0, "Pool: amount-is-zero");
+        address avatar = registry.avatarOf(user);
+        TopupInfo storage info = topped[avatar];
+
+        address bToken = bComptroller.c2b(info.cToken);
+
+        MemberTopupInfo storage memberInfo = info.memberInfo[member];
+        // cannot untop more than topped up amount
+        require(memberInfo.amountTopped >= underlyingAmount, "Pool: amount-too-big");
+        require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: cannot-untop-in-liquidation");
+
+        (uint minTopup,,) = getDebtTopupInfo(user, bToken);
+
+        require(
+            memberInfo.amountTopped == underlyingAmount ||
+            sub_(memberInfo.amountTopped, underlyingAmount) >= minTopup,
+            "Pool: invalid-amount"
+        );
+
+        if(ICushion(avatar).toppedUpAmount() > 0) ICushion(avatar).untop(underlyingAmount);
+        address underlying = _getUnderlying(info.cToken);
+        balance[member][underlying] = add_(balance[member][underlying], underlyingAmount);
+        topupBalance[member][underlying] = sub_(topupBalance[member][underlying], underlyingAmount);
+
+        memberInfo.amountTopped = 0;
+        memberInfo.expire = 0;
+    }
+
+    function smallTopupWinner(address avatar) public view returns(address) {
+        uint chosen = uint(keccak256(abi.encodePacked(avatar, now / selectionDuration))) % members.length;
+        return members[chosen];
+    }
+
+    function topup(address user, address bToken, uint amount, bool resetApprove) external onlyMember {
+        address avatar = registry.avatarOf(user);
+        address cToken = bComptroller.b2c(bToken);
+        (uint minTopup, uint maxTopup, bool small) = getDebtTopupInfo(user, bToken);
+
+        address underlying = _getUnderlying(cToken);
+        uint memberBalance = balance[msg.sender][underlying];
+
+        require(memberBalance >= amount, "Pool: topup-insufficient-balance");
+        require(ICushion(avatar).remainingLiquidationAmount() == 0, "Pool: cannot-topup-in-liquidation");
+
+        TopupInfo storage info = topped[avatar];
+        _untopOnMembers(user, avatar, cToken, small);
+
+        MemberTopupInfo storage memberInfo = info.memberInfo[msg.sender];
+        require(add_(amount, memberInfo.amountTopped) >= minTopup, "Pool: topup-amount-small");
+        require(add_(amount, memberInfo.amountTopped) <= maxTopup, "Pool: topup-amount-big");
+
+        // For first topup skip this check as `expire = 0`
+        // From next topup, check for turn of msg.sender (new member)
+        if(small && memberInfo.expire != 0 && memberInfo.expire <= now) {
+            require(smallTopupWinner(avatar) == msg.sender, "Pool: topup-not-your-turn");
+        }
+
+        // topup is valid
+        balance[msg.sender][underlying] = sub_(memberBalance, amount);
+        topupBalance[msg.sender][underlying] = add_(topupBalance[msg.sender][underlying], amount);
+
+        if(small && memberInfo.expire <= now) {
+            memberInfo.expire = add_(now, holdingTime);
+        }
+
+        memberInfo.amountTopped = add_(memberInfo.amountTopped, amount);
+        // in all the below, as sload will soon cost 2k gas, we use sstore without
+        // checking if the value really changed
+        memberInfo.amountLiquidated = 0;
+        info.debtToLiquidatePerMember = 0;
+        info.cToken = cToken;
+
+        if(_isCEther(cToken)) {
+            ICushionCEther(avatar).topup.value(amount)();
+        } else {
+            if(resetApprove) IERC20(underlying).safeApprove(avatar, 0);
+            IERC20(underlying).safeApprove(avatar, amount);
+            ICushionCErc20(avatar).topup(cToken, amount);
+        }
+    }
+
+    // created this function to avoid stack too deep error
+    function _untopOnMembers(address user, address avatar, address cToken, bool small) internal {
+        uint realCushion = ICushion(avatar).toppedUpAmount();
+        TopupInfo memory info = topped[avatar];
+        for(uint i = 0 ; i < members.length ; i++) {
+            address member = members[i];
+            MemberTopupInfo memory memberInfo = topped[avatar].memberInfo[member];
+            uint amount = memberInfo.amountTopped;
+            if(amount > 0) {
+                if(realCushion == 0) {
+                    _untopOnBehalf(member, user, amount);
+                    // now it is 0 topup
+                    continue;
+                }
+
+                require(info.cToken == cToken, "Pool: cToken-miss-match");
+
+                if(member == msg.sender) continue; // skil below check for me(member)
+                if(! small) continue; // if big loan, share with it with other members
+                // me(member) checking for other member's expire
+                require(memberInfo.expire < now, "Pool: other-member-topped");
+                _untopOnBehalf(member, user, amount);
+            }
+        }
     }
 
     event MemberDeposit(address indexed member, address underlying, uint amount);
@@ -58,16 +211,12 @@ contract Pool is Exponential, Ownable {
     event ProfitParamsChanged(uint numerator, uint denominator);
     event MembersSet(address[] members);
     event SelectionDurationChanged(uint oldDuration, uint newDuration);
+    event MinTopupBpsChanged(uint oldMinTopupBps, uint newMinTopupBps);
+    event HoldingTimeChanged(uint oldHoldingTime, uint newHoldingTime);
+    event MinSharingThresholdChanged(address indexed bToken, uint oldThreshold, uint newThreshold);
 
     modifier onlyMember() {
-        bool member = false;
-        for(uint i = 0 ; i < members.length ; i++) {
-            if(members[i] == msg.sender) {
-                member = true;
-                break;
-            }
-        }
-        require(member, "pool: not-member");
+        require(_isMember(msg.sender), "Pool: not-member");
         _;
     }
 
@@ -75,7 +224,18 @@ contract Pool is Exponential, Ownable {
         jar = _jar;
     }
 
-    function setRegistry(address _registry) public {
+    // Added to avoid stack-too-deep-error
+    // This also reduce the code size as modifier code is copied to function
+    function _isMember(address member) internal view returns (bool isMember) {
+        for(uint i = 0 ; i < members.length ; i++) {
+            if(members[i] == member) {
+                isMember = true;
+                break;
+            }
+        }
+    }
+
+    function setRegistry(address _registry) external onlyOwner {
         require(address(registry) == address(0), "Pool: registry-already-set");
         registry = IRegistry(_registry);
         comptroller = IComptroller(registry.comptroller());
@@ -88,23 +248,45 @@ contract Pool is Exponential, Ownable {
      */
     function() external payable {}
 
+    function setMinTopupBps(uint newMinTopupBps) external onlyOwner {
+        require(newMinTopupBps >= 0 && newMinTopupBps <= 10000, "Pool: incorrect-minTopupBps");
+        uint oldMinTopupBps = minTopupBps;
+        minTopupBps = newMinTopupBps;
+        emit MinTopupBpsChanged(oldMinTopupBps, newMinTopupBps);
+    }
+
+    function setHoldingTime(uint newHoldingTime) external onlyOwner {
+        require(newHoldingTime > 0, "Pool: incorrect-holdingTime");
+        uint oldHoldingTime = holdingTime;
+        holdingTime = newHoldingTime;
+        emit HoldingTimeChanged(oldHoldingTime, newHoldingTime);
+    }
+
+    function setMinSharingThreshold(address bToken, uint newMinThreshold) external onlyOwner {
+        require(newMinThreshold > 0, "Pool: incorrect-minThreshold");
+        require(bComptroller.isBToken(bToken), "Pool: not-a-BToken");
+        uint oldMinThreshold = minSharingThreshold[bToken];
+        minSharingThreshold[bToken] = newMinThreshold;
+        emit MinSharingThresholdChanged(bToken, oldMinThreshold, newMinThreshold);
+    }
+
     function setProfitParams(uint numerator, uint denominator) external onlyOwner {
-        require(numerator < denominator, "pool: invalid-profit-params");
+        require(numerator < denominator, "Pool: invalid-profit-params");
         shareNumerator = numerator;
         shareDenominator = denominator;
         emit ProfitParamsChanged(numerator, denominator);
     }
 
     function setSelectionDuration(uint newDuration) external onlyOwner {
-        require(newDuration > 0, "pool: selection-duration-is-zero");
+        require(newDuration > 0, "Pool: selection-duration-is-zero");
         uint oldDuration = selectionDuration;
         selectionDuration = newDuration;
         emit SelectionDurationChanged(oldDuration, newDuration);
     }
 
-    function setMembers(address[] calldata members_) external onlyOwner {
-        members = members_;
-        emit MembersSet(members_);
+    function setMembers(address[] calldata newMembersList) external onlyOwner {
+        members = newMembersList;
+        emit MembersSet(newMembersList);
     }
 
     function deposit() external payable onlyMember {
@@ -129,127 +311,80 @@ contract Pool is Exponential, Ownable {
         emit MemberWithdraw(msg.sender, underlying, amount);
     }
 
-    function removeElement(address[] memory array, uint index) internal pure returns(address[] memory newArray) {
-        if(index >= array.length) {
-            newArray = array;
-        }
-        else {
-            newArray = new address[](array.length - 1);
-            for(uint i = 0 ; i < array.length ; i++) {
-                if(i == index) continue;
-                if(i < index) newArray[i] = array[i];
-                else newArray[i-1] = array[i];
-            }
-        }
-    }
-
-    function chooseMember(address avatar, address underlying, address[] memory candidates) public view returns(address winner) {
-        if(candidates.length == 0) return address(0);
-        // A bit of randomness to choose winner. We don't need pure randomness, its ok even if a
-        // liquidator can predict his winning in the future.
-        // round-robin selection for member per avatar per selectionDuration mins.
-        uint chosen = uint(keccak256(abi.encodePacked(avatar, now / selectionDuration))) % candidates.length;
-        address possibleWinner = candidates[chosen];
-        if(balance[possibleWinner][underlying] == 0) return chooseMember(avatar, underlying, removeElement(candidates, chosen));
-
-        winner = possibleWinner;
-    }
-
-    function topup(address avatar, address bToken, uint amount, bool resetApprove) external onlyMember {
-        uint expire = topped[avatar].expire;
-        // allow next topup after expire
-        require(now > expire, "pool: not-expired");
-        require(amount > 0, "pool: amount-is-zero");
-        address cToken = bComptroller.b2c(bToken);
-        address underlying = _getUnderlying(cToken);
-        address winner = chooseMember(avatar, underlying, members);
-        require(msg.sender == winner, "pool: not-winner");
-
-        // if already topped-up, untop now
-        address toppedBy = topped[avatar].toppedBy;
-        if(toppedBy != address(0)) _untop(avatar);
-
-        if(_isCEther(cToken)) {
-            ICushionCEther(avatar).topup.value(amount)();
-        } else {
-            if(resetApprove) IERC20(underlying).safeApprove(avatar, 0);
-            IERC20(underlying).safeApprove(avatar, amount);
-            ICushionCErc20(avatar).topup(cToken, amount);
-        }
-        balance[msg.sender][underlying] = sub_(balance[msg.sender][underlying], amount);
-        topped[avatar] = TopupInfo({
-                toppedBy: msg.sender,
-                expire: now + 10 minutes,
-                underlying: underlying,
-                amount: amount
-            });
-
-        emit MemberToppedUp(msg.sender, avatar, cToken, amount);
-    }
-
-    function untop(address avatar) external {
-        require(topped[avatar].toppedBy == msg.sender, "pool: not-member-who-topped");
-        _untop(avatar);
-    }
-
-    function _untop(address avatar) internal {
-        TopupInfo memory ti = topped[avatar];
-        balance[ti.toppedBy][ti.underlying] = add_(balance[ti.toppedBy][ti.underlying], ti.amount);
-        ICushion(avatar).untop();
-        delete topped[avatar];
-        emit MemberUntopped(ti.toppedBy, avatar);
-    }
-
     function liquidateBorrow(
-        address bToken,
         address borrower,
         address bTokenCollateral,
         address bTokenDebt,
         uint underlyingAmtToLiquidate,
         uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
         bool resetApprove
-    ) external {
-        address avatar = registry.avatarOf(borrower);
-        TopupInfo memory ti = topped[avatar];
-        require(msg.sender == ti.toppedBy, "pool: member-not-allowed");
-
+    )
+        external onlyMember
+    {
         address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
         address cTokenDebt = bComptroller.b2c(bTokenDebt);
+        address avatar = registry.avatarOf(borrower);
+        TopupInfo storage info = topped[avatar];
 
-        // TODO need to figure out how to find `seizedTokens` with low gas consumption
-        (uint err, uint seizedTokens) = comptroller.liquidateCalculateSeizeTokens(
-            address(cTokenDebt),
-            address(cTokenCollateral),
-            underlyingAmtToLiquidate
+        require(info.memberInfo[msg.sender].amountTopped > 0, "Pool: member-didnt-topup");
+        uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
+
+        if(debtToLiquidatePerMember == 0) {
+          uint numMembers = 0;
+          for(uint i = 0 ; i < members.length ; i++) {
+            if(info.memberInfo[members[i]].amountTopped > 0) {
+              numMembers++;
+            }
+          }
+          debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
+          info.debtToLiquidatePerMember = debtToLiquidatePerMember;
+        }
+
+        MemberTopupInfo memory memberInfo = info.memberInfo[msg.sender];
+
+        require(memberInfo.amountTopped > 0, "Pool: member-didnt-topup");
+        require(add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate) <= debtToLiquidatePerMember,
+                "Pool: amount-too-big");
+
+        address debtUnderlying = _getUnderlying(cTokenDebt);
+        require(balance[msg.sender][debtUnderlying] >= amtToRepayOnCompound, "Pool: low-member-balance");
+
+        if(! _isCEther(cTokenDebt)) {
+            if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
+            IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
+        }
+
+        require(
+            IBToken(bTokenCollateral).liquidateBorrow.value(debtUnderlying == ETH_ADDR ?
+                                                            amtToRepayOnCompound :
+                                                            0)(borrower,underlyingAmtToLiquidate, cTokenCollateral) == 0,
+            "Pool: liquidateBorrow-failed"
         );
-        require(err == 0, "Pool: error-in-liquidateCalculateSeizeTokens");
 
-        if(_isCEther(cTokenDebt)) {
-            // sending `underlyingAmtToLiquidate` ETH to Avatar
-            // Avatar will split into `amtToRepayOnCompound` and `amtToDeductFromTopup`
-            // Avatar will send back `amtToDeductFromTopup` ETH back to Pool contract
-            ICEther(bToken).liquidateBorrow.value(underlyingAmtToLiquidate)(borrower, cTokenCollateral);
-        } else {
-            if(resetApprove) IERC20(ti.underlying).safeApprove(avatar, 0);
-            IERC20(ti.underlying).safeApprove(avatar, amtToRepayOnCompound);
-            err = ICErc20(bToken).liquidateBorrow(borrower, underlyingAmtToLiquidate, cTokenCollateral);
-            require(err == 0, "Pool: liquidateBorrow-failed");
+        // substract payment from member balance
+        balance[msg.sender][debtUnderlying] = sub_(balance[msg.sender][debtUnderlying],  amtToRepayOnCompound);
+
+        // share siezed cTokens with `member` and `jar`
+        _shareLiquidationProceeds(cTokenCollateral, msg.sender);
+
+        memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
+        memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+        topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+
+        if(IAvatar(avatar).toppedUpAmount() == 0) {
+            //info.debtToLiquidatePerMember = 0; // this indicates the liquidation ended
+            delete topped[avatar]; // this will reset debtToLiquidatePerMember
         }
+        emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
+    }
 
-        balance[ti.toppedBy][ti.underlying] = sub_(balance[ti.toppedBy][ti.underlying], amtToRepayOnCompound);
+    function _shareLiquidationProceeds(address cTokenCollateral, address member) internal {
+        uint seizedTokens = IERC20(cTokenCollateral).balanceOf(address(this));
+        uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
+        uint jarShare = sub_(seizedTokens, memberShare);
 
-        // Block of code to avoid stack too deep error
-        {
-            uint memberShare = div_(mul_(seizedTokens, shareNumerator), shareDenominator);
-            uint jarShare = sub_(seizedTokens, memberShare);
-
-            IERC20(cTokenCollateral).safeTransfer(ti.toppedBy, memberShare);
-            IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
-        }
-
-        bool stillToppedUp = IAvatar(avatar).toppedUpAmount() > 0;
-        if(! stillToppedUp) delete topped[avatar];
-        emit MemberBite(ti.toppedBy, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
+        IERC20(cTokenCollateral).safeTransfer(member, memberShare);
+        IERC20(cTokenCollateral).safeTransfer(jar, jarShare);
     }
 
     function membersLength() external view returns (uint) {

@@ -93,6 +93,14 @@ contract AbsBToken is Exponential {
         return result;
     }
 
+    // liquidateBorrow()
+    function liquidateBorrow(address borrower, uint repayAmount, address cTokenCollateral) external payable onlyPool returns (uint) {
+        address borrowerAvatar = registry.avatarOf(borrower);
+        uint result = IAvatar(borrowerAvatar).liquidateBorrow.value(msg.value)(repayAmount, cTokenCollateral);
+        require(result == 0, "BErc20: liquidateBorrow-failed");
+        return result;
+    }
+
     // other functions
     function exchangeRateCurrent() public returns (uint256) {
         return ICToken(cToken).exchangeRateCurrent();

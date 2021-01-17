@@ -1,7 +1,6 @@
 pragma solidity 0.5.16;
-
+import "hardhat/console.sol";
 import { AbsBToken } from "./AbsBToken.sol";
-
 import { IAvatarCEther } from "../interfaces/IAvatar.sol";
 
 contract BEther is AbsBToken {
@@ -35,10 +34,5 @@ contract BEther is AbsBToken {
     function repayBorrowOnAvatar(address _avatar) external onlyDelegatee(_avatar) payable {
         // CEther calls requireNoError() to ensure no failures
         IAvatarCEther(_avatar).repayBorrow.value(msg.value)();
-    }
-
-    function liquidateBorrow(address borrower, address cTokenCollateral) external payable onlyPool {
-        address borrowerAvatar = registry.avatarOf(borrower);
-        IAvatarCEther(borrowerAvatar).liquidateBorrow.value(msg.value)(cTokenCollateral);
     }
 }
