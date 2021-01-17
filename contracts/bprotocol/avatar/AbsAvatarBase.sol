@@ -176,7 +176,7 @@ contract AbsAvatarBase is Exponential {
     }
 
     function untop(uint amount) external onlyPool {
-        _untop(amount);
+        _untop(amount, amount);
     }
 
     /**
@@ -185,7 +185,7 @@ contract AbsAvatarBase is Exponential {
      * @notice Only Pool contract allowed to call the untop.
      * @return `true` if success, `false` otherwise.
      */
-    function _untop(uint amount) internal {
+    function _untop(uint amount, uint amountToBorrow) internal {
         // when already untopped
         if(!isToppedUp()) return;
 
@@ -195,7 +195,8 @@ contract AbsAvatarBase is Exponential {
         if((toppedUpAmount == 0) && (remainingLiquidationAmount > 0)) remainingLiquidationAmount = 0;
 
         // 2. Borrow from Compound and send tokens to Pool
-        require(toppedUpCToken.borrow(amount) == 0, "Cushion: borrow-failed");
+        if(amountToBorrow > 0 )
+            require(toppedUpCToken.borrow(amountToBorrow) == 0, "Cushion: borrow-failed");
 
         if(address(toppedUpCToken) == registry.cEther()) {
             // 3. Send borrowed ETH to Pool contract
@@ -212,35 +213,14 @@ contract AbsAvatarBase is Exponential {
     function _untop() internal {
         // when already untopped
         if(!isToppedUp()) return;
-        _untop(toppedUpAmount);
-    }
-
-    function _untopPartial(uint256 amount) internal {
-        require(amount <= toppedUpAmount, "Cushion: partial-untop-not-allowed");
-
-        // 1. when already untopped, return
-        if(!isToppedUp()) return;
-
-        if(address(toppedUpCToken) == registry.cEther()) {
-            // 2. Send borrowed ETH to Pool contract
-            // Sending ETH to Pool using `.send()` to avoid DoS attack
-            bool success = pool().send(amount);
-            success; // shh: Not checking return value to avoid DoS attack
-        } else {
-            // 2. Transfer borrowed amount to Pool contract
-            IERC20 underlying = toppedUpCToken.underlying();
-            underlying.safeTransfer(pool(), amount);
-        }
-
-        // 3. Udpdate storage for toppedUp details
-        toppedUpAmount = sub_(toppedUpAmount, amount);
+        _untop(toppedUpAmount, toppedUpAmount);
     }
 
     function _untopBeforeRepay(ICToken cToken, uint256 repayAmount) internal returns (uint256 amtToRepayOnCompound) {
         if(toppedUpAmount > 0 && cToken == toppedUpCToken) {
             // consume debt from cushion first
             uint256 amtToUntopFromB = repayAmount >= toppedUpAmount ? toppedUpAmount : repayAmount;
-            _untopPartial(amtToUntopFromB);
+            _untop(toppedUpAmount, sub_(toppedUpAmount, amtToUntopFromB));
             amtToRepayOnCompound = sub_(repayAmount, amtToUntopFromB);
         } else {
             amtToRepayOnCompound = repayAmount;
@@ -275,7 +255,9 @@ contract AbsAvatarBase is Exponential {
         require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
 
         // 3. Liquidator perform repayBorrow
-        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, remainingLiquidationAmount);
+        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = splitAmountToLiquidate(
+            underlyingAmtToLiquidate, remainingLiquidationAmount
+        );
 
         address payable poolContract = pool();
         if(amtToRepayOnCompound > 0) {
