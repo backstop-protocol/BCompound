@@ -21,6 +21,12 @@ contract BComptroller {
 
     event NewBToken(address indexed cToken, address bToken);
 
+    modifier onlyDelegatee(IAvatar _avatar) {
+        // `msg.sender` is delegatee
+        require(registry.delegate(address(_avatar), msg.sender), "BComptroller: delegatee-not-authorized");
+        _;
+    }
+
     constructor(address _comptroller) public {
         comptroller = IComptroller(_comptroller);
     }
@@ -54,16 +60,32 @@ contract BComptroller {
     }
 
     function enterMarket(address bToken) external returns (uint256) {
-        require(b2c[bToken] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
-        return avatar.enterMarket(bToken);
+        return _enterMarket(avatar, bToken);
     }
 
+    function enterMarketOnAvatar(IAvatar avatar, address bToken) external onlyDelegatee(avatar) returns (uint256) {
+        return _enterMarket(avatar, bToken);
+    }    
+
+    function _enterMarket(IAvatar avatar, address bToken) internal returns (uint256) {
+        require(b2c[bToken] != address(0), "BComptroller: CToken-not-exist-for-bToken");
+        return avatar.enterMarket(bToken);
+    }    
+
     function enterMarkets(address[] calldata bTokens) external returns (uint256[] memory) {
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
+        return _enterMarkets(avatar, bTokens);
+    }
+
+    function enterMarketsOnAvatar(IAvatar avatar, address[] calldata bTokens) external onlyDelegatee(avatar) returns (uint256[] memory) {
+        return _enterMarkets(avatar, bTokens);
+    }
+
+    function _enterMarkets(IAvatar avatar, address[] memory bTokens) internal returns (uint256[] memory) {
         for(uint i = 0; i < bTokens.length; i++) {
             require(b2c[bTokens[i]] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         }
-        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
         return avatar.enterMarkets(bTokens);
     }
 
@@ -72,8 +94,12 @@ contract BComptroller {
         return avatar.exitMarket(bToken);
     }
 
-    function getAccountLiquidity() external view returns (uint err, uint liquidity, uint shortFall) {
-        IAvatar avatar = IAvatar(registry.avatarOf(msg.sender));
+    function exitMarketOnAvatar(IAvatar avatar, address bToken) external onlyDelegatee(avatar) returns (uint256) {
+        return avatar.exitMarket(bToken);
+    }    
+
+    function getAccountLiquidity(address account) external view returns (uint err, uint liquidity, uint shortFall) {
+        IAvatar avatar = IAvatar(registry.avatarOf(account));
         return avatar.getAccountLiquidity();
     }
 
