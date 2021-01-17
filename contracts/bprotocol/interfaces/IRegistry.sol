@@ -22,5 +22,5 @@ interface IRegistry {
     function newAvatar() external returns (address);
     function getAvatar(address owner) external returns (address);
     // avatar whitelisted calls
-    function whitelistedAvatarCalls(address target, bytes4 functionSig) external view returns(bool);    
+    function whitelistedAvatarCalls(address target, bytes4 functionSig) external view returns(bool);
 }
