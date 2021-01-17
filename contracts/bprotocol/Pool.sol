@@ -14,7 +14,7 @@ import {
     ICushion,
     ICushionCEther,
     ICushionCErc20
-    } from "./interfaces/IAvatar.sol";
+} from "./interfaces/IAvatar.sol";
 import { IComptroller } from "./interfaces/IComptroller.sol";
 import { IBComptroller } from "./interfaces/IBComptroller.sol";
 
@@ -330,21 +330,23 @@ contract Pool is Exponential, Ownable {
         uint debtToLiquidatePerMember = info.debtToLiquidatePerMember;
 
         if(debtToLiquidatePerMember == 0) {
-          uint numMembers = 0;
-          for(uint i = 0 ; i < members.length ; i++) {
-            if(info.memberInfo[members[i]].amountTopped > 0) {
-              numMembers++;
+            uint numMembers = 0;
+            for(uint i = 0 ; i < members.length ; i++) {
+                if(info.memberInfo[members[i]].amountTopped > 0) {
+                    numMembers++;
+                }
             }
-          }
-          debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
-          info.debtToLiquidatePerMember = debtToLiquidatePerMember;
+            debtToLiquidatePerMember = ICushion(avatar).getMaxLiquidationAmount(cTokenDebt) / numMembers;
+            info.debtToLiquidatePerMember = debtToLiquidatePerMember;
         }
 
         MemberTopupInfo memory memberInfo = info.memberInfo[msg.sender];
 
         require(memberInfo.amountTopped > 0, "Pool: member-didnt-topup");
-        require(add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate) <= debtToLiquidatePerMember,
-                "Pool: amount-too-big");
+        require(
+            add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate) <= debtToLiquidatePerMember,
+            "Pool: amount-too-big"
+        );
 
         address debtUnderlying = _getUnderlying(cTokenDebt);
         require(balance[msg.sender][debtUnderlying] >= amtToRepayOnCompound, "Pool: low-member-balance");
@@ -369,7 +371,9 @@ contract Pool is Exponential, Ownable {
 
         memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
         memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
-        topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+        topupBalance[msg.sender][debtUnderlying] = sub_(
+            topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound)
+        );
 
         if(IAvatar(avatar).toppedUpAmount() == 0) {
             //info.debtToLiquidatePerMember = 0; // this indicates the liquidation ended
