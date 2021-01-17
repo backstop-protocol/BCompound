@@ -39,14 +39,14 @@ contract Import is Exponential {
         internal
     {
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
-          address cDebt = cTokenDebt[i];
-          uint debt = originalDebt[i];
-          if(debtUnderlying[i] == ETH) {
-            ICEther(cDebt).repayBorrowBehalf.value(debt)(account);
-          } else {
-            IERC20(debtUnderlying[i]).safeApprove(address(cDebt), debt);
-            require(ICErc20(cDebt).repayBorrowBehalf(account, debt) == 0, "repay-failed");
-          }
+            address cDebt = cTokenDebt[i];
+            uint debt = originalDebt[i];
+            if(debtUnderlying[i] == ETH) {
+                ICEther(cDebt).repayBorrowBehalf.value(debt)(account);
+            } else {
+                IERC20(debtUnderlying[i]).safeApprove(address(cDebt), debt);
+                require(ICErc20(cDebt).repayBorrowBehalf(account, debt) == 0, "repay-failed");
+            }
         }
     }
 
@@ -58,9 +58,9 @@ contract Import is Exponential {
         internal
     {
         for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
-          ICToken cColl = ICToken(cTokenCollateral[i]);
-          uint collBalance = cColl.balanceOf(account);
-          IAvatar(avatar).collectCToken(address(cColl), account, collBalance);
+            ICToken cColl = ICToken(cTokenCollateral[i]);
+            uint collBalance = cColl.balanceOf(account);
+            IAvatar(avatar).collectCToken(address(cColl), account, collBalance);
         }
     }
 
@@ -72,9 +72,9 @@ contract Import is Exponential {
         internal
     {
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
-          uint debt = originalDebt[i];
-          address bTokenDebt = bComptroller.c2b(cTokenDebt[i]);
-          require(BErc20(bTokenDebt).borrowOnAvatar(avatar, debt) == 0, "borrowOnAvatar-failed");
+            uint debt = originalDebt[i];
+            address bTokenDebt = bComptroller.c2b(cTokenDebt[i]);
+            require(BErc20(bTokenDebt).borrowOnAvatar(avatar, debt) == 0, "borrowOnAvatar-failed");
         }
     }
 
@@ -103,7 +103,7 @@ contract Import is Exponential {
 
         uint[] memory originalDebt = new uint[](cTokenDebt.length);
         for(uint i = 0 ; i < cTokenDebt.length ; i++) {
-          originalDebt[i] = ICToken(cTokenDebt[i]).borrowBalanceCurrent(account);
+            originalDebt[i] = ICToken(cTokenDebt[i]).borrowBalanceCurrent(account);
         }
 
         // borrow the original debt on B
@@ -125,7 +125,7 @@ contract Import is Exponential {
 
         BEther(bETH).redeemUnderlyingOnAvatar(avatar, ethBalance);
         if(address(this).balance < ethFlashLoan) {
-          BEther(bETH).borrowOnAvatar(avatar, ethFlashLoan - address(this).balance);
+            BEther(bETH).borrowOnAvatar(avatar, ethFlashLoan - address(this).balance);
         }
 
         msg.sender.transfer(address(this).balance);
@@ -160,19 +160,19 @@ contract FlashLoanImport {
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
 
         if(address(this).balance < ethAmountToFlashBorrow) {
-          // this will invoke a recursive call
-          return FlashLoanLike(flash).borrow(ETH, ethAmountToFlashBorrow, msg.data);
+            // this will invoke a recursive call
+            return FlashLoanLike(flash).borrow(ETH, ethAmountToFlashBorrow, msg.data);
         }
 
         // now balance is sufficient
         importer.transfer(ethAmountToFlashBorrow);
 
         Import(importer).importAccount(
-          cTokenCollateral,
-          collateralUnderlying,
-          cTokenDebt,
-          debtUnderlying,
-          ethAmountToFlashBorrow
+            cTokenCollateral,
+            collateralUnderlying,
+            cTokenDebt,
+            debtUnderlying,
+            ethAmountToFlashBorrow
         );
 
         flash.transfer(ethAmountToFlashBorrow);
@@ -203,18 +203,19 @@ contract FlashLoanImportWithFees {
         require(cTokenDebt.length == debtUnderlying.length, "debt-length-missmatch");
 
         if(address(this).balance < ethAmountToFlashBorrow) {
-          // this will invoke a recursive call
-          return FlashLoanLike(flash).borrow(ETH, ethAmountToFlashBorrow, msg.data);
+            // this will invoke a recursive call
+            return FlashLoanLike(flash).borrow(ETH, ethAmountToFlashBorrow, msg.data);
         }
 
         // now balance is sufficient
         importer.transfer(ethAmountToFlashBorrow);
 
         Import(importer).importAccount(cTokenCollateral,
-                                       collateralUnderlying,
-                                       cTokenDebt,
-                                       debtUnderlying,
-                                       ethAmountToFlashBorrow + 1000);
+            collateralUnderlying,
+            cTokenDebt,
+            debtUnderlying,
+            ethAmountToFlashBorrow + 1000
+        );
 
         flash.transfer(ethAmountToFlashBorrow + 1000);
     }
