@@ -192,6 +192,7 @@ contract AbsAvatarBase is Exponential {
         // 1. Udpdate storage for toppedUp details
         require(toppedUpAmount >= amount, "Cushion: amount >= toppedUpAmount");
         toppedUpAmount = sub_(toppedUpAmount, amount);
+        if((toppedUpAmount == 0) && (remainingLiquidationAmount > 0)) remainingLiquidationAmount = 0;
 
         // 2. Borrow from Compound and send tokens to Pool
         require(toppedUpCToken.borrow(amount) == 0, "Cushion: borrow-failed");
