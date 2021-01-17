@@ -485,7 +485,7 @@ contract("BComptroller", async (accounts) => {
     it("should get account shortFall of a user");
 
     it("should get zero when user does not have any liquidity", async () => {
-      const result = await bComptroller.getAccountLiquidity({ from: a.user1 });
+      const result = await bComptroller.getAccountLiquidity(a.user1);
       const err = result[0];
       const liquidity = result[1];
       const shortFall = result[2];
@@ -609,6 +609,39 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
       await bComptroller.enterMarket(bZRX_addr, { from: a.user1 });
+
+      expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
+      expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
+    });
+
+    it("on behalf: user enterMakert, exitMarket then enterMarket", async () => {
+      const cZRX_addr = compoundUtil.getContracts("cZRX");
+      const cETH_addr = compoundUtil.getContracts("cETH");
+
+      await bProtocol.registry.newAvatar({ from: a.user1 });
+      const avatar1 = await bProtocol.registry.avatarOf(a.user1);
+      expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
+      expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
+
+      await bProtocol.registry.delegateAvatar(a.user2, {from :a.user1});
+
+      await expectRevert(bComptroller.enterMarketsOnAvatar(avatar1, [bZRX_addr, bETH_addr], { from: a.user3 }),
+      "BComptroller: delegatee-not-authorized");
+      await bComptroller.enterMarketsOnAvatar(avatar1, [bZRX_addr, bETH_addr], { from: a.user2 });
+
+      expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
+      expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
+
+      await expectRevert(bComptroller.exitMarketOnAvatar(avatar1, bZRX_addr, { from: a.user3 }),
+      "BComptroller: delegatee-not-authorized");
+      await bComptroller.exitMarketOnAvatar(avatar1, bZRX_addr, { from: a.user2 });
+
+      expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
+      expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
+
+      await expectRevert(bComptroller.enterMarketOnAvatar(avatar1, bZRX_addr, { from: a.user3 }),
+      "BComptroller: delegatee-not-authorized");
+      await bComptroller.enterMarketOnAvatar(avatar1, bZRX_addr, { from: a.user2 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
