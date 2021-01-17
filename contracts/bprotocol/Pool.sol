@@ -320,9 +320,7 @@ contract Pool is Exponential, Ownable {
         address borrower,
         address bTokenCollateral,
         address bTokenDebt,
-        uint underlyingAmtToLiquidate,
-        uint amtToRepayOnCompound, // use off-chain call Avatar.calcAmountToLiquidate()
-        bool resetApprove
+        uint underlyingAmtToLiquidate
     )
         external onlyMember
     {
@@ -353,18 +351,23 @@ contract Pool is Exponential, Ownable {
             "Pool: amount-too-big"
         );
 
+        uint cushionPortion = mul_(underlyingAmtToLiquidate, memberInfo.amountTopped) / (
+            sub_(debtToLiquidatePerMember, memberInfo.amountLiquidated)
+        );
+
+        uint amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, cushionPortion);
+
         address debtUnderlying = _getUnderlying(cTokenDebt);
         require(balance[msg.sender][debtUnderlying] >= amtToRepayOnCompound, "Pool: low-member-balance");
 
         if(! _isCEther(cTokenDebt)) {
-            if(resetApprove) IERC20(debtUnderlying).safeApprove(avatar, 0);
             IERC20(debtUnderlying).safeApprove(avatar, amtToRepayOnCompound);
         }
 
         require(
-            IBToken(bTokenCollateral).liquidateBorrow.value(debtUnderlying == ETH_ADDR ?
-                                                            amtToRepayOnCompound :
-                                                            0)(borrower,underlyingAmtToLiquidate, cTokenCollateral) == 0,
+            ICushion(avatar).liquidateBorrow.value(debtUnderlying == ETH_ADDR ?
+                                                   amtToRepayOnCompound :
+                                                   0)(underlyingAmtToLiquidate, cushionPortion, cTokenCollateral) == 0,
             "Pool: liquidateBorrow-failed"
         );
 
@@ -375,11 +378,8 @@ contract Pool is Exponential, Ownable {
         _shareLiquidationProceeds(cTokenCollateral, msg.sender);
 
         info.memberInfo[msg.sender].amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
-        info.memberInfo[msg.sender].amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
-        topupBalance[msg.sender][debtUnderlying] = sub_(
-            topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound)
-        );
-
+        info.memberInfo[msg.sender].amountTopped = sub_(memberInfo.amountTopped, cushionPortion);
+        topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], cushionPortion);
         if(IAvatar(avatar).toppedUpAmount() == 0) {
             //info.debtToLiquidatePerMember = 0; // this indicates the liquidation ended
             delete topped[avatar]; // this will reset debtToLiquidatePerMember

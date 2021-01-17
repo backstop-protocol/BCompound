@@ -375,16 +375,11 @@ contract("Pool performs liquidation", async (accounts) => {
           from: member1,
         });
 
-        const resetApprove: boolean = (await ZRX.allowance(pool.address, avatarUser1.address)).gt(
-          new BN(0),
-        );
         await pool.liquidateBorrow(
           user1,
           bETH_addr,
           bZRX_addr,
           underlyingAmtToLiquidate,
-          amtToRepayOnCompound,
-          resetApprove,
           { from: member1 },
         );
       } else {

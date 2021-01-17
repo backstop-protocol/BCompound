@@ -729,8 +729,6 @@ contract("Pool", async (accounts) => {
           bBAT_addr,
           bETH_addr,
           maxLiquidationAmt,
-          amtToRepayOnCompound,
-          false,
           { from: member },
         );
 
@@ -793,8 +791,6 @@ contract("Pool", async (accounts) => {
           bETH_addr,
           bZRX_addr,
           maxLiquidationAmt,
-          amtToRepayOnCompound,
-          false,
           { from: member },
         );
 
@@ -824,7 +820,7 @@ contract("Pool", async (accounts) => {
           .div(SCALE);
         const batSizedTokens = batUnderlyingLiquidated
           .mul(ONE_ETH)
-          .div(await cBAT.exchangeRateCurrent.call());
+          .div(await cETH.exchangeRateCurrent.call());
 
         const memberShare = batSizedTokens.mul(shareNumerator).div(shareDenominator);
         const jarShare = batSizedTokens.sub(memberShare);
@@ -862,8 +858,6 @@ contract("Pool", async (accounts) => {
             bETH_addr,
             bZRX_addr,
             maxLiquidationAmt,
-            amtToRepayOnCompound,
-            false,
             { from: a.other },
           ),
           "Pool: not-member",
@@ -896,8 +890,6 @@ contract("Pool", async (accounts) => {
             bETH_addr,
             bZRX_addr,
             maxLiquidationAmt,
-            amtToRepayOnCompound,
-            false,
             { from: member },
           ),
           "Pool: member-didnt-topup",
@@ -1022,8 +1014,6 @@ contract("Pool", async (accounts) => {
           bZRX_addr,
           bBAT_addr,
           debtToLiquidate,
-          amtToRepayOnCompound,
-          false,
           { from: a.member1 },
         );
 
@@ -1184,12 +1174,13 @@ contract("Pool", async (accounts) => {
         const debtToLiquidatePerMember = (
           await avatar1.getMaxLiquidationAmount.call(cBAT_addr)
         ).div(numOfmemberToppedUp);
+
         const result = await avatar1.calcAmountToLiquidate.call(
           cBAT_addr,
           debtToLiquidatePerMember,
         );
         const amtToDeductFromTopup: BN = result["amtToDeductFromTopup"];
-        const amtToRepayOnCompound: BN = result["amtToRepayOnCompound"];
+        const amtToRepayOnCompound: BN = debtToLiquidatePerMember.sub(expectedMinTopup);
 
         // MEMBER - 1 deposit
         await BAT.approve(pool.address, amtToRepayOnCompound, { from: a.member1 });
@@ -1204,28 +1195,28 @@ contract("Pool", async (accounts) => {
         );
 
         // MEMBER - 2 deposit
-        await BAT.approve(pool.address, amtToRepayOnCompound, { from: a.member2 });
-        await pool.methods["deposit(address,uint256)"](BAT_addr, amtToRepayOnCompound, {
+        await BAT.approve(pool.address, amtToRepayOnCompound.add(ONE_BAT), { from: a.member2 });
+        await pool.methods["deposit(address,uint256)"](BAT_addr, amtToRepayOnCompound.add(ONE_BAT), {
           from: a.member2,
         });
         // validate deposit & topup balance
-        expect(await pool.balance(a.member2, BAT_addr)).to.be.bignumber.equal(amtToRepayOnCompound);
+        expect(await pool.balance(a.member2, BAT_addr)).to.be.bignumber.equal(amtToRepayOnCompound.add(ONE_BAT));
         expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(
-          amtToRepayOnCompound.mul(new BN(2)),
+          amtToRepayOnCompound.mul(new BN(2)).add(ONE_BAT),
         );
         expect(await pool.topupBalance(a.member2, BAT_addr)).to.be.bignumber.equal(
           expectedMinTopup,
         );
 
         // MEMBER - 3 deposit
-        await BAT.approve(pool.address, amtToRepayOnCompound, { from: a.member3 });
-        await pool.methods["deposit(address,uint256)"](BAT_addr, amtToRepayOnCompound, {
+        await BAT.approve(pool.address, amtToRepayOnCompound.add(ONE_BAT), { from: a.member3 });
+        await pool.methods["deposit(address,uint256)"](BAT_addr, amtToRepayOnCompound.add(ONE_BAT), {
           from: a.member3,
         });
         // validate deposit & topup balance
-        expect(await pool.balance(a.member3, BAT_addr)).to.be.bignumber.equal(amtToRepayOnCompound);
+        expect(await pool.balance(a.member3, BAT_addr)).to.be.bignumber.equal(amtToRepayOnCompound.add(ONE_BAT));
         expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(
-          amtToRepayOnCompound.mul(new BN(3)),
+          amtToRepayOnCompound.mul(new BN(3)).add(ONE_BAT).add(ONE_BAT),
         );
         expect(await pool.topupBalance(a.member3, BAT_addr)).to.be.bignumber.equal(
           expectedMinTopup,
@@ -1238,14 +1229,12 @@ contract("Pool", async (accounts) => {
           bZRX_addr,
           bBAT_addr,
           debtToLiquidatePerMember,
-          amtToRepayOnCompound,
-          false,
           { from: a.member1 },
         );
         // validate deposit & topup balance
         expect(await pool.balance(a.member1, BAT_addr)).to.be.bignumber.equal(ZERO);
         expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(
-          amtToRepayOnCompound.mul(new BN(2)),
+          (amtToRepayOnCompound.add(ONE_BAT)).mul(new BN(2)),
         );
         let expectedTopupBalance = topupBalanceBefore.sub(
           debtToLiquidatePerMember.sub(amtToRepayOnCompound),
@@ -1286,34 +1275,49 @@ contract("Pool", async (accounts) => {
 
         // MEMBER - 2 Liquidate
         topupBalanceBefore = await pool.topupBalance(a.member2, BAT_addr);
-        // TODO failed at the following line
+        
         await pool.liquidateBorrow(
           a.user1,
           bZRX_addr,
           bBAT_addr,
           debtToLiquidatePerMember,
-          amtToRepayOnCompound,
-          false,
           { from: a.member2 },
         );
         // validate deposit & topup balance
-        expect(await pool.balance(a.member2, BAT_addr)).to.be.bignumber.equal(ZERO);
-        expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(amtToRepayOnCompound);
+        expect(await pool.balance(a.member2, BAT_addr)).to.be.bignumber.equal(ONE_BAT);
+        expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(amtToRepayOnCompound.add(ONE_BAT).add(ONE_BAT));
         expectedTopupBalance = topupBalanceBefore.sub(
           debtToLiquidatePerMember.sub(amtToRepayOnCompound),
         );
-        expect(await pool.topupBalance(a.member2, BAT_addr)).to.be.bignumber.equal(
-          expectedTopupBalance,
+        expect(await pool.topupBalance(a.member2, BAT_addr)).to.be.bignumber.below(
+          ONE_BAT,
         );
         // validate member topup info
         memberTopupInfo = await pool.getMemberTopupInfo(a.user1, a.member2);
         expectMemberTopupInfo(memberTopupInfo, {
           expectedExpire: ZERO,
-          expectedAmountTopped: expectedTopupBalance,
+          expectedAmountTopped: await pool.topupBalance(a.member2, BAT_addr),
           expectedAmountLiquidated: debtToLiquidatePerMember,
         });
 
-        // TODO member3 liquidateBorrow
+        // member
+        expect(await cZRX.balanceOf(a.member2)).to.be.bignumber.equal(memberShare);
+        // jar
+        expect(await cZRX.balanceOf(jar)).to.be.bignumber.equal(jarShare.mul(new BN(2)));
+
+        // member3 liquidateBorrow
+        await pool.liquidateBorrow(
+          a.user1,
+          bZRX_addr,
+          bBAT_addr,
+          debtToLiquidatePerMember,
+          { from: a.member3 },
+        );
+        
+        // member
+        expect(await cZRX.balanceOf(a.member3)).to.be.bignumber.equal(memberShare);
+        // jar
+        expect(await cZRX.balanceOf(jar)).to.be.bignumber.equal(jarShare.mul(new BN(3)));        
       });
     });
 

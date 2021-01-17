@@ -45,6 +45,7 @@ contract IAvatarCErc20 is IAvatar {
 }
 
 contract ICushion {
+    function liquidateBorrow(uint256 underlyingAmtToLiquidate, uint256 amtToDeductFromTopup, address cTokenCollateral) external payable returns (uint256);    
     function canLiquidate() external returns (bool);
     function untop(uint amount) external;
     function toppedUpAmount() external returns (uint);

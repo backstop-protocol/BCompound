@@ -82,16 +82,12 @@ contract AbsCToken is AbsAvatarBase {
 
     // CEther / CErc20
     // ===============
-    function liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) external payable onlyBToken returns (uint256) {
-        return _liquidateBorrow(underlyingAmtToLiquidate, cTokenCollateral);
-    }
-
-    function _liquidateBorrow(uint256 underlyingAmtToLiquidate, ICToken cTokenCollateral) internal returns (uint256) {
+    function liquidateBorrow(uint256 underlyingAmtToLiquidate, uint256 amtToDeductFromTopup, ICToken cTokenCollateral) external payable returns (uint256) {
         // 1. Can liquidate?
         require(canLiquidate(), "cannot-liquidate");
 
         ICToken cTokenDebt = toppedUpCToken;
-        uint256 seizedCTokens = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidate, cTokenCollateral);
+        uint256 seizedCTokens = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidate, amtToDeductFromTopup, cTokenCollateral);
         // Convert seizedCToken to underlyingTokens
         uint256 underlyingSeizedTokens = _toUnderlying(cTokenDebt, seizedCTokens);
         if(! quit) {
