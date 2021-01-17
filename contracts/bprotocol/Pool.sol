@@ -374,8 +374,8 @@ contract Pool is Exponential, Ownable {
         // share siezed cTokens with `member` and `jar`
         _shareLiquidationProceeds(cTokenCollateral, msg.sender);
 
-        memberInfo.amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
-        memberInfo.amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
+        info.memberInfo[msg.sender].amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
+        info.memberInfo[msg.sender].amountTopped = sub_(memberInfo.amountTopped, sub_(underlyingAmtToLiquidate, amtToRepayOnCompound));
         topupBalance[msg.sender][debtUnderlying] = sub_(
             topupBalance[msg.sender][debtUnderlying], sub_(underlyingAmtToLiquidate, amtToRepayOnCompound)
         );
