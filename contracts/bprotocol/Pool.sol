@@ -243,6 +243,11 @@ contract Pool is Exponential, Ownable {
         cEther = registry.cEther();
     }
 
+    function emergencyExecute(address target, bytes calldata data) external payable onlyOwner {
+        (bool succ, bytes memory ret) = target.call.value(msg.value)(data);
+        require(succ, string(ret));
+    }    
+
     /**
      * @dev Fallback function to receive ETH from Avatar
      */
