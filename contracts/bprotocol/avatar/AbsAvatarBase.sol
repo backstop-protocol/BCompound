@@ -312,44 +312,6 @@ contract AbsAvatarBase is Exponential {
         return mulTrucate(comptroller.closeFactorMantissa(), totalDebt);
     }
 
-    function splitAmountToLiquidate(
-        uint256 underlyingAmtToLiquidate,
-        uint256 maxLiquidationAmount
-    )
-        public view returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
-    {
-        // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
-        (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
-        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
-        uint underlyingAmtToLiqScalar = result.mantissa;
-
-        // percent = underlyingAmtToLiqScalar / maxLiquidationAmount
-        uint256 percentInScale = div_(underlyingAmtToLiqScalar, maxLiquidationAmount);
-
-        // amtToDeductFromTopup = toppedUpAmount * percentInScale / 1e18
-        amtToDeductFromTopup = mulTrucate(toppedUpAmount, percentInScale);
-
-        // amtToRepayOnCompound = underlyingAmtToLiquidate - amtToDeductFromTopup
-        amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
-    }
-
-    /**
-     * @dev Off-chain function to calculate `amtToDeductFromTopup` and `amtToRepayOnCompound`
-     * @notice function is non-view but no-harm as CToken.borrowBalanceCurrent() only updates accured interest
-     */
-    function calcAmountToLiquidate(
-        ICToken debtCToken,
-        uint256 underlyingAmtToLiquidate
-    )
-        external returns (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound)
-    {
-        uint256 amountToLiquidate = remainingLiquidationAmount;
-        if(! isPartiallyLiquidated()) {
-            amountToLiquidate = getMaxLiquidationAmount(debtCToken);
-        }
-        (amtToDeductFromTopup, amtToRepayOnCompound) = splitAmountToLiquidate(underlyingAmtToLiquidate, amountToLiquidate);
-    }
-
     function quitB() external onlyAvatarOwner() {
         quit = true;
         _hardReevaluate();

@@ -351,11 +351,11 @@ contract Pool is Exponential, Ownable {
             "Pool: amount-too-big"
         );
 
-        uint cushionPortion = mul_(underlyingAmtToLiquidate, memberInfo.amountTopped) / (
+        uint amtToDeductFromTopup = mul_(underlyingAmtToLiquidate, memberInfo.amountTopped) / (
             sub_(debtToLiquidatePerMember, memberInfo.amountLiquidated)
         );
 
-        uint amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, cushionPortion);
+        uint amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
 
         address debtUnderlying = _getUnderlying(cTokenDebt);
         require(balance[msg.sender][debtUnderlying] >= amtToRepayOnCompound, "Pool: low-member-balance");
@@ -367,7 +367,7 @@ contract Pool is Exponential, Ownable {
         require(
             ICushion(avatar).liquidateBorrow.value(debtUnderlying == ETH_ADDR ?
                                                    amtToRepayOnCompound :
-                                                   0)(underlyingAmtToLiquidate, cushionPortion, cTokenCollateral) == 0,
+                                                   0)(underlyingAmtToLiquidate, amtToDeductFromTopup, cTokenCollateral) == 0,
             "Pool: liquidateBorrow-failed"
         );
 
@@ -378,8 +378,8 @@ contract Pool is Exponential, Ownable {
         _shareLiquidationProceeds(cTokenCollateral, msg.sender);
 
         info.memberInfo[msg.sender].amountLiquidated = add_(memberInfo.amountLiquidated, underlyingAmtToLiquidate);
-        info.memberInfo[msg.sender].amountTopped = sub_(memberInfo.amountTopped, cushionPortion);
-        topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], cushionPortion);
+        info.memberInfo[msg.sender].amountTopped = sub_(memberInfo.amountTopped, amtToDeductFromTopup);
+        topupBalance[msg.sender][debtUnderlying] = sub_(topupBalance[msg.sender][debtUnderlying], amtToDeductFromTopup);
         if(IAvatar(avatar).toppedUpAmount() == 0) {
             //info.debtToLiquidatePerMember = 0; // this indicates the liquidation ended
             delete topped[avatar]; // this will reset debtToLiquidatePerMember
