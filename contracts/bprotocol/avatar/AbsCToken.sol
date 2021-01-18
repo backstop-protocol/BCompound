@@ -213,8 +213,7 @@ contract AbsCToken is AbsAvatarBase {
     /**
      * @dev Fallback to receieve ETH from CEther contract on `borrow()`, `redeem()`, `redeemUnderlying`
      */
-    // TODO Can add a modifier to allow only cTokens. However, don't see a need for
-    // the modifier
+
     function () external payable {
         // Receive ETH
     }
