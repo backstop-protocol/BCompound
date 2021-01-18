@@ -66,12 +66,12 @@ contract BComptroller {
 
     function enterMarketOnAvatar(IAvatar avatar, address bToken) external onlyDelegatee(avatar) returns (uint256) {
         return _enterMarket(avatar, bToken);
-    }    
+    }
 
     function _enterMarket(IAvatar avatar, address bToken) internal returns (uint256) {
         require(b2c[bToken] != address(0), "BComptroller: CToken-not-exist-for-bToken");
         return avatar.enterMarket(bToken);
-    }    
+    }
 
     function enterMarkets(address[] calldata bTokens) external returns (uint256[] memory) {
         IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
@@ -96,7 +96,7 @@ contract BComptroller {
 
     function exitMarketOnAvatar(IAvatar avatar, address bToken) external onlyDelegatee(avatar) returns (uint256) {
         return avatar.exitMarket(bToken);
-    }    
+    }
 
     function getAccountLiquidity(address account) external view returns (uint err, uint liquidity, uint shortFall) {
         IAvatar avatar = IAvatar(registry.avatarOf(account));

@@ -822,8 +822,6 @@ contract("Pool", async (accounts) => {
         const extra = nowTime.mod(selectionDuration); // extra = nowTime % 60mins
         const diffToSeek = selectionDuration.sub(extra); // diffToSeek = 60mins - extra
         await time.increase(diffToSeek);
-        nowTime = new BN((await web3.eth.getBlock("latest")).timestamp);
-        expect(nowTime.mod(selectionDuration)).to.be.bignumber.equal(ZERO);
 
         let chosenMember1 = await pool.smallTopupWinner(avatar1.address);
         expect(isValidaMember(chosenMember1, members)).to.be.equal(true);
@@ -1311,9 +1309,7 @@ contract("Pool", async (accounts) => {
 
         // member1 storage should be updated
         // member1 balance = depositedZRX - toppedUpZRX
-        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(
-          TEN_ZRX.sub(ONE_ZRX),
-        );
+        expect(await pool.balance(a.member1, ZRX_addr)).to.be.bignumber.equal(TEN_ZRX.sub(ONE_ZRX));
         const totalAmountToppedUp = TEN_ZRX.add(ONE_ZRX);
         member1TopupInfo = await pool.getMemberTopupInfo(a.user1, a.member1);
         expectMemberTopupInfo(member1TopupInfo, {
