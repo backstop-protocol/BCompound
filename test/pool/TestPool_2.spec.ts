@@ -1189,6 +1189,7 @@ contract("Pool", async (accounts) => {
 
       it("should liquidate big loan with 3 member (ZRX Collateral, Borrow BAT)", async () => {
         // user1 borrowed BAT (ZRX collateral)
+        await setup_ZRXCollateral_BorrowBAT();
 
         // Change BAT rate
         // ONE_USD_IN_SCALE * 110 / 100 = $1.1 (IN SCALE)
