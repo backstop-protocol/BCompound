@@ -1,5 +1,5 @@
 pragma solidity 0.5.16;
-import "hardhat/console.sol";
+
 import { AbsBToken } from "./AbsBToken.sol";
 import { IAvatarCEther } from "../interfaces/IAvatar.sol";
 

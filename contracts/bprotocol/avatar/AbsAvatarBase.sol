@@ -230,11 +230,15 @@ contract AbsAvatarBase is Exponential {
     function _doLiquidateBorrow(
         ICToken debtCToken,
         uint256 underlyingAmtToLiquidate,
+        uint256 amtToDeductFromTopup,
         ICToken collCToken
     )
         internal
         returns (uint256)
     {
+        address payable poolContract = pool();
+        require(poolContract == msg.sender, "liquidateBorrow:-only-pool-can-liquidate");
+
         // 1. Is toppedUp OR partially liquidated
         bool partiallyLiquidated = isPartiallyLiquidated();
         require(isToppedUp() || partiallyLiquidated, "cannot-perform-liquidateBorrow");
@@ -255,11 +259,9 @@ contract AbsAvatarBase is Exponential {
         require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
 
         // 3. Liquidator perform repayBorrow
-        (uint256 amtToDeductFromTopup, uint256 amtToRepayOnCompound) = splitAmountToLiquidate(
-            underlyingAmtToLiquidate, remainingLiquidationAmount
-        );
-
-        address payable poolContract = pool();
+        require(underlyingAmtToLiquidate >= amtToDeductFromTopup, "liquidateBorrow:-amtToDeductFromTopup>underlyingAmtToLiquidate");
+        uint256 amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
+        
         if(amtToRepayOnCompound > 0) {
             bool isCEtherDebt = _isCEther(debtCToken);
             if(isCEtherDebt) {
@@ -267,11 +269,6 @@ contract AbsAvatarBase is Exponential {
                 require(msg.value == amtToRepayOnCompound, "insuffecient-ETH-sent");
                 ICEther cEther = ICEther(registry.cEther());
                 cEther.repayBorrow.value(amtToRepayOnCompound)();
-                // send back rest of the amount to the Pool contract
-                if(amtToDeductFromTopup > 0 ) {
-                    bool success = poolContract.send(amtToDeductFromTopup); // avoid DoS attack
-                    success; // shh
-                }
             } else {
                 // CErc20
                 // take tokens from pool contract
@@ -282,6 +279,7 @@ contract AbsAvatarBase is Exponential {
             }
         }
 
+        require(toppedUpAmount >= amtToDeductFromTopup, "liquidateBorrow:-amtToDeductFromTopup>toppedUpAmount");
         toppedUpAmount = sub_(toppedUpAmount, amtToDeductFromTopup);
 
         // 4.1 Update remaining liquidation amount

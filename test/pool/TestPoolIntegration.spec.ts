@@ -365,14 +365,12 @@ contract("Pool", async (accounts) => {
           from: a.member1,
         });
 
-        const resetApprove = false;
         await pool.liquidateBorrow(
           a.user1,
           bETH_addr,
           bZRX_addr,
           maxLiquidationAmtZRX,
-          amtToRepayOnCompoundZRX,
-          resetApprove,
+          //amtToRepayOnCompoundZRX,
           { from: a.member1 },
         );
 
