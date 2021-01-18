@@ -113,25 +113,22 @@ contract AbsComptroller is AbsAvatarBase {
         require(err == 0, "Error-in-getting-account-liquidity");
 
         uint256 price = IPriceOracle(oracle).getUnderlyingPrice(toppedUpCToken);
-        uint256 toppedUpAmtInETH = mulTrucate(toppedUpAmount, price);
+        uint256 toppedUpAmtInUSD = mulTrucate(toppedUpAmount, price);
 
         // liquidity = 0 and shortFall = 0
-        if(liquidity == toppedUpAmtInETH) return(0, 0, 0);
+        if(liquidity == toppedUpAmtInUSD) return(0, 0, 0);
 
         // when shortFall = 0
         if(shortFall == 0 && liquidity > 0) {
-            if(liquidity > toppedUpAmtInETH) {
-                liquidity = sub_(liquidity, toppedUpAmtInETH);
+            if(liquidity > toppedUpAmtInUSD) {
+                liquidity = sub_(liquidity, toppedUpAmtInUSD);
             } else {
-                shortFall = sub_(toppedUpAmtInETH, liquidity);
+                shortFall = sub_(toppedUpAmtInUSD, liquidity);
                 liquidity = 0;
             }
-        } else if(liquidity == 0 && shortFall > 0) { // We can just check for `liquidity == 0`, to cover both of the following cases
-            shortFall = add_(shortFall, toppedUpAmtInETH);
         } else {
-            // Handling case when compound returned liquidity = 0 and shortFall = 0
-            shortFall = add_(shortFall, toppedUpAmtInETH);
-            // FIXME We can combine last two `else` block, as calculation is same??
+            // Handling case when compound returned liquidity = 0 and shortFall >= 0
+            shortFall = add_(shortFall, toppedUpAmtInUSD);
         }
     }
 }

@@ -242,8 +242,7 @@ contract AbsAvatarBase is Exponential {
         // 1. Is toppedUp OR partially liquidated
         bool partiallyLiquidated = isPartiallyLiquidated();
         require(isToppedUp() || partiallyLiquidated, "cannot-perform-liquidateBorrow");
-        // TODO below condition means debtCToken always = to toppedUpCToken
-        // TODO if this is true, then dont need below if-else block
+
         if(partiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
         } else {
