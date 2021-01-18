@@ -757,6 +757,14 @@ contract("Pool", async (accounts) => {
         expect(await avatar1.canLiquidate.call()).to.be.equal(false);
         expect(await avatar1.canUntop.call()).to.be.equal(true);
 
+        // member attempt liquidateBorrow, must fail
+        await expectRevert(
+          pool.liquidateBorrow(a.user1, bZRX_addr, bBAT_addr, halfDebtToLiquidate, {
+            from: a.member1,
+          }),
+          "revert cannot-liquidate",
+        );
+
         // member untop
         await pool.untop(a.user1, expectedMinTopup.div(new BN(2)), { from: a.member1 });
 
@@ -879,6 +887,14 @@ contract("Pool", async (accounts) => {
 
         expect(await avatar1.canLiquidate.call()).to.be.equal(false);
         expect(await avatar1.canUntop.call()).to.be.equal(true);
+
+        // member attempt liquidateBorrow, must fail
+        await expectRevert(
+          pool.liquidateBorrow(a.user1, bZRX_addr, bETH_addr, halfDebtToLiquidate, {
+            from: a.member1,
+          }),
+          "revert cannot-liquidate",
+        );
 
         // member untop
         await pool.untop(a.user1, expectedMinTopup.div(new BN(2)), { from: a.member1 });
