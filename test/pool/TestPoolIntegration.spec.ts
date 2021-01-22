@@ -485,6 +485,34 @@ contract("Pool", async (accounts) => {
         expect(await cTokenColl.balanceOf(jar)).to.be.bignumber.equal(jarShare);
       }
 
+      async function setupSmallLoan_ZRX_Collateral_Borrow_BAT_ETH() {
+        // setting high minThreshold so that the loan is small
+        await pool.setMinSharingThreshold(bZRX_addr, new BN(10000).mul(ONE_ZRX));
+        await pool.setMinSharingThreshold(bBAT_addr, new BN(10000).mul(ONE_BAT));
+        await pool.setMinSharingThreshold(bETH_addr, new BN(50).mul(ONE_ETH));
+
+        // Deployer transfer tokens
+        await ZRX.transfer(a.user1, TEN_THOUSAND_ZRX, { from: a.deployer });
+        await BAT.transfer(a.user2, TEN_THOUSAND_BAT, { from: a.deployer });
+
+        // user1 mints ZRX
+        await ZRX.approve(bZRX_addr, TEN_THOUSAND_ZRX, { from: a.user1 });
+        await bZRX.mint(TEN_THOUSAND_ZRX, { from: a.user1 });
+
+        // user2 mints ETH
+        await bETH.mint({ from: a.user2, value: HUNDRED_ETH });
+        // user2 mints BAT
+        await BAT.approve(bBAT_addr, TEN_THOUSAND_BAT, { from: a.user2 });
+        await bBAT.mint(TEN_THOUSAND_BAT, { from: a.user2 });
+
+        // user1 borrow ETH
+        const _25ETH = FIFTY_ETH.div(new BN(2));
+        await bETH.borrow(_25ETH, { from: a.user1 });
+        // user1 borrow BAT
+        const _2500BAT = FIVE_THOUSAND_BAT.div(new BN(2));
+        await bBAT.borrow(_2500BAT, { from: a.user1 });
+      }
+
       it("should do simple liquidation (ETH Collateral, Borrow ZRX)", async () => {
         // ETH collateral $100
         // ZRX borrow $50
@@ -1998,34 +2026,6 @@ contract("Pool", async (accounts) => {
       });
 
       describe("Full liquidation, then another liquiation for the same debt, then another liquiation for different debt", async () => {
-        async function setupSmallLoan_ZRX_Collateral_Borrow_BAT_ETH() {
-          // setting high minThreshold so that the loan is small
-          await pool.setMinSharingThreshold(bZRX_addr, new BN(10000).mul(ONE_ZRX));
-          await pool.setMinSharingThreshold(bBAT_addr, new BN(10000).mul(ONE_BAT));
-          await pool.setMinSharingThreshold(bETH_addr, new BN(50).mul(ONE_ETH));
-
-          // Deployer transfer tokens
-          await ZRX.transfer(a.user1, TEN_THOUSAND_ZRX, { from: a.deployer });
-          await BAT.transfer(a.user2, TEN_THOUSAND_BAT, { from: a.deployer });
-
-          // user1 mints ZRX
-          await ZRX.approve(bZRX_addr, TEN_THOUSAND_ZRX, { from: a.user1 });
-          await bZRX.mint(TEN_THOUSAND_ZRX, { from: a.user1 });
-
-          // user2 mints ETH
-          await bETH.mint({ from: a.user2, value: HUNDRED_ETH });
-          // user2 mints BAT
-          await BAT.approve(bBAT_addr, TEN_THOUSAND_BAT, { from: a.user2 });
-          await bBAT.mint(TEN_THOUSAND_BAT, { from: a.user2 });
-
-          // user1 borrow ETH
-          const _25ETH = FIFTY_ETH.div(new BN(2));
-          await bETH.borrow(_25ETH, { from: a.user1 });
-          // user1 borrow BAT
-          const _2500BAT = FIVE_THOUSAND_BAT.div(new BN(2));
-          await bBAT.borrow(_2500BAT, { from: a.user1 });
-        }
-
         describe("Small Loan", async () => {
           it("ZRX Collateral, Borrow BAT and ETH", async () => {
             await setupSmallLoan_ZRX_Collateral_Borrow_BAT_ETH();
@@ -2466,7 +2466,71 @@ contract("Pool", async (accounts) => {
       });
 
       describe("topup to debt A, user repay, and then topup to debt B", async () => {
-        it("");
+        it("ZRX Collateral, Borrow BAT and ETH ", async () => {
+          await setupSmallLoan_ZRX_Collateral_Borrow_BAT_ETH();
+
+          // 1. member topup debt ETH
+          // =========================
+          let debt = await bETH.borrowBalanceCurrent.call(a.user1);
+          let debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+          let expectedMinTopup = debt.mul(minTopupBps).div(new BN(10000));
+          let expectedMaxTopup = debt.div(await pool.membersLength());
+          expectDebtTopupInfo(debtTopupInfo, {
+            expectedMinTopup: expectedMinTopup,
+            expectedMaxTopup: expectedMaxTopup,
+            expectedIsSmall: true,
+          });
+
+          // - member topup
+          // ---------------
+          // member deposit
+          await pool.methods["deposit()"]({
+            from: a.member1,
+            value: expectedMinTopup,
+          });
+
+          // topup
+          await pool.topup(a.user1, bETH_addr, expectedMinTopup, false, {
+            from: a.member1,
+          });
+
+          expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+          expect(await avatar1.canUntop.call()).to.be.equal(true);
+          expect(await avatar1.isToppedUp()).to.be.equal(true);
+
+          // 2. user repay
+          // ==============
+          await bETH.repayBorrow({ from: a.user1, value: ONE_ETH });
+
+          // 3. member topup debt BAT
+          // =========================
+          debt = await bBAT.borrowBalanceCurrent.call(a.user1);
+          debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bBAT_addr);
+          expectedMinTopup = debt.mul(minTopupBps).div(new BN(10000));
+          expectedMaxTopup = debt.div(await pool.membersLength());
+          expectDebtTopupInfo(debtTopupInfo, {
+            expectedMinTopup: expectedMinTopup,
+            expectedMaxTopup: expectedMaxTopup,
+            expectedIsSmall: true,
+          });
+
+          // - member topup
+          // ---------------
+          // member deposit
+          await BAT.approve(pool.address, expectedMinTopup, { from: a.member1 });
+          await pool.methods["deposit(address,uint256)"](BAT_addr, expectedMinTopup, {
+            from: a.member1,
+          });
+
+          // topup
+          await pool.topup(a.user1, bBAT_addr, expectedMinTopup, false, {
+            from: a.member1,
+          });
+
+          expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+          expect(await avatar1.canUntop.call()).to.be.equal(true);
+          expect(await avatar1.isToppedUp()).to.be.equal(true);
+        });
       });
     });
   });
