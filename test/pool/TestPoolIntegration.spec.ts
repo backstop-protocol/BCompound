@@ -2275,6 +2275,199 @@ contract("Pool", async (accounts) => {
           });
         });
       });
+
+      describe("topup to a small debt, then increasing the debt, and let another liquidator top it up", async () => {
+        describe("Small Loan", async () => {
+          it("ZRX Collateral, Borrow ETH", async () => {
+            // setting high minThreshold so that the loan is small
+            await pool.setMinSharingThreshold(bZRX_addr, new BN(10000).mul(ONE_ZRX));
+            await pool.setMinSharingThreshold(bETH_addr, new BN(100).mul(ONE_ETH));
+
+            await ZRX.transfer(a.user1, ONE_THOUSAND_ZRX, { from: a.deployer });
+
+            // User-2 mint cETH with ETH
+            await bETH.mint({ from: a.user2, value: TEN_ETH });
+
+            // User-1 mint cZRX with ZRX
+            await ZRX.approve(bZRX.address, ONE_THOUSAND_ZRX, { from: a.user1 });
+            await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user1 });
+
+            // User1 borrow ETH
+            const point5ETH = ONE_ETH.div(new BN(2));
+            const FOUR_ETH = ONE_ETH.mul(new BN(4));
+            // Borrow 4.5 ETH
+            await bETH.borrow(FOUR_ETH.add(point5ETH), { from: a.user1 });
+
+            // 1000 ZRX = $1000 (Collateral)
+            // 4.5 ETH = $450 (Borrow)
+
+            // 1. member1 topup small loan
+            // ===========================
+            let debt = await bETH.borrowBalanceCurrent.call(a.user1);
+            let debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+            let expectedMinTopup = debt.mul(minTopupBps).div(new BN(10000));
+            let expectedMaxTopup = debt.div(await pool.membersLength());
+            expectDebtTopupInfo(debtTopupInfo, {
+              expectedMinTopup: expectedMinTopup,
+              expectedMaxTopup: expectedMaxTopup,
+              expectedIsSmall: true,
+            });
+
+            // - member topup
+            // ---------------
+            // member deposit
+            await pool.methods["deposit()"]({
+              from: a.member1,
+              value: expectedMinTopup,
+            });
+
+            // topup
+            const txTopupMember1 = await pool.topup(a.user1, bETH_addr, expectedMinTopup, false, {
+              from: a.member1,
+            });
+
+            expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+            expect(await avatar1.canUntop.call()).to.be.equal(true);
+            expect(await avatar1.isToppedUp()).to.be.equal(true);
+
+            // 2. user increase debt
+            // ======================
+            await bETH.borrow(point5ETH, { from: a.user1 });
+
+            // 3. member2 topup
+            // =================
+            debt = await bETH.borrowBalanceCurrent.call(a.user1);
+            debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+            expectedMinTopup = debt.mul(minTopupBps).div(new BN(10000));
+            expectedMaxTopup = debt.div(await pool.membersLength());
+            expectDebtTopupInfo(debtTopupInfo, {
+              expectedMinTopup: expectedMinTopup,
+              expectedMaxTopup: expectedMaxTopup,
+              expectedIsSmall: true,
+            });
+
+            // - member2 topup
+            // ---------------
+            // member2 deposit
+            await pool.methods["deposit()"]({
+              from: a.member2,
+              value: expectedMinTopup,
+            });
+
+            const holdingTimeExpireAt = new BN(
+              (await web3.eth.getBlock(txTopupMember1.receipt.blockNumber)).timestamp,
+            ).add(holdingTime);
+
+            // before expire, member2 cannot topup
+            // try topup by member2
+            await expectRevert(
+              pool.topup(a.user1, bETH_addr, expectedMinTopup, false, {
+                from: a.member2,
+              }),
+              "Pool: other-member-topped",
+            );
+
+            await time.increase(holdingTimeExpireAt);
+
+            pool.topup(a.user1, bETH_addr, expectedMinTopup, false, {
+              from: a.member2,
+            });
+
+            expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+            expect(await avatar1.canUntop.call()).to.be.equal(true);
+            expect(await avatar1.isToppedUp()).to.be.equal(true);
+          });
+        });
+      });
+
+      describe("topup to a big debt, then debt becomes smaller, and another liquidator topup", async () => {
+        describe("Big Loan", async () => {
+          it("ZRX Collateral, Borrow ETH", async () => {
+            await pool.setMinSharingThreshold(bZRX_addr, new BN(1000).mul(ONE_ZRX));
+            await pool.setMinSharingThreshold(bETH_addr, new BN(40).mul(ONE_ETH));
+
+            await ZRX.transfer(a.user1, TEN_THOUSAND_ZRX, { from: a.deployer });
+
+            // User-1 mint cZRX with ZRX
+            await ZRX.approve(bZRX.address, TEN_THOUSAND_ZRX, { from: a.user1 });
+            await bZRX.mint(TEN_THOUSAND_ZRX, { from: a.user1 });
+
+            // User-2 mint cETH with ETH
+            await bETH.mint({ from: a.user2, value: HUNDRED_ETH });
+
+            // User1 borrow ETH
+            await bETH.borrow(FIFTY_ETH, { from: a.user1 });
+
+            // 10000 ZRX = $1000 (Collateral)
+            // 50 ETH = $550 (Borrow)
+
+            // 1. member1 topup small loan
+            // ===========================
+            let debt = await bETH.borrowBalanceCurrent.call(a.user1);
+            let debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+            let expectedMinTopup = debt.mul(minTopupBps).div(new BN(10000));
+            let expectedMaxTopup = debt.div(await pool.membersLength());
+            expectDebtTopupInfo(debtTopupInfo, {
+              expectedMinTopup: expectedMinTopup,
+              expectedMaxTopup: expectedMaxTopup,
+              expectedIsSmall: false,
+            });
+
+            // - member topup
+            // ---------------
+            // member deposit
+            await pool.methods["deposit()"]({
+              from: a.member1,
+              value: expectedMinTopup,
+            });
+
+            // topup
+            await pool.topup(a.user1, bETH_addr, expectedMinTopup, false, {
+              from: a.member1,
+            });
+
+            expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+            expect(await avatar1.canUntop.call()).to.be.equal(true);
+            expect(await avatar1.isToppedUp()).to.be.equal(true);
+
+            // 2. user decrease debt
+            // ======================
+            await bETH.repayBorrow({ from: a.user1, value: ONE_ETH });
+
+            // 3. member2 topup
+            // =================
+            debt = await bETH.borrowBalanceCurrent.call(a.user1);
+            debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+            expectedMinTopup = debt.mul(minTopupBps).div(new BN(10000));
+            expectedMaxTopup = debt.div(await pool.membersLength());
+            expectDebtTopupInfo(debtTopupInfo, {
+              expectedMinTopup: expectedMinTopup,
+              expectedMaxTopup: expectedMaxTopup,
+              expectedIsSmall: false,
+            });
+
+            // - member2 topup
+            // ---------------
+            // member2 deposit
+            await pool.methods["deposit()"]({
+              from: a.member2,
+              value: expectedMinTopup,
+            });
+
+            pool.topup(a.user1, bETH_addr, expectedMinTopup, false, {
+              from: a.member2,
+            });
+
+            expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+            expect(await avatar1.canUntop.call()).to.be.equal(true);
+            expect(await avatar1.isToppedUp()).to.be.equal(true);
+          });
+        });
+      });
+
+      describe("topup to debt A, user repay, and then topup to debt B", async () => {
+        it("");
+      });
     });
   });
 });
