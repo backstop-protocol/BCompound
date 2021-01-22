@@ -2531,6 +2531,125 @@ contract("Pool", async (accounts) => {
           expect(await avatar1.canUntop.call()).to.be.equal(true);
           expect(await avatar1.isToppedUp()).to.be.equal(true);
         });
+
+        it("ZRX Collateral, Borrow BAT and ETH, with member untop and withdraw", async () => {
+          await setupSmallLoan_ZRX_Collateral_Borrow_BAT_ETH();
+
+          // 1. member topup debt ETH
+          // =========================
+          let debt = await bETH.borrowBalanceCurrent.call(a.user1);
+          let debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+          let expectedMinTopupETH = debt.mul(minTopupBps).div(new BN(10000));
+          let expectedMaxTopup = debt.div(await pool.membersLength());
+          expectDebtTopupInfo(debtTopupInfo, {
+            expectedMinTopup: expectedMinTopupETH,
+            expectedMaxTopup: expectedMaxTopup,
+            expectedIsSmall: true,
+          });
+
+          // - member topup
+          // ---------------
+          // member deposit
+          await pool.methods["deposit()"]({
+            from: a.member1,
+            value: expectedMinTopupETH,
+          });
+
+          // topup
+          await pool.topup(a.user1, bETH_addr, expectedMinTopupETH, false, {
+            from: a.member1,
+          });
+
+          // validate deposit & topup balance
+          expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+          expect(await balance.current(pool.address)).to.be.bignumber.equal(ZERO);
+          expect(await pool.topupBalance(a.member1, ETH_ADDR)).to.be.bignumber.equal(
+            expectedMinTopupETH,
+          );
+
+          expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+          expect(await avatar1.canUntop.call()).to.be.equal(true);
+          expect(await avatar1.isToppedUp()).to.be.equal(true);
+
+          // 2. user repay
+          // ==============
+          await bETH.repayBorrow({ from: a.user1, value: ONE_ETH });
+
+          // 3. member topup debt BAT
+          // =========================
+          debt = await bBAT.borrowBalanceCurrent.call(a.user1);
+          debtTopupInfo = await pool.getDebtTopupInfo.call(a.user1, bBAT_addr);
+          const expectedMinTopupBAT = debt.mul(minTopupBps).div(new BN(10000));
+          expectedMaxTopup = debt.div(await pool.membersLength());
+          expectDebtTopupInfo(debtTopupInfo, {
+            expectedMinTopup: expectedMinTopupBAT,
+            expectedMaxTopup: expectedMaxTopup,
+            expectedIsSmall: true,
+          });
+
+          // - member topup
+          // ---------------
+          // member deposit
+          await BAT.approve(pool.address, expectedMinTopupBAT, { from: a.member1 });
+          await pool.methods["deposit(address,uint256)"](BAT_addr, expectedMinTopupBAT, {
+            from: a.member1,
+          });
+
+          // topup
+          // This will untop previous ETH topup
+          await pool.topup(a.user1, bBAT_addr, expectedMinTopupBAT, false, {
+            from: a.member1,
+          });
+
+          // validate ETH deposit & topup balance
+          // ETH should be untopped and BAT topped up
+          expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(
+            expectedMinTopupETH,
+          );
+          expect(await balance.current(pool.address)).to.be.bignumber.equal(expectedMinTopupETH);
+          expect(await pool.topupBalance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+
+          // validate BAT deposit & topup balance
+          expect(await pool.balance(a.member1, BAT_addr)).to.be.bignumber.equal(ZERO);
+          expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+          expect(await pool.topupBalance(a.member1, BAT_addr)).to.be.bignumber.equal(
+            expectedMinTopupBAT,
+          );
+
+          expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+          expect(await avatar1.canUntop.call()).to.be.equal(true);
+          expect(await avatar1.isToppedUp()).to.be.equal(true);
+
+          // 2.1 member untop
+          // ================
+          await pool.untop(a.user1, expectedMinTopupBAT, { from: a.member1 });
+
+          // validate ETH deposit & topup balance
+          expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(
+            expectedMinTopupETH,
+          );
+          expect(await balance.current(pool.address)).to.be.bignumber.equal(expectedMinTopupETH);
+          expect(await pool.topupBalance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+          // validate BAT deposit & topup balance
+          expect(await pool.balance(a.member1, BAT_addr)).to.be.bignumber.equal(
+            expectedMinTopupBAT,
+          );
+          expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(expectedMinTopupBAT);
+          expect(await pool.topupBalance(a.member1, BAT_addr)).to.be.bignumber.equal(ZERO);
+
+          // 3. member withdraw all ETH and BAT balance
+          await pool.withdraw(ETH_ADDR, expectedMinTopupETH, { from: a.member1 });
+          await pool.withdraw(BAT_addr, expectedMinTopupBAT, { from: a.member1 });
+
+          // validate ETH deposit & topup balance
+          expect(await pool.balance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+          expect(await balance.current(pool.address)).to.be.bignumber.equal(ZERO);
+          expect(await pool.topupBalance(a.member1, ETH_ADDR)).to.be.bignumber.equal(ZERO);
+          // validate BAT deposit & topup balance
+          expect(await pool.balance(a.member1, BAT_addr)).to.be.bignumber.equal(ZERO);
+          expect(await BAT.balanceOf(pool.address)).to.be.bignumber.equal(ZERO);
+          expect(await pool.topupBalance(a.member1, BAT_addr)).to.be.bignumber.equal(ZERO);
+        });
       });
     });
   });
