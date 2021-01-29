@@ -13,16 +13,17 @@ contract BTokenScore is ScoringMachine, Exponential {
     IRegistry public registry;
     IComptroller public comptroller;
     string private constant parent = "BTokenScore";
-    uint public expiry;
+    uint public endDate;
 
     // cToken => uint (supplyMultiplier)
     mapping(address => uint) public supplyMultiplier;
     // cToken => uint (borrowMultiplier)
     mapping(address => uint) public borrowMultiplier;
 
-    // cToken => LastIndex{supplyIndex, borrowIndex}
-    mapping(address => LastIndex) public lastIndex;
-    struct LastIndex {
+    // cToken => Snapshot{exchangeRate, supplyIndex, borrowIndex}
+    mapping(address => Snapshot) public snapshot;
+    struct Snapshot {
+        uint exchangeRate;
         uint224 supplyIndex;
         uint224 borrowIndex;
     }
@@ -33,15 +34,16 @@ contract BTokenScore is ScoringMachine, Exponential {
     }
 
     constructor(
+        uint _endDate,
         address[] memory cTokens,
         uint[] memory sMultipliers,
         uint[] memory bMultipliers
     ) public {
-        expiry = now + (6 * 4 weeks); // 6 months
+        endDate = _endDate;
         for(uint i = 0; i < cTokens.length; i++) {
-            require(cTokens[i] != address(0), "cToken-address-is-zero");
-            require(sMultipliers[i] > 0, "supply-multiplier-is-zero");
-            require(bMultipliers[i] > 0, "borrow-multiplier-is-zero");
+            require(cTokens[i] != address(0), "Score: cToken-address-is-zero");
+            require(sMultipliers[i] > 0, "Score: supply-multiplier-is-zero");
+            require(bMultipliers[i] > 0, "Score: borrow-multiplier-is-zero");
 
             supplyMultiplier[cTokens[i]] = sMultipliers[i];
             borrowMultiplier[cTokens[i]] = bMultipliers[i];
@@ -69,14 +71,6 @@ contract BTokenScore is ScoringMachine, Exponential {
         return keccak256(abi.encodePacked(parent, "coll", cToken));
     }
 
-    function slashedDebtAsset(address cToken) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(parent, "slashed-debt", cToken));
-    }
-
-    function slashedCollAsset(address cToken) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(parent, "slashed-coll", cToken));
-    }
-
     // Update Score
     // =============
     function updateDebtScore(address _avatar, address cToken, int256 amount) external onlyAvatar {
@@ -92,31 +86,46 @@ contract BTokenScore is ScoringMachine, Exponential {
     }
 
     function updateIndex(address cToken) public {
-        require(expiry < now, "expired");
+        require(endDate < now, "Score: expired");
         uint224 supplyIndex;
         uint224 borrowIndex;
+        uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
         (supplyIndex,) = comptroller.compSupplyState(cToken);
         (borrowIndex,) = comptroller.compBorrowState(cToken);
-        lastIndex[cToken].supplyIndex = supplyIndex;
-        lastIndex[cToken].borrowIndex = borrowIndex;
+        snapshot[cToken].exchangeRate = currExchangeRate;
+        snapshot[cToken].supplyIndex = supplyIndex;
+        snapshot[cToken].borrowIndex = borrowIndex;
     }
 
     function _getDeltaSupplyIndex(address cToken) internal returns (uint224 deltaSupplyIndex) {
         uint224 currSupplyIndex;
         (currSupplyIndex,) = comptroller.compSupplyState(cToken);
-        uint deltaSupplyIndexForCToken = sub_(uint(currSupplyIndex), uint(lastIndex[cToken].supplyIndex));
+        uint deltaSupplyIndexForCToken = sub_(uint(currSupplyIndex), uint(snapshot[cToken].supplyIndex));
 
         // NOTICE: supplyIndex takes cToken.totalSupply() which is in cToken quantity
         // We need the index normalized to underlying token quantity
-        uint exchangeRate = ICToken(cToken).exchangeRateCurrent();
-        deltaSupplyIndex = safe224(div_(deltaSupplyIndexForCToken, exchangeRate), "index-exceeds-224-bits");
+        uint deltaExchangeRate = 0;
+        uint deltaSupplyIndexInUint;
+        uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
+        uint oldExchangeRate = snapshot[cToken].exchangeRate;
+        if(currExchangeRate > oldExchangeRate) {
+            uint scaledIndex = mul_(deltaSupplyIndexForCToken, expScale);
+            deltaExchangeRate = sub_(currExchangeRate, oldExchangeRate);
+            deltaSupplyIndexInUint = div_(scaledIndex, deltaExchangeRate);
+        } else {
+            deltaExchangeRate = sub_(oldExchangeRate, currExchangeRate);
+            deltaExchangeRate = deltaExchangeRate == 0 ? 1 : deltaExchangeRate;
+            deltaSupplyIndexInUint = mul_(deltaSupplyIndexForCToken, deltaExchangeRate);
+        }
+
+        deltaSupplyIndex = safe224(deltaSupplyIndexInUint, "index-exceeds-224-bits");
     }
 
     function _getDeltaBorrowIndex(address cToken) internal returns (uint224 deltaBorrowIndex) {
         uint224 currBorrowIndex;
         (currBorrowIndex,) = comptroller.compBorrowState(cToken);
         deltaBorrowIndex = safe224(
-            sub_(uint(currBorrowIndex), uint(lastIndex[cToken].borrowIndex)),
+            sub_(uint(currBorrowIndex), uint(snapshot[cToken].borrowIndex)),
             "unable-to-cast-to-uint224"
         );
         // NOTICE: borrowIndex is already normalized to underlying token quantity
@@ -131,21 +140,19 @@ contract BTokenScore is ScoringMachine, Exponential {
         if(time < start) time = start;
 
         // Slash debtScore
-        uint borrowBal_B = bToken.borrowBalanceCurrent(_user);
-        uint borrowBal_Score = getCurrentBalance(user(_avatar), debtAsset(cToken));
-        if(borrowBal_B < borrowBal_Score) {
-            int256 debtRating = int256(sub(borrowBal_Score, borrowBal_B));
+        uint borrowBalB = bToken.borrowBalanceCurrent(_user);
+        uint borrowBalScore = getCurrentBalance(user(_avatar), debtAsset(cToken));
+        if(borrowBalB < borrowBalScore) {
+            int256 debtRating = int256(sub(borrowBalScore, borrowBalB));
             updateScore(user(_avatar), debtAsset(cToken), (debtRating * -1), time);
-            updateScore(user(_avatar), slashedDebtAsset(cToken), debtRating, time);
         }
 
         // Slash collScore
-        uint collBal_B = bToken.balanceOfUnderlying(_user);
-        uint collBal_Score = getCurrentBalance(user(_avatar), collAsset(cToken));
-        if(collBal_B < collBal_Score) {
-            int256 collRating = int256(sub(collBal_Score, collBal_B));
+        uint collBalB = bToken.balanceOfUnderlying(_user);
+        uint collBalScore = getCurrentBalance(user(_avatar), collAsset(cToken));
+        if(collBalB < collBalScore) {
+            int256 collRating = int256(sub(collBalScore, collBalB));
             updateScore(user(_avatar), collAsset(cToken), (collRating * -1), time);
-            updateScore(user(_avatar), slashedCollAsset(cToken), collRating, time);
         }
     }
 
@@ -173,21 +180,5 @@ contract BTokenScore is ScoringMachine, Exponential {
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
         uint score = getScore(GLOBAL_USER, collAsset(cToken), time, spinStart, 0);
         return mul_(score, supplyMultiplier[cToken], deltaSupplyIndex);
-    }
-
-    function getSlashedCollScore(address _avatar, address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
-        return getScore(user(_avatar), slashedCollAsset(cToken), time, spinStart, 0);
-    }
-
-    function getSlashedCollGlobalScore(address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
-        return getScore(GLOBAL_USER, slashedCollAsset(cToken), time, spinStart, 0);
-    }
-
-    function getSlashedDebtScore(address _avatar, address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
-        return getScore(user(_avatar), slashedDebtAsset(cToken), time, spinStart, 0);
-    }
-
-    function getSlashedDebtGlobalScore(address cToken, uint256 time, uint256 spinStart) public view returns (uint) {
-        return getScore(GLOBAL_USER, slashedDebtAsset(cToken), time, spinStart, 0);
     }
 }
