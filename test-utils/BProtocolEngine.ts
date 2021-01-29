@@ -6,6 +6,13 @@ import BN from "bn.js";
 
 const shell = require("shelljs");
 
+// Constants
+const ONE_MINUTE = new BN(60);
+const ONE_HOUR = new BN(60).mul(ONE_MINUTE);
+const ONE_DAY = new BN(24).mul(ONE_HOUR);
+const ONE_WEEK = new BN(7).mul(ONE_DAY);
+const ONE_MONTH = new BN(4).mul(ONE_WEEK); // 1 month = 4 weeks
+
 // Compound contracts
 const Comp: b.CompContract = artifacts.require("Comp");
 const Comptroller: b.ComptrollerContract = artifacts.require("Comptroller");
@@ -96,6 +103,7 @@ export class BProtocolEngine {
 
     await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
     await _bProtocol.score.setRegistry(_bProtocol.registry.address);
+    await this.initScore();
     await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
 
     _bProtocol.compound = new Compound();
@@ -123,6 +131,38 @@ export class BProtocolEngine {
     await pool.setMembers(this.bProtocol.members);
     await pool.setProfitParams(105, 110);
     return pool;
+  }
+
+  private async initScore() {
+    const now = new BN((await web3.eth.getBlock("latest")).timestamp);
+    const duration = new BN(6).mul(ONE_MONTH); // 1 month = 4 weeks
+
+    const endDate = now.add(duration);
+    const cTokens: string[] = new Array(4);
+    const supplyMultipliers: BN[] = new Array(4);
+    const borrowMultipliers: BN[] = new Array(4);
+
+    // cETH
+    cTokens[0] = this.compoundUtil.getContracts("cETH");
+    supplyMultipliers[0] = new BN(1);
+    borrowMultipliers[0] = new BN(1);
+
+    // cBAT
+    cTokens[1] = this.compoundUtil.getContracts("cBAT");
+    supplyMultipliers[1] = new BN(1);
+    borrowMultipliers[1] = new BN(1);
+
+    // cZRX
+    cTokens[2] = this.compoundUtil.getContracts("cZRX");
+    supplyMultipliers[2] = new BN(1);
+    borrowMultipliers[2] = new BN(1);
+
+    // cUSDT
+    cTokens[3] = this.compoundUtil.getContracts("cUSDT");
+    supplyMultipliers[3] = new BN(1);
+    borrowMultipliers[3] = new BN(1);
+
+    return await this.bProtocol.score.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
   }
 
   private async deployScore(): Promise<b.BTokenScoreInstance> {
@@ -153,7 +193,6 @@ export class BProtocolEngine {
   public getCompVoterAddress(): string {
     return "0x0011223344556677889900112233445566778899"; // TODO - assign a value of a multisig
   }
-
 
   // Child Contract Creation
   // ========================

@@ -33,12 +33,14 @@ contract BTokenScore is ScoringMachine, Exponential {
         _;
     }
 
-    constructor(
+    function init(
         uint _endDate,
         address[] memory cTokens,
         uint[] memory sMultipliers,
         uint[] memory bMultipliers
     ) public {
+        require(registry != IRegistry(0), "Score: registry-not-set");
+        require(endDate == 0, "Score: already-init");
         endDate = _endDate;
         for(uint i = 0; i < cTokens.length; i++) {
             require(cTokens[i] != address(0), "Score: cToken-address-is-zero");
@@ -86,7 +88,7 @@ contract BTokenScore is ScoringMachine, Exponential {
     }
 
     function updateIndex(address cToken) public {
-        require(endDate < now, "Score: expired");
+        require(endDate > now, "Score: expired");
         uint224 supplyIndex;
         uint224 borrowIndex;
         uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
