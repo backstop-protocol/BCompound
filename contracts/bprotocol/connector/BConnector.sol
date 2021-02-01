@@ -1,44 +1,33 @@
 pragma solidity 0.5.16;
 
-import { IScoreConfig } from "../scoring/IScoreConfig.sol";
+import { IBTokenScore } from "../scoring/IBTokenScore.sol";
 
 /**
  * @notice B.Protocol Compound connector contract, which is used by Jar contract
  */
 contract BConnector {
 
-    IScoreConfig public scoreConfig;
+    IBTokenScore public score;
 
-    /**
-     * @dev Constructor
-     * @param _scoreConfig Address of ScoringConfig contract
-     */
-    constructor(address _scoreConfig) public {
-        scoreConfig = IScoreConfig(_scoreConfig);
+    constructor(address _score) public {
+        score = IBTokenScore(_score);
     }
 
-    /**
-     * @dev Get the User's total score from ScoringConfig contract
-     * @param user User address in bytes32
-     * @return The user's total score
-     */
-    function getUserScore(bytes32 user) external view returns (uint256) {
-        return scoreConfig.getUserScore(toUser(user));
+    function getUserScore(address user, address cToken) external view returns (uint256) {
+        uint debtScore = score.getDebtScore(user, cToken, now, 0);
+        uint collScore = score.getCollScore(user, cToken, now, 0);
+        return add_(debtScore, collScore, "overflow");
     }
-    
-    /**
-     * @dev Get the Global score from the ScoringConfig contract
-     * @return The total global score
-     */
-    function getGlobalScore() external view returns (uint256) {
-        return scoreConfig.getGlobalScore();
-    }
-    
-    function toUser(bytes32 user) public pure returns (address) {
-        // Following the way described in 
-        // the warning section https://solidity.readthedocs.io/en/v0.5.16/types.html#address
 
-        // Extract left most 20 bytes from `bytes32` type and convert to `address` type
-        return address(uint160(bytes20(user)));
+    function getGlobalScore(address cToken) external view returns (uint256) {
+        uint debtScore = score.getDebtGlobalScore(cToken, now, 0);
+        uint collScore = score.getCollGlobalScore(cToken, now, 0);
+        return add_(debtScore, collScore, "overflow");
+    }
+
+    function add_(uint a, uint b, string memory errorMessage) internal pure returns (uint) {
+        uint c = a + b;
+        require(c >= a, errorMessage);
+        return c;
     }
 }

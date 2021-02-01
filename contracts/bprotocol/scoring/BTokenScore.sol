@@ -133,9 +133,9 @@ contract BTokenScore is ScoringMachine, Exponential {
         // NOTICE: borrowIndex is already normalized to underlying token quantity
     }
 
-    function slashedScore(address _avatar, address cToken) external {
+    function slashScore(address _user, address cToken) external {
         IBComptroller bComptroller = IBComptroller(registry.bComptroller());
-        address _user = registry.ownerOf(_avatar);
+        address _avatar = registry.avatarOf(_user);
         IBToken bToken = IBToken(bComptroller.c2b(cToken));
 
         uint time = sub(start, 30 days);
@@ -160,9 +160,10 @@ contract BTokenScore is ScoringMachine, Exponential {
 
     // Get Score
     // ==========
-    function getDebtScore(address _avatar, address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+    function getDebtScore(address _user, address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+        address avatar = registry.avatarOf(_user);
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
-        uint score = getScore(user(_avatar), debtAsset(cToken), time, spinStart, 0);
+        uint score = getScore(user(avatar), debtAsset(cToken), time, spinStart, 0);
         return mul_(score, borrowMultiplier[cToken], deltaBorrowIndex);
     }
 
@@ -172,9 +173,10 @@ contract BTokenScore is ScoringMachine, Exponential {
         return mul_(score, borrowMultiplier[cToken], deltaBorrowIndex);
     }
 
-    function getCollScore(address _avatar, address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+    function getCollScore(address _user, address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+        address avatar = registry.avatarOf(_user);
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
-        uint score = getScore(user(_avatar), collAsset(cToken), time, spinStart, 0);
+        uint score = getScore(user(avatar), collAsset(cToken), time, spinStart, 0);
         return mul_(score, supplyMultiplier[cToken], deltaSupplyIndex);
     }
 
