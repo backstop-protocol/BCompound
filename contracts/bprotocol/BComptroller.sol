@@ -132,6 +132,6 @@ contract BComptroller {
     }
 
     function getAllMarkets() external view returns (address[] memory) {
-        return comptroller.allMarkets();
+        return comptroller.getAllMarkets();
     }
 }

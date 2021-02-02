@@ -659,7 +659,7 @@ contract("BComptroller", async (accounts) => {
   describe("BComptroller.getAllMarkets()", async () => {
     it("should get all markets", async () => {
       const markets = await bComptroller.getAllMarkets();
-      console.log(markets);
+      expect(markets.length > 0).to.be.equal(true);
     });
   });
 });
