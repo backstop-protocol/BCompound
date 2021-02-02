@@ -762,7 +762,7 @@ contract("Pool", async (accounts) => {
           pool.liquidateBorrow(a.user1, bZRX_addr, bBAT_addr, halfDebtToLiquidate, {
             from: a.member1,
           }),
-          "revert cannot-liquidate",
+          "cant-liquidate",
         );
 
         // member untop
@@ -893,7 +893,7 @@ contract("Pool", async (accounts) => {
           pool.liquidateBorrow(a.user1, bZRX_addr, bETH_addr, halfDebtToLiquidate, {
             from: a.member1,
           }),
-          "revert cannot-liquidate",
+          "cant-liquidate",
         );
 
         // member untop

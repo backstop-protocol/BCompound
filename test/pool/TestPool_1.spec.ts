@@ -1367,7 +1367,7 @@ contract("Pool", async (accounts) => {
         await pool.methods["deposit(address,uint256)"](ZRX.address, TEN_ZRX, { from: newMember });
         await expectRevert(
           pool.topup(a.user1, bZRX_addr, toppedUpZRX, false, { from: newMember }),
-          "Cushion: borrow-failed",
+          "borrow-fail",
         );
 
         // member1 storage should NOT be updated
