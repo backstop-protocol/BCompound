@@ -17,7 +17,7 @@ contract Migrate is Exponential {
         uint forVotes;
         uint eta;
         address newOwner;
-        mapping (address => mapping(address => bool)) voted; // user => cToken => voted
+        mapping (address => bool) voted; // user => voted
     }
 
     uint public constant DELAY = 2 days;
@@ -39,7 +39,6 @@ contract Migrate is Exponential {
     }
 
     function propose(address newOwner) external returns (uint) {
-        require(jarConnector.round() > 2, "six-months-not-passed");
         require(newOwner != address(0), "newOwner-cannot-be-zero");
 
         Proposal memory proposal = Proposal({
@@ -54,36 +53,36 @@ contract Migrate is Exponential {
         return proposalId;
     }
 
-    function vote(uint proposalId, address cToken) external {
+    function vote(uint proposalId) external {
         address user = msg.sender;
         Proposal storage proposal = proposals[proposalId];
         require(proposal.newOwner != address(0), "proposal-not-exist");
-        require(! proposal.voted[user][cToken], "already-voted");
+        require(! proposal.voted[user], "already-voted");
         require(registry.doesAvatarExistFor(user), "avatar-does-not-exist");
 
-        uint score = jarConnector.getUserScore(user, cToken);
+        uint score = jarConnector.getUserScore(user);
         proposal.forVotes = add_(proposal.forVotes, score);
-        proposal.voted[user][cToken] = true;
+        proposal.voted[user] = true;
 
         emit Voted(proposalId, user, score);
     }
 
-    function cancelVote(uint proposalId, address cToken) external {
+    function cancelVote(uint proposalId) external {
         address user = msg.sender;
         Proposal storage proposal = proposals[proposalId];
         require(proposal.newOwner != address(0), "proposal-not-exist");
-        require(proposal.voted[user][cToken], "not-voted");
+        require(proposal.voted[user], "not-voted");
         require(registry.doesAvatarExistFor(user), "avatar-does-not-exist");
 
-        uint score = jarConnector.getUserScore(user, cToken);
+        uint score = jarConnector.getUserScore(user);
         proposal.forVotes = sub_(proposal.forVotes, score);
-        proposal.voted[user][cToken] = false;
+        proposal.voted[user] = false;
 
         emit VoteCancelled(proposalId, user, score);
     }
 
-    function queueProposal(uint proposalId, address cToken) external {
-        uint quorum = add_(jarConnector.getGlobalScore(cToken) / 2, uint(1)); // 50%
+    function queueProposal(uint proposalId) external {
+        uint quorum = add_(jarConnector.getGlobalScore() / 2, uint(1)); // 50%
         Proposal storage proposal = proposals[proposalId];
         require(proposal.eta == 0, "already-queued");
         require(proposal.newOwner != address(0), "proposal-not-exist");
