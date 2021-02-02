@@ -1,6 +1,5 @@
 pragma solidity 0.5.16;
 
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IScore } from "../interfaces/IScore.sol";
@@ -134,11 +133,15 @@ contract AbsAvatarBase is Exponential {
         return result;
     }
 
+    // function reduce contract size
+    function _ensureUserNotQuitB() internal view {
+        require(! quit, "user-quit-B");
+    }
     /**
      * @dev Topup this avatar by repaying borrowings with ETH
      */
     function topup() external payable onlyPool {
-        require(! quit, "user-quit-B");
+        _ensureUserNotQuitB();
 
         address cEtherAddr = registry.cEther();
         // when already topped
@@ -163,7 +166,7 @@ contract AbsAvatarBase is Exponential {
      * @param topupAmount Amount of tokens to Topup
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
-        require(! quit, "user-quit-B");
+        _ensureUserNotQuitB();
 
         // when already topped
         bool _isToppedUp = isToppedUp();
@@ -250,7 +253,7 @@ contract AbsAvatarBase is Exponential {
 
         // 1. Is toppedUp OR partially liquidated
         bool partiallyLiquidated = isPartiallyLiquidated();
-        require(isToppedUp() || partiallyLiquidated, "cannot-perform-liquidateBorrow");
+        require(isToppedUp() || partiallyLiquidated, "cant-perform-liquidateBorrow");
 
         if(partiallyLiquidated) {
             require(debtCToken == liquidationCToken, "debtCToken!=liquidationCToken");
@@ -328,7 +331,7 @@ contract AbsAvatarBase is Exponential {
     {
         // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
         (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
-        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
+        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar-fail");
         uint underlyingAmtToLiqScalar = result.mantissa;
 
         // percent = underlyingAmtToLiqScalar / maxLiquidationAmount

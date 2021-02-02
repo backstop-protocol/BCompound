@@ -34,7 +34,7 @@ contract AbsComptroller is AbsAvatarBase {
         IComptroller comptroller = IComptroller(registry.comptroller());
         uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < result.length; i++) {
-            require(result[i] == 0, "enter-markets-failed");
+            require(result[i] == 0, "enter-markets-fail");
         }
         return result;
     }

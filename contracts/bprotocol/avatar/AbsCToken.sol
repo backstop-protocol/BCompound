@@ -15,7 +15,7 @@ contract AbsCToken is AbsAvatarBase {
     }
 
     function _allowOnlyBToken() internal view {
-        require(isValidBToken(msg.sender), "only-BToken-is-authorized");
+        require(isValidBToken(msg.sender), "only-BToken-authorized");
     }
 
     function isValidBToken(address bToken) internal view returns (bool) {
@@ -60,7 +60,7 @@ contract AbsCToken is AbsAvatarBase {
         IERC20 underlying = cToken.underlying();
         underlying.safeApprove(address(cToken), mintAmount);
         uint result = cToken.mint(mintAmount);
-        require(result == 0, "mint-failed");
+        require(result == 0, "mint-fail");
         if(! quit) _score().updateCollScore(address(this), address(cToken), toInt256(mintAmount));
         return result;
     }
@@ -78,7 +78,7 @@ contract AbsCToken is AbsAvatarBase {
             // use resetApprove() in case ERC20.approve() has front-running attack protection
             underlying.safeApprove(address(cToken), amtToRepayOnCompound);
             result = cToken.repayBorrow(amtToRepayOnCompound);
-            require(result == 0, "repayBorrow-failed");
+            require(result == 0, "repayBorrow-fail");
             if(! quit) _score().updateDebtScore(address(this), address(cToken), -toInt256(repayAmount));
         }
         return result; // in case of err, tx fails at BToken
@@ -92,7 +92,7 @@ contract AbsCToken is AbsAvatarBase {
         ICToken cTokenCollateral
     ) external payable returns (uint256) {
         // 1. Can liquidate?
-        require(canLiquidate(), "cannot-liquidate");
+        require(canLiquidate(), "cant-liquidate");
 
         ICToken cTokenDebt = toppedUpCToken;
         uint256 seizedCTokens = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidate, amtToDeductFromTopup, cTokenCollateral);
@@ -112,7 +112,7 @@ contract AbsCToken is AbsAvatarBase {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeem(redeemTokens);
-        require(result == 0, "redeem-failed");
+        require(result == 0, "redeem-fail");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, redeemTokens);
         if(! quit) _score().updateCollScore(address(this), address(cToken), -toInt256(underlyingRedeemAmount));
@@ -134,7 +134,7 @@ contract AbsCToken is AbsAvatarBase {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.redeemUnderlying(redeemAmount);
-        require(result == 0, "redeemUnderlying-failed");
+        require(result == 0, "redeemUnderlying-fail");
 
         if(! quit) _score().updateCollScore(address(this), address(cToken), -toInt256(redeemAmount));
 
@@ -154,7 +154,7 @@ contract AbsCToken is AbsAvatarBase {
         address payable userOrDelegatee
     ) external onlyBToken postPoolOp(true) returns (uint256) {
         uint256 result = cToken.borrow(borrowAmount);
-        require(result == 0, "borrow-failed");
+        require(result == 0, "borrow-fail");
 
         if(! quit) _score().updateDebtScore(address(this), address(cToken), toInt256(borrowAmount));
 
@@ -173,7 +173,7 @@ contract AbsCToken is AbsAvatarBase {
     function transfer(ICToken cToken, address dst, uint256 amount) public onlyBToken postPoolOp(true) returns (bool) {
         address dstAvatar = registry.getAvatar(dst);
         bool result = cToken.transfer(dstAvatar, amount);
-        require(result, "transfer-failed");
+        require(result, "transfer-fail");
 
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
 
@@ -189,7 +189,7 @@ contract AbsCToken is AbsAvatarBase {
         address dstAvatar = registry.getAvatar(dst);
 
         bool result = cToken.transferFrom(srcAvatar, dstAvatar, amount);
-        require(result, "transferFrom-failed");
+        require(result, "transferFrom-fail");
 
         require(IAvatar(srcAvatar).canUntop(), "insuffecient-fund-at-src");
         uint256 underlyingRedeemAmount = _toUnderlying(cToken, amount);
@@ -209,7 +209,7 @@ contract AbsCToken is AbsAvatarBase {
     function collectCToken(ICToken cToken, address from, uint256 cTokenAmt) public postPoolOp(false) {
         // `from` should not be an avatar
         require(registry.ownerOf(from) == address(0), "from-is-an-avatar");
-        require(cToken.transferFrom(from, address(this), cTokenAmt), "transferFrom-failed");
+        require(cToken.transferFrom(from, address(this), cTokenAmt), "transferFrom-fail");
         uint256 underlyingAmt = _toUnderlying(cToken, cTokenAmt);
         if(! quit) _score().updateCollScore(address(this), address(cToken), toInt256(underlyingAmt));
     }

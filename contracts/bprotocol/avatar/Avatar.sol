@@ -2,9 +2,8 @@ pragma solidity 0.5.16;
 
 import { AbsComptroller } from "./AbsComptroller.sol";
 import { AbsCToken } from "./AbsCToken.sol";
-import { ICToken, ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
+import { ICEther, ICErc20 } from "../interfaces/CTokenInterfaces.sol";
 import { IComp } from "../interfaces/IComp.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ProxyStorage {
     address internal masterCopy;
@@ -35,7 +34,7 @@ contract Avatar is ProxyStorage, AbsComptroller, AbsCToken {
      */
     function mint() public payable {
         ICEther cEther = ICEther(registry.cEther());
-        require(_enterMarket(address(cEther)) == 0, "enterMarket-failed");
+        require(_enterMarket(address(cEther)) == 0, "enterMarket-fail");
         super.mint();
     }
 
@@ -45,7 +44,7 @@ contract Avatar is ProxyStorage, AbsComptroller, AbsCToken {
      * @notice onlyBToken can call this function, as `super.mint()` is protected with `onlyBToken` modifier
      */
     function mint(ICErc20 cToken, uint256 mintAmount) public returns (uint256) {
-        require(_enterMarket(address(cToken)) == 0, "enterMarket-failed");
+        require(_enterMarket(address(cToken)) == 0, "enterMarket-fail");
         uint256 result = super.mint(cToken, mintAmount);
         return result;
     }
