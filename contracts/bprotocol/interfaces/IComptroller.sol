@@ -31,6 +31,8 @@ interface IComptroller {
     function mintAllowed(address cToken, address minter, uint mintAmount) external returns (uint);
     function borrowAllowed(address cToken, address borrower, uint borrowAmount) external returns (uint);
 
+    function allMarkets() external view returns (address[] memory);
+
     function liquidateCalculateSeizeTokens(
         address cTokenBorrowed,
         address cTokenCollateral,

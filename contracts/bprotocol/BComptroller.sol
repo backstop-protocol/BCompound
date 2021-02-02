@@ -130,4 +130,8 @@ contract BComptroller {
     function oracle() external view returns (address) {
         return comptroller.oracle();
     }
+
+    function getAllMarkets() external view returns (address[] memory) {
+        return comptroller.allMarkets();
+    }
 }
