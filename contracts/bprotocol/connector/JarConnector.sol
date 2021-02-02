@@ -22,8 +22,8 @@ contract JarConnector {
         score = IBTokenScore(registry.score());
     }
 
-    function getUserScore(bytes32 user) external view returns (uint) {
-        return _getTotalUserScore(toUser(user), now, 0);
+    function getUserScore(address user) external view returns (uint) {
+        return _getTotalUserScore(user, now, 0);
     }
 
     function getGlobalScore() external view returns (uint) {
@@ -54,13 +54,5 @@ contract JarConnector {
         uint c = a + b;
         require(c >= a, "overflow");
         return c;
-    }
-
-    function toUser(bytes32 user) public pure returns (address) {
-        // Following the way described in
-        // the warning section https://solidity.readthedocs.io/en/v0.5.16/types.html#address
-
-        // Extract left most 20 bytes from `bytes32` type and convert to `address` type
-        return address(uint160(bytes20(user)));
     }
 }
