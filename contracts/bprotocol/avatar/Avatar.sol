@@ -55,7 +55,7 @@ contract Avatar is ProxyStorage, AbsComptroller, AbsCToken {
         uint first4Bytes = uint(uint8(data[0])) << 24 | uint(uint8(data[1])) << 16 | uint(uint8(data[2])) << 8 | uint(uint8(data[3])) << 0;
         bytes4 functionSig = bytes4(uint32(first4Bytes));
 
-        require(quit || registry.whitelistedAvatarCalls(target, functionSig), "emergencyCall: not-listed");
+        require(quit || registry.whitelistedAvatarCalls(target, functionSig), "not-listed");
         (bool succ, bytes memory err) = target.call.value(msg.value)(data);
 
         require(succ, string(err));

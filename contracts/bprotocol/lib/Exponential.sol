@@ -43,24 +43,6 @@ contract Exponential is CarefulMath {
     }
 
     /**
-     * @dev Adds two exponentials, returning a new exponential.
-     */
-    function addExp(Exp memory a, Exp memory b) pure internal returns (MathError, Exp memory) {
-        (MathError error, uint result) = addUInt(a.mantissa, b.mantissa);
-
-        return (error, Exp({mantissa: result}));
-    }
-
-    /**
-     * @dev Subtracts two exponentials, returning a new exponential.
-     */
-    function subExp(Exp memory a, Exp memory b) pure internal returns (MathError, Exp memory) {
-        (MathError error, uint result) = subUInt(a.mantissa, b.mantissa);
-
-        return (error, Exp({mantissa: result}));
-    }
-
-    /**
      * @dev Multiply an Exp by a scalar, returning a new Exp.
      */
     function mulScalar(Exp memory a, uint scalar) pure internal returns (MathError, Exp memory) {
@@ -85,30 +67,6 @@ contract Exponential is CarefulMath {
     }
 
     /**
-     * @dev Multiply an Exp by a scalar, truncate, then add an to an unsigned integer, returning an unsigned integer.
-     */
-    function mulScalarTruncateAddUInt(Exp memory a, uint scalar, uint addend) pure internal returns (MathError, uint) {
-        (MathError err, Exp memory product) = mulScalar(a, scalar);
-        if (err != MathError.NO_ERROR) {
-            return (err, 0);
-        }
-
-        return addUInt(truncate(product), addend);
-    }
-
-    /**
-     * @dev Divide an Exp by a scalar, returning a new Exp.
-     */
-    function divScalar(Exp memory a, uint scalar) pure internal returns (MathError, Exp memory) {
-        (MathError err0, uint descaledMantissa) = divUInt(a.mantissa, scalar);
-        if (err0 != MathError.NO_ERROR) {
-            return (err0, Exp({mantissa: 0}));
-        }
-
-        return (MathError.NO_ERROR, Exp({mantissa: descaledMantissa}));
-    }
-
-    /**
      * @dev Divide a scalar by an Exp, returning a new Exp.
      */
     function divScalarByExp(uint scalar, Exp memory divisor) pure internal returns (MathError, Exp memory) {
@@ -126,18 +84,6 @@ contract Exponential is CarefulMath {
             return (err0, Exp({mantissa: 0}));
         }
         return getExp(numerator, divisor.mantissa);
-    }
-
-    /**
-     * @dev Divide a scalar by an Exp, then truncate to return an unsigned integer.
-     */
-    function divScalarByExpTruncate(uint scalar, Exp memory divisor) pure internal returns (MathError, uint) {
-        (MathError err, Exp memory fraction) = divScalarByExp(scalar, divisor);
-        if (err != MathError.NO_ERROR) {
-            return (err, 0);
-        }
-
-        return (MathError.NO_ERROR, truncate(fraction));
     }
 
     /**
@@ -172,16 +118,6 @@ contract Exponential is CarefulMath {
         return mulExp(Exp({mantissa: a}), Exp({mantissa: b}));
     }
 
-    /**
-     * @dev Multiplies three exponentials, returning a new exponential.
-     */
-    function mulExp3(Exp memory a, Exp memory b, Exp memory c) pure internal returns (MathError, Exp memory) {
-        (MathError err, Exp memory ab) = mulExp(a, b);
-        if (err != MathError.NO_ERROR) {
-            return (err, ab);
-        }
-        return mulExp(ab, c);
-    }
 
     /**
      * @dev Divides two exponentials, returning a new exponential.
@@ -201,42 +137,10 @@ contract Exponential is CarefulMath {
         return exp.mantissa / expScale;
     }
 
-    /**
-     * @dev Checks if first Exp is less than second Exp.
-     */
-    function lessThanExp(Exp memory left, Exp memory right) pure internal returns (bool) {
-        return left.mantissa < right.mantissa;
-    }
-
-    /**
-     * @dev Checks if left Exp <= right Exp.
-     */
-    function lessThanOrEqualExp(Exp memory left, Exp memory right) pure internal returns (bool) {
-        return left.mantissa <= right.mantissa;
-    }
-
-    /**
-     * @dev Checks if left Exp > right Exp.
-     */
-    function greaterThanExp(Exp memory left, Exp memory right) pure internal returns (bool) {
-        return left.mantissa > right.mantissa;
-    }
-
-    /**
-     * @dev returns true if Exp is exactly zero
-     */
-    function isZeroExp(Exp memory value) pure internal returns (bool) {
-        return value.mantissa == 0;
-    }
 
     function safe224(uint n, string memory errorMessage) pure internal returns (uint224) {
         require(n < 2**224, errorMessage);
         return uint224(n);
-    }
-
-    function safe32(uint n, string memory errorMessage) pure internal returns (uint32) {
-        require(n < 2**32, errorMessage);
-        return uint32(n);
     }
 
     function add_(Exp memory a, Exp memory b) pure internal returns (Exp memory) {
