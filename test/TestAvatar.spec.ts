@@ -88,7 +88,7 @@ contract("Avatar", async (accounts) => {
 
       await expectRevert(
         avatarInstance.emergencyCall(mockEmergency2.address, setXCallData, { from: a.user1 }),
-        "emergencyCall: not-listed",
+        "not-listed",
       );
 
       // delist
@@ -97,7 +97,7 @@ contract("Avatar", async (accounts) => {
       });
       await expectRevert(
         avatarInstance.emergencyCall(mockEmergency1.address, setXCallData, { from: a.user1 }),
-        "emergencyCall: not-listed",
+        "not-listed",
       );
     });
 
@@ -114,7 +114,7 @@ contract("Avatar", async (accounts) => {
           from: a.user1,
           value: "1",
         }),
-        "emergencyCall: not-listed",
+        "not-listed",
       );
 
       await registry.setWhitelistAvatarCall(mockEmergency1.address, sig, true, {
@@ -131,7 +131,7 @@ contract("Avatar", async (accounts) => {
           from: a.user1,
           value: "1",
         }),
-        "emergencyCall: not-listed",
+        "not-listed",
       );
     });
 
