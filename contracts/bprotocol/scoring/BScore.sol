@@ -8,11 +8,11 @@ import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IBToken } from "../interfaces/IBToken.sol";
 import { IBComptroller } from "../interfaces/IBComptroller.sol";
 
-contract BTokenScore is ScoringMachine, Exponential {
+contract BScore is ScoringMachine, Exponential {
 
     IRegistry public registry;
     IComptroller public comptroller;
-    string private constant parent = "BTokenScore";
+    string private constant parent = "BScore";
     uint public endDate;
 
     // cToken => uint (supplyMultiplier)

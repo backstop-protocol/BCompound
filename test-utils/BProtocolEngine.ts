@@ -25,7 +25,7 @@ const Registry: b.RegistryContract = artifacts.require("Registry");
 const BEther: b.BEtherContract = artifacts.require("BEther");
 const BErc20: b.BErc20Contract = artifacts.require("BErc20");
 const Avatar: b.AvatarContract = artifacts.require("Avatar");
-const BTokenScore: b.BTokenScoreContract = artifacts.require("BTokenScore");
+const BScore: b.BScoreContract = artifacts.require("BScore");
 
 // Compound class to store all Compound deployed contracts
 export class Compound {
@@ -43,7 +43,7 @@ export class BProtocol {
   public registry!: b.RegistryInstance;
   public bTokens: Map<string, b.AbsBTokenInstance> = new Map();
   public jar!: string;
-  public score!: b.BTokenScoreInstance;
+  public score!: b.BScoreInstance;
 
   // variable to hold all Compound contracts
   public compound!: Compound;
@@ -166,8 +166,8 @@ export class BProtocolEngine {
     await this.bProtocol.score.spin();
   }
 
-  private async deployScore(): Promise<b.BTokenScoreInstance> {
-    return await BTokenScore.new();
+  private async deployScore(): Promise<b.BScoreInstance> {
+    return await BScore.new();
   }
 
   // Deploy BComptroller contract
@@ -184,7 +184,15 @@ export class BProtocolEngine {
     const bComptroller = this.bProtocol.bComptroller.address;
     const bScore = this.bProtocol.score.address;
     const compVoter = this.getCompVoterAddress();
-    return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, bScore, compVoter);
+    return await Registry.new(
+      comptroller,
+      comp,
+      cETH,
+      pool.address,
+      bComptroller,
+      bScore,
+      compVoter,
+    );
   }
 
   public getBProtocol(): BProtocol {
