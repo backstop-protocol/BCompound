@@ -106,18 +106,14 @@ contract BTokenScore is ScoringMachine, Exponential {
 
         // NOTICE: supplyIndex takes cToken.totalSupply() which is in cToken quantity
         // We need the index normalized to underlying token quantity
-        uint deltaExchangeRate = 0;
         uint deltaSupplyIndexInUint;
         uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
         uint oldExchangeRate = snapshot[cToken].exchangeRate;
         if(currExchangeRate > oldExchangeRate) {
             uint scaledIndex = mul_(deltaSupplyIndexForCToken, expScale);
-            deltaExchangeRate = sub_(currExchangeRate, oldExchangeRate);
-            deltaSupplyIndexInUint = div_(scaledIndex, deltaExchangeRate);
+            deltaSupplyIndexInUint = div_(scaledIndex, currExchangeRate);
         } else {
-            deltaExchangeRate = sub_(oldExchangeRate, currExchangeRate);
-            deltaExchangeRate = deltaExchangeRate == 0 ? 1 : deltaExchangeRate;
-            deltaSupplyIndexInUint = mul_(deltaSupplyIndexForCToken, deltaExchangeRate);
+            deltaSupplyIndexInUint = mul_(deltaSupplyIndexForCToken, currExchangeRate);
         }
 
         deltaSupplyIndex = safe224(deltaSupplyIndexInUint, "index-exceeds-224-bits");

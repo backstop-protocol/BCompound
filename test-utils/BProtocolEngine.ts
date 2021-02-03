@@ -162,7 +162,8 @@ export class BProtocolEngine {
     supplyMultipliers[3] = new BN(1);
     borrowMultipliers[3] = new BN(1);
 
-    return await this.bProtocol.score.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
+    await this.bProtocol.score.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
+    await this.bProtocol.score.spin();
   }
 
   private async deployScore(): Promise<b.BTokenScoreInstance> {
