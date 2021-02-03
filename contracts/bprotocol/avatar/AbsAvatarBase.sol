@@ -183,7 +183,6 @@ contract AbsAvatarBase is Exponential {
      * @dev Untop the borrowed position of this Avatar by borrowing from Compound and transferring
      *      it to the pool.
      * @notice Only Pool contract allowed to call the untop.
-     * @return `true` if success, `false` otherwise.
      */
     function _untop(uint amount, uint amountToBorrow) internal {
         // when already untopped
@@ -234,10 +233,10 @@ contract AbsAvatarBase is Exponential {
         ICToken collCToken
     )
         internal
+        onlyPool
         returns (uint256)
     {
         address payable poolContract = pool();
-        require(poolContract == msg.sender, "liquidateBorrow:-only-pool-can-liquidate");
 
         // 1. Is toppedUp OR partially liquidated
         bool partiallyLiquidated = isPartiallyLiquidated();
