@@ -1,6 +1,5 @@
 pragma solidity 0.5.16;
 
-import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IScore } from "../interfaces/IScore.sol";
@@ -26,18 +25,27 @@ contract AbsAvatarBase is Exponential {
     ICToken public liquidationCToken;
 
     modifier onlyAvatarOwner() {
-        require(msg.sender == registry.ownerOf(address(this)), "sender-is-not-owner");
+        _allowOnlyAvatarOwner();
         _;
+    }
+    function _allowOnlyAvatarOwner() internal view {
+        require(msg.sender == registry.ownerOf(address(this)), "sender-not-owner");
     }
 
     modifier onlyPool() {
-        require(msg.sender == pool(), "only-pool-is-authorized");
+        _allowOnlyPool();
         _;
+    }
+    function _allowOnlyPool() internal view {
+        require(msg.sender == pool(), "only-pool-authorized");
     }
 
     modifier onlyBComptroller() {
-        require(msg.sender == registry.bComptroller(), "only-BComptroller-is-authorized");
+        _allowOnlyBComptroller();
         _;
+    }
+    function _allowOnlyBComptroller() internal view {
+        require(msg.sender == registry.bComptroller(), "only-BComptroller-authorized");
     }
 
     modifier postPoolOp(bool debtIncrease) {
@@ -87,7 +95,7 @@ contract AbsAvatarBase is Exponential {
 
     function toInt256(uint256 value) internal pure returns (int256) {
         int256 result = int256(value);
-        require(result >= 0, "Cast from uint to int failed");
+        require(result >= 0, "conversion-fail");
         return result;
     }
 
@@ -125,17 +133,21 @@ contract AbsAvatarBase is Exponential {
         return result;
     }
 
+    // function reduce contract size
+    function _ensureUserNotQuitB() internal view {
+        require(! quit, "user-quit-B");
+    }
     /**
      * @dev Topup this avatar by repaying borrowings with ETH
      */
     function topup() external payable onlyPool {
-        require(! quit, "Cushion: user-quit-B");
+        _ensureUserNotQuitB();
 
         address cEtherAddr = registry.cEther();
         // when already topped
         bool _isToppedUp = isToppedUp();
         if(_isToppedUp) {
-            require(address(toppedUpCToken) == cEtherAddr, "Cushion: already-topped-with-other-cToken");
+            require(address(toppedUpCToken) == cEtherAddr, "already-topped-other-cToken");
         }
 
         // 2. Repay borrows from Pool to topup
@@ -154,12 +166,12 @@ contract AbsAvatarBase is Exponential {
      * @param topupAmount Amount of tokens to Topup
      */
     function topup(ICErc20 cToken, uint256 topupAmount) external onlyPool {
-        require(! quit, "Cushion: user-quit-B");
+        _ensureUserNotQuitB();
 
         // when already topped
         bool _isToppedUp = isToppedUp();
         if(_isToppedUp) {
-            require(toppedUpCToken == cToken, "Cushion: already-topped-with-other-cToken");
+            require(toppedUpCToken == cToken, "already-topped-other-cToken");
         }
 
         // 1. Transfer funds from the Pool contract
@@ -168,7 +180,7 @@ contract AbsAvatarBase is Exponential {
         underlying.safeApprove(address(cToken), topupAmount);
 
         // 2. Repay borrows from Pool to topup
-        require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-failed");
+        require(cToken.repayBorrow(topupAmount) == 0, "RepayBorrow-fail");
 
         // 3. Store Topped-up details
         if(! _isToppedUp) toppedUpCToken = cToken;
@@ -189,13 +201,13 @@ contract AbsAvatarBase is Exponential {
         if(!isToppedUp()) return;
 
         // 1. Udpdate storage for toppedUp details
-        require(toppedUpAmount >= amount, "Cushion: amount >= toppedUpAmount");
+        require(toppedUpAmount >= amount, "amount>=toppedUpAmount");
         toppedUpAmount = sub_(toppedUpAmount, amount);
         if((toppedUpAmount == 0) && (remainingLiquidationAmount > 0)) remainingLiquidationAmount = 0;
 
         // 2. Borrow from Compound and send tokens to Pool
         if(amountToBorrow > 0 )
-            require(toppedUpCToken.borrow(amountToBorrow) == 0, "Cushion: borrow-failed");
+            require(toppedUpCToken.borrow(amountToBorrow) == 0, "borrow-fail");
 
         if(address(toppedUpCToken) == registry.cEther()) {
             // 3. Send borrowed ETH to Pool contract
@@ -240,12 +252,12 @@ contract AbsAvatarBase is Exponential {
 
         // 1. Is toppedUp OR partially liquidated
         bool partiallyLiquidated = isPartiallyLiquidated();
-        require(isToppedUp() || partiallyLiquidated, "cannot-perform-liquidateBorrow");
+        require(isToppedUp() || partiallyLiquidated, "cant-perform-liquidateBorrow");
 
         if(partiallyLiquidated) {
-            require(debtCToken == liquidationCToken, "debtCToken-not-equal-to-liquidationCToken");
+            require(debtCToken == liquidationCToken, "debtCToken!=liquidationCToken");
         } else {
-            require(debtCToken == toppedUpCToken, "debtCToken-not-equal-to-toppedUpCToken");
+            require(debtCToken == toppedUpCToken, "debtCToken!=toppedUpCToken");
             liquidationCToken = debtCToken;
         }
 
@@ -254,10 +266,10 @@ contract AbsAvatarBase is Exponential {
         }
 
         // 2. `underlayingAmtToLiquidate` is under limit
-        require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "liquidateBorrow:-amountToLiquidate-is-too-big");
+        require(underlyingAmtToLiquidate <= remainingLiquidationAmount, "amountToLiquidate-too-big");
 
         // 3. Liquidator perform repayBorrow
-        require(underlyingAmtToLiquidate >= amtToDeductFromTopup, "liquidateBorrow:-amtToDeductFromTopup>underlyingAmtToLiquidate");
+        require(underlyingAmtToLiquidate >= amtToDeductFromTopup, "amtToDeductFromTopup>underlyingAmtToLiquidate");
         uint256 amtToRepayOnCompound = sub_(underlyingAmtToLiquidate, amtToDeductFromTopup);
         
         if(amtToRepayOnCompound > 0) {
@@ -273,11 +285,11 @@ contract AbsAvatarBase is Exponential {
                 IERC20 underlying = toppedUpCToken.underlying();
                 underlying.safeTransferFrom(poolContract, address(this), amtToRepayOnCompound);
                 underlying.safeApprove(address(debtCToken), amtToRepayOnCompound);
-                require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "liquidateBorrow:-repayBorrow-failed");
+                require(ICErc20(address(debtCToken)).repayBorrow(amtToRepayOnCompound) == 0, "repayBorrow-fail");
             }
         }
 
-        require(toppedUpAmount >= amtToDeductFromTopup, "liquidateBorrow:-amtToDeductFromTopup>toppedUpAmount");
+        require(toppedUpAmount >= amtToDeductFromTopup, "amtToDeductFromTopup>toppedUpAmount");
         toppedUpAmount = sub_(toppedUpAmount, amtToDeductFromTopup);
 
         // 4.1 Update remaining liquidation amount
@@ -290,10 +302,10 @@ contract AbsAvatarBase is Exponential {
             address(collCToken),
             underlyingAmtToLiquidate
         );
-        require(err == 0, "error-in-liquidateCalculateSeizeTokens");
+        require(err == 0, "err-liquidateCalculateSeizeTokens");
 
         // 6. Transfer permiumAmount to liquidator
-        require(collCToken.transfer(poolContract, seizeTokens), "collateral-cToken-transfer-failed");
+        require(collCToken.transfer(poolContract, seizeTokens), "collCToken-xfr-fail");
 
         return seizeTokens;
     }
@@ -318,7 +330,7 @@ contract AbsAvatarBase is Exponential {
     {
         // underlyingAmtToLiqScalar = underlyingAmtToLiquidate * 1e18
         (MathError mErr, Exp memory result) = mulScalar(Exp({mantissa: underlyingAmtToLiquidate}), expScale);
-        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar failed");
+        require(mErr == MathError.NO_ERROR, "underlyingAmtToLiqScalar-fail");
         uint underlyingAmtToLiqScalar = result.mantissa;
 
         // percent = underlyingAmtToLiqScalar / maxLiquidationAmount

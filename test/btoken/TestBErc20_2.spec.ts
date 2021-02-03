@@ -210,7 +210,7 @@ contract("BErc20", async (accounts) => {
 
         expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
 
-        await expectRevert(bZRX.borrow(ONE_ZRX, { from: a.other }), "AbsCToken: borrow-failed");
+        await expectRevert(bZRX.borrow(ONE_ZRX, { from: a.other }), "borrow-fail");
 
         expect(await bZRX.borrowBalanceCurrent.call(a.other)).to.be.bignumber.equal(ZERO);
         expect(await ZRX.balanceOf(a.other)).to.be.bignumber.equal(ZERO);
@@ -234,10 +234,7 @@ contract("BErc20", async (accounts) => {
 
         expect(await balance.current(a.other)).to.be.bignumber.equal(ethBalBefore.sub(ONE_ETH));
 
-        await expectRevert(
-          bZRX.borrow(ONE_THOUSAND_ZRX, { from: a.other }),
-          "AbsCToken: borrow-failed",
-        );
+        await expectRevert(bZRX.borrow(ONE_THOUSAND_ZRX, { from: a.other }), "borrow-fail");
       });
     });
 
@@ -299,7 +296,7 @@ contract("BErc20", async (accounts) => {
 
         await expectRevert(
           bBAT.borrowOnAvatar(avatar1, ONE_THOUSAND_BAT, { from: delegatee }),
-          "AbsCToken: borrow-failed",
+          "borrow-fail",
         );
 
         expect(await bBAT.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);

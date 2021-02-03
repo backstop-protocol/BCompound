@@ -143,7 +143,17 @@ export class BProtocolEngine {
     const bComptroller = this.bProtocol.bComptroller.address;
     const bScore = this.bProtocol.score.address;
     const compVoter = this.getCompVoterAddress();
-    return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, bScore, compVoter);
+    const avatar = await Avatar.new();
+    return await Registry.new(
+      comptroller,
+      comp,
+      cETH,
+      pool.address,
+      bComptroller,
+      bScore,
+      compVoter,
+      avatar.address,
+    );
   }
 
   public getBProtocol(): BProtocol {
@@ -153,7 +163,6 @@ export class BProtocolEngine {
   public getCompVoterAddress(): string {
     return "0x0011223344556677889900112233445566778899"; // TODO - assign a value of a multisig
   }
-
 
   // Child Contract Creation
   // ========================
