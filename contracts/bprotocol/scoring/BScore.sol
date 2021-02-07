@@ -41,6 +41,7 @@ contract BScore is ScoringMachine, Exponential {
     ) public {
         require(registry != IRegistry(0), "Score: registry-not-set");
         require(endDate == 0, "Score: already-init");
+        require(_endDate > now, "Score: end-date-not-in-future");
         endDate = _endDate;
         for(uint i = 0; i < cTokens.length; i++) {
             require(cTokens[i] != address(0), "Score: cToken-address-is-zero");

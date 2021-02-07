@@ -17,7 +17,7 @@ contract JarConnector {
     }
 
     function setRegistry(address _registry) public {
-        require(_registry == address(0), "registry-already-set");
+        require(registry == IRegistry(0), "registry-already-set");
         registry = IRegistry(_registry);
         score = IBTokenScore(registry.score());
     }
