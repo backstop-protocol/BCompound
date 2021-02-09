@@ -224,6 +224,56 @@ contract("BScore", async (accounts) => {
     let cETH_addr: string;
     let cETH: b.CEtherInstance;
 
+    // MAINNET DATA
+    // =============
+    // TOKEN PRICES
+    const ONE_ETH_IN_USD_MAINNET = new BN("1617455000000000000000"); // 18 decimals, ($1617.45)
+    const ONE_ZRX_IN_USD_MAINNET = new BN("1605584000000000000"); // 18 decimal, ($1.6)
+    const ONE_USDT_IN_USD_MAINNET = new BN("1000000000000000000000000000000"); //30 decimals, ($1)
+    const ONE_BAT_IN_USD_MAINNET = new BN("409988000000000000"); // 18 decimals, ($0.4)
+    const ONE_WBTC_IN_USD_MAINNET = new BN("392028400000000000000000000000000"); // 28 decimals, ($39202.8)
+
+    const _18d = new BN(10).pow(new BN(18));
+    const _30d = new BN(10).pow(new BN(30));
+    const _28d = new BN(10).pow(new BN(28));
+    // ONE_ETH * 1e18 / ONE_ETH_IN_USD_MAINNET
+    const ONE_USD_WO_ETH_MAINNET = ONE_ETH.mul(_18d).div(ONE_ETH_IN_USD_MAINNET);
+    const ONE_USD_WO_ZRX_MAINNET = ONE_ZRX.mul(_18d).div(ONE_ZRX_IN_USD_MAINNET);
+    const ONE_USD_WO_USDT_MAINNET = ONE_USDT.mul(_30d).div(ONE_USDT_IN_USD_MAINNET);
+    const ONE_USD_WO_BAT_MAINNET = ONE_BAT.mul(_18d).div(ONE_BAT_IN_USD_MAINNET);
+    const ONE_USD_WO_WBTC_MAINNET = ONE_WBTC.mul(_28d).div(ONE_WBTC_IN_USD_MAINNET);
+
+    // COMP SPEEDS
+    const cETH_COMP_SPEEDS_MAINNET = new BN("10750000000000000");
+    const cZRX_COMP_SPEEDS_MAINNET = new BN("1950000000000000");
+    const cUSDT_COMP_SPEEDS_MAINNET = new BN("9650000000000000");
+    const cBAT_COMP_SPEEDS_MAINNET = new BN("1950000000000000");
+    const cWBTC_COMP_SPEEDS_MAINNET = new BN("10750000000000000");
+
+    async function setMainnetTokenPrice() {
+      // mainnet snapshot prices
+      await priceOracle.setPrice(cETH_addr, ONE_ETH_IN_USD_MAINNET);
+      await priceOracle.setPrice(cZRX_addr, ONE_ZRX_IN_USD_MAINNET);
+      await priceOracle.setPrice(cUSDT_addr, ONE_USDT_IN_USD_MAINNET);
+      await priceOracle.setPrice(cBAT_addr, ONE_BAT_IN_USD_MAINNET);
+      await priceOracle.setPrice(cWBTC_addr, ONE_WBTC_IN_USD_MAINNET);
+
+      //   console.log("$1 ETH = " + ONE_USD_WO_ETH_MAINNET.toString());
+      //   console.log("$1 ZRX = " + ONE_USD_WO_ZRX_MAINNET.toString());
+      //   console.log("$1 USDT = " + ONE_USD_WO_USDT_MAINNET.toString());
+      //   console.log("$1 BAT = " + ONE_USD_WO_BAT_MAINNET.toString());
+      //   console.log("$1 WBTC = " + ONE_USD_WO_WBTC_MAINNET.toString());
+    }
+
+    async function setMainnetCompSpeeds() {
+      const comptrollerHarness = await ComptrollerHarness.at(comptroller.address);
+      await comptrollerHarness.setCompSpeed(cETH_addr, cETH_COMP_SPEEDS_MAINNET);
+      await comptrollerHarness.setCompSpeed(cZRX_addr, cZRX_COMP_SPEEDS_MAINNET);
+      await comptrollerHarness.setCompSpeed(cUSDT_addr, cUSDT_COMP_SPEEDS_MAINNET);
+      await comptrollerHarness.setCompSpeed(cBAT_addr, cBAT_COMP_SPEEDS_MAINNET);
+      await comptrollerHarness.setCompSpeed(cWBTC_addr, cWBTC_COMP_SPEEDS_MAINNET);
+    }
+
     beforeEach(async () => {
       // ZRX
       bZRX = await engine.deployNewBErc20("cZRX");
@@ -307,274 +357,277 @@ contract("BScore", async (accounts) => {
       await comptroller._setCollateralFactor(cUSDT_addr, FIFTY_PERCENT);
       await comptroller._setCollateralFactor(cWBTC_addr, FIFTY_PERCENT);
 
-      // SET TOKEN PRICE
-      const ethRate = ONE_USD_IN_SCALE.mul(new BN(100)); // $100
-      await priceOracle.setPrice(cETH_addr, ethRate);
-      await priceOracle.setPrice(cZRX_addr, ONE_USD_IN_SCALE); // $1
-      await priceOracle.setPrice(cBAT_addr, ONE_USD_IN_SCALE); // $1
-      await priceOracle.setPrice(cUSDT_addr, ONE_USD_IN_SCALE); // $1
-      const wbtcRate = ONE_USD_IN_SCALE.mul(new BN(10000)); // $1000
-      await priceOracle.setPrice(cWBTC_addr, wbtcRate);
+      //   // SET TOKEN PRICE
+      //   const ethRate = ONE_USD_IN_SCALE.mul(new BN(100)); // $100
+      //   await priceOracle.setPrice(cETH_addr, ethRate);
+      //   await priceOracle.setPrice(cZRX_addr, ONE_USD_IN_SCALE); // $1
+      //   await priceOracle.setPrice(cBAT_addr, ONE_USD_IN_SCALE); // $1
+      //   await priceOracle.setPrice(cUSDT_addr, ONE_USD_IN_SCALE); // $1
+      //   const wbtcRate = ONE_USD_IN_SCALE.mul(new BN(10000)); // $1000
+      //   await priceOracle.setPrice(cWBTC_addr, wbtcRate);
+
+      // MAINNET
+      await setMainnetTokenPrice();
 
       await comptroller.refreshCompSpeeds();
     });
 
-    describe("BScore.init()", async () => {
-      it("should init", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-        await newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
+    // describe("BScore.init()", async () => {
+    //   it("should init", async () => {
+    //     const newScore = await BScore.new();
+    //     await newScore.setRegistry(registry.address);
+    //     await newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
 
-        expect(await newScore.registry()).to.be.equal(registry.address);
-        expect(await newScore.endDate()).to.be.bignumber.equal(endDate);
+    //     expect(await newScore.registry()).to.be.equal(registry.address);
+    //     expect(await newScore.endDate()).to.be.bignumber.equal(endDate);
 
-        for (let i = 0; i < cTokens.length; i++) {
-          const cTokenAddr = cTokens[i];
-          expect(await newScore.supplyMultiplier(cTokenAddr)).to.be.bignumber.equal(new BN(1));
-          expect(await newScore.borrowMultiplier(cTokenAddr)).to.be.bignumber.equal(new BN(1));
+    //     for (let i = 0; i < cTokens.length; i++) {
+    //       const cTokenAddr = cTokens[i];
+    //       expect(await newScore.supplyMultiplier(cTokenAddr)).to.be.bignumber.equal(new BN(1));
+    //       expect(await newScore.borrowMultiplier(cTokenAddr)).to.be.bignumber.equal(new BN(1));
 
-          const snapshot = await newScore.snapshot(cTokenAddr);
-          const cToken = await CToken.at(cTokenAddr);
-          const expectedExchangeRate = await cToken.exchangeRateCurrent.call();
-          const borrowState = await comptroller.compBorrowState(cTokenAddr);
-          const supplyState = await comptroller.compSupplyState(cTokenAddr);
-          const expectedBorrowIndex = borrowState["index"];
-          const expectedSupplyIndex = supplyState["index"];
+    //       const snapshot = await newScore.snapshot(cTokenAddr);
+    //       const cToken = await CToken.at(cTokenAddr);
+    //       const expectedExchangeRate = await cToken.exchangeRateCurrent.call();
+    //       const borrowState = await comptroller.compBorrowState(cTokenAddr);
+    //       const supplyState = await comptroller.compSupplyState(cTokenAddr);
+    //       const expectedBorrowIndex = borrowState["index"];
+    //       const expectedSupplyIndex = supplyState["index"];
 
-          expect(expectedExchangeRate).to.be.bignumber.equal(snapshot["exchangeRate"]);
-          expect(expectedSupplyIndex).to.be.bignumber.equal(snapshot["supplyIndex"]);
-          expect(expectedBorrowIndex).to.be.bignumber.equal(snapshot["borrowIndex"]);
-        }
-      });
+    //       expect(expectedExchangeRate).to.be.bignumber.equal(snapshot["exchangeRate"]);
+    //       expect(expectedSupplyIndex).to.be.bignumber.equal(snapshot["supplyIndex"]);
+    //       expect(expectedBorrowIndex).to.be.bignumber.equal(snapshot["borrowIndex"]);
+    //     }
+    //   });
 
-      it("should fail when registry not set", async () => {
-        const newScore = await BScore.new();
-        await expectRevert(
-          newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers),
-          "Score: registry-not-set",
-        );
-      });
+    //   it("should fail when registry not set", async () => {
+    //     const newScore = await BScore.new();
+    //     await expectRevert(
+    //       newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers),
+    //       "Score: registry-not-set",
+    //     );
+    //   });
 
-      it("cannot call init again", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-        await newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
+    //   it("cannot call init again", async () => {
+    //     const newScore = await BScore.new();
+    //     await newScore.setRegistry(registry.address);
+    //     await newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
 
-        await expectRevert(
-          newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers),
-          "Score: already-init",
-        );
-      });
+    //     await expectRevert(
+    //       newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers),
+    //       "Score: already-init",
+    //     );
+    //   });
 
-      it("should fail when endDate is not in the future", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-        const now = new BN((await web3.eth.getBlock("latest")).timestamp);
-        await expectRevert(
-          newScore.init(now, cTokens, supplyMultipliers, borrowMultipliers),
-          "Score: end-date-not-in-future",
-        );
-      });
+    //   it("should fail when endDate is not in the future", async () => {
+    //     const newScore = await BScore.new();
+    //     await newScore.setRegistry(registry.address);
+    //     const now = new BN((await web3.eth.getBlock("latest")).timestamp);
+    //     await expectRevert(
+    //       newScore.init(now, cTokens, supplyMultipliers, borrowMultipliers),
+    //       "Score: end-date-not-in-future",
+    //     );
+    //   });
 
-      it("should fail when cToken address is zero", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
+    //   it("should fail when cToken address is zero", async () => {
+    //     const newScore = await BScore.new();
+    //     await newScore.setRegistry(registry.address);
 
-        await expectRevert(
-          newScore.init(endDate, [ZERO_ADDRESS], [new BN(1)], [new BN(1)]),
-          "Score: cToken-address-is-zero",
-        );
-      });
+    //     await expectRevert(
+    //       newScore.init(endDate, [ZERO_ADDRESS], [new BN(1)], [new BN(1)]),
+    //       "Score: cToken-address-is-zero",
+    //     );
+    //   });
 
-      it("should fail when supplyMultiplier is zero", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
+    //   it("should fail when supplyMultiplier is zero", async () => {
+    //     const newScore = await BScore.new();
+    //     await newScore.setRegistry(registry.address);
 
-        await expectRevert(
-          newScore.init(endDate, [compoundUtil.getContracts("cETH")], [new BN(0)], [new BN(1)]),
-          "Score: supply-multiplier-is-zero",
-        );
-      });
+    //     await expectRevert(
+    //       newScore.init(endDate, [compoundUtil.getContracts("cETH")], [new BN(0)], [new BN(1)]),
+    //       "Score: supply-multiplier-is-zero",
+    //     );
+    //   });
 
-      it("should fail when borrowMultiplier is zero", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
+    //   it("should fail when borrowMultiplier is zero", async () => {
+    //     const newScore = await BScore.new();
+    //     await newScore.setRegistry(registry.address);
 
-        await expectRevert(
-          newScore.init(endDate, [compoundUtil.getContracts("cETH")], [new BN(1)], [new BN(0)]),
-          "Score: borrow-multiplier-is-zero",
-        );
-      });
-    });
+    //     await expectRevert(
+    //       newScore.init(endDate, [compoundUtil.getContracts("cETH")], [new BN(1)], [new BN(0)]),
+    //       "Score: borrow-multiplier-is-zero",
+    //     );
+    //   });
+    // });
 
-    describe("BScore.setRegistry()", async () => {
-      it("should set registry", async () => {
-        const newScore = await BScore.new();
-        expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
-        expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
+    // describe("BScore.setRegistry()", async () => {
+    //   it("should set registry", async () => {
+    //     const newScore = await BScore.new();
+    //     expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
+    //     expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
 
-        await newScore.setRegistry(registry.address, { from: a.deployer });
+    //     await newScore.setRegistry(registry.address, { from: a.deployer });
 
-        expect(await newScore.registry()).to.be.equal(registry.address);
-        expect(await newScore.comptroller()).to.be.equal(comptroller.address);
-      });
+    //     expect(await newScore.registry()).to.be.equal(registry.address);
+    //     expect(await newScore.comptroller()).to.be.equal(comptroller.address);
+    //   });
 
-      it("should fail when non-owner try to set registry", async () => {
-        const newScore = await BScore.new();
-        expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
-        expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
+    //   it("should fail when non-owner try to set registry", async () => {
+    //     const newScore = await BScore.new();
+    //     expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
+    //     expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
 
-        await expectRevert(
-          newScore.setRegistry(registry.address, { from: a.other }),
-          "Ownable: caller is not the owner",
-        );
+    //     await expectRevert(
+    //       newScore.setRegistry(registry.address, { from: a.other }),
+    //       "Ownable: caller is not the owner",
+    //     );
 
-        expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
-        expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
-      });
+    //     expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
+    //     expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
+    //   });
 
-      it("should fail when registry already set", async () => {
-        const newScore = await BScore.new();
-        expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
-        expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
+    //   it("should fail when registry already set", async () => {
+    //     const newScore = await BScore.new();
+    //     expect(await newScore.registry()).to.be.equal(ZERO_ADDRESS);
+    //     expect(await newScore.comptroller()).to.be.equal(ZERO_ADDRESS);
 
-        await newScore.setRegistry(registry.address, { from: a.deployer });
+    //     await newScore.setRegistry(registry.address, { from: a.deployer });
 
-        expect(await newScore.registry()).to.be.equal(registry.address);
-        expect(await newScore.comptroller()).to.be.equal(comptroller.address);
+    //     expect(await newScore.registry()).to.be.equal(registry.address);
+    //     expect(await newScore.comptroller()).to.be.equal(comptroller.address);
 
-        await expectRevert(
-          newScore.setRegistry(registry.address, { from: a.deployer }),
-          "Score: registry-already-set",
-        );
+    //     await expectRevert(
+    //       newScore.setRegistry(registry.address, { from: a.deployer }),
+    //       "Score: registry-already-set",
+    //     );
 
-        expect(await newScore.registry()).to.be.equal(registry.address);
-        expect(await newScore.comptroller()).to.be.equal(comptroller.address);
-      });
-    });
+    //     expect(await newScore.registry()).to.be.equal(registry.address);
+    //     expect(await newScore.comptroller()).to.be.equal(comptroller.address);
+    //   });
+    // });
 
-    describe("BScore.user()", async () => {
-      it("");
-    });
+    // describe("BScore.user()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.debtAsset()", async () => {
-      it("");
-    });
+    // describe("BScore.debtAsset()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.collAsset()", async () => {
-      it("");
-    });
+    // describe("BScore.collAsset()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.updateDebtScore()", async () => {
-      it("");
-    });
+    // describe("BScore.updateDebtScore()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.updateCollScore()", async () => {
-      it("");
-    });
+    // describe("BScore.updateCollScore()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.updateIndex()", async () => {
-      it("");
-    });
+    // describe("BScore.updateIndex()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.slashScore()", async () => {
-      it("");
-    });
+    // describe("BScore.slashScore()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.getDebtScore()", async () => {
-      it("");
-    });
+    // describe("BScore.getDebtScore()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.getDebtGlobalScore()", async () => {
-      it("");
-    });
+    // describe("BScore.getDebtGlobalScore()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.getCollScore()", async () => {
-      it("");
-    });
+    // describe("BScore.getCollScore()", async () => {
+    //   it("");
+    // });
 
-    describe("BScore.getCollGlobalScore()", async () => {
-      it("");
-    });
+    // describe("BScore.getCollGlobalScore()", async () => {
+    //   it("");
+    // });
 
     describe("Integration Tests", async () => {
-      describe("=> Deployment setup pre-conditions check...", async () => {
-        it("should have compMarket for all cTokens", async () => {
-          // THIS TEST IS TO ENSURE THAT THE SETUP IS OK FOR FURTHER TESTS
+      //   describe("=> Deployment setup pre-conditions check...", async () => {
+      //     it("should have compMarket for all cTokens", async () => {
+      //       // THIS TEST IS TO ENSURE THAT THE SETUP IS OK FOR FURTHER TESTS
 
-          expect(await comptroller.compRate()).to.be.bignumber.not.equal(ZERO);
+      //       expect(await comptroller.compRate()).to.be.bignumber.not.equal(ZERO);
 
-          for (let i = 0; i < cTokens.length; i++) {
-            const cToken = cTokens[i];
-            const name = await (await CToken.at(cToken)).name();
-            // console.log("Checking market " + name + " ...");
-            const market = await comptroller.markets(cToken);
-            // console.log(market);
-            expect(market["isListed"]).to.be.equal(true);
-            expect(market["isComped"]).to.be.equal(true);
-            expect(market["collateralFactorMantissa"]).to.be.bignumber.equal(FIFTY_PERCENT);
-            // console.log("Market " + name + " OK.");
-          }
-        });
+      //       for (let i = 0; i < cTokens.length; i++) {
+      //         const cToken = cTokens[i];
+      //         const name = await (await CToken.at(cToken)).name();
+      //         // console.log("Checking market " + name + " ...");
+      //         const market = await comptroller.markets(cToken);
+      //         // console.log(market);
+      //         expect(market["isListed"]).to.be.equal(true);
+      //         expect(market["isComped"]).to.be.equal(true);
+      //         expect(market["collateralFactorMantissa"]).to.be.bignumber.equal(FIFTY_PERCENT);
+      //         // console.log("Market " + name + " OK.");
+      //       }
+      //     });
 
-        it("should have all markets", async () => {
-          const markets = await comptroller.getAllMarkets();
-          expect(markets.length).to.be.equal(5);
-          expect(markets[0]).to.be.equal(cETH_addr);
-          expect(markets[1]).to.be.equal(cZRX_addr);
-          expect(markets[2]).to.be.equal(cBAT_addr);
-          expect(markets[3]).to.be.equal(cUSDT_addr);
-          expect(markets[4]).to.be.equal(cWBTC_addr);
-        });
+      //     it("should have all markets", async () => {
+      //       const markets = await comptroller.getAllMarkets();
+      //       expect(markets.length).to.be.equal(5);
+      //       expect(markets[0]).to.be.equal(cETH_addr);
+      //       expect(markets[1]).to.be.equal(cZRX_addr);
+      //       expect(markets[2]).to.be.equal(cBAT_addr);
+      //       expect(markets[3]).to.be.equal(cUSDT_addr);
+      //       expect(markets[4]).to.be.equal(cWBTC_addr);
+      //     });
 
-        it("should have asset price for each market", async () => {
-          for (let i = 0; i < cTokens.length; i++) {
-            const cTokenAddr = cTokens[i];
-            const cToken = await CToken.at(cTokenAddr);
-            const name = await cToken.name();
-            // console.log("Checking market " + name + " ...");
-            const price = await bProtocol.compound.priceOracle.getUnderlyingPrice(cTokenAddr);
-            expect(price).to.be.bignumber.not.equal(ZERO);
-            // console.log(price.toString());
-            expect(await cToken.borrowRatePerBlock()).to.be.bignumber.not.equal(ZERO);
-            // console.log("Market " + name + " OK.");
-          }
-        });
+      //     it("should have asset price for each market", async () => {
+      //       for (let i = 0; i < cTokens.length; i++) {
+      //         const cTokenAddr = cTokens[i];
+      //         const cToken = await CToken.at(cTokenAddr);
+      //         const name = await cToken.name();
+      //         // console.log("Checking market " + name + " ...");
+      //         const price = await bProtocol.compound.priceOracle.getUnderlyingPrice(cTokenAddr);
+      //         expect(price).to.be.bignumber.not.equal(ZERO);
+      //         // console.log(price.toString());
+      //         expect(await cToken.borrowRatePerBlock()).to.be.bignumber.not.equal(ZERO);
+      //         // console.log("Market " + name + " OK.");
+      //       }
+      //     });
 
-        it("should have compSupplyIndex and compBorrowIndex for each cTokens", async () => {
-          // THIS TEST IS TO ENSURE THAT THE SETUP IS OK FOR FURTHER TESTS
+      //     it("should have compSupplyIndex and compBorrowIndex for each cTokens", async () => {
+      //       // THIS TEST IS TO ENSURE THAT THE SETUP IS OK FOR FURTHER TESTS
 
-          for (let i = 0; i < cTokens.length; i++) {
-            const cToken = cTokens[i];
-            const name = await (await CToken.at(cToken)).name();
-            // console.log("Checking market " + name + " ...");
-            let compSupplyState = await comptroller.compSupplyState(cToken);
-            // console.log(compSupplyState["index"]);
-            // console.log(compSupplyState["block"]);
-            expect(
-              compSupplyState["index"],
-              "not have index for cToken:" + name,
-            ).to.be.bignumber.not.equal(ZERO);
-            expect(
-              compSupplyState["block"],
-              "zero block for cToken:" + name,
-            ).to.be.bignumber.not.equal(ZERO);
+      //       for (let i = 0; i < cTokens.length; i++) {
+      //         const cToken = cTokens[i];
+      //         const name = await (await CToken.at(cToken)).name();
+      //         // console.log("Checking market " + name + " ...");
+      //         let compSupplyState = await comptroller.compSupplyState(cToken);
+      //         // console.log(compSupplyState["index"]);
+      //         // console.log(compSupplyState["block"]);
+      //         expect(
+      //           compSupplyState["index"],
+      //           "not have index for cToken:" + name,
+      //         ).to.be.bignumber.not.equal(ZERO);
+      //         expect(
+      //           compSupplyState["block"],
+      //           "zero block for cToken:" + name,
+      //         ).to.be.bignumber.not.equal(ZERO);
 
-            let compBorrowState = await comptroller.compBorrowState(cToken);
-            // console.log(compBorrowState["index"]);
-            // console.log(compBorrowState["block"]);
-            expect(
-              compBorrowState["index"],
-              "not have index for cToken:" + name,
-            ).to.be.bignumber.not.equal(ZERO);
-            expect(
-              compBorrowState["block"],
-              "zero block for cToken:" + name,
-            ).to.be.bignumber.not.equal(ZERO);
-            // console.log("Market " + name + " OK.");
-          }
-        });
-      });
+      //         let compBorrowState = await comptroller.compBorrowState(cToken);
+      //         // console.log(compBorrowState["index"]);
+      //         // console.log(compBorrowState["block"]);
+      //         expect(
+      //           compBorrowState["index"],
+      //           "not have index for cToken:" + name,
+      //         ).to.be.bignumber.not.equal(ZERO);
+      //         expect(
+      //           compBorrowState["block"],
+      //           "zero block for cToken:" + name,
+      //         ).to.be.bignumber.not.equal(ZERO);
+      //         // console.log("Market " + name + " OK.");
+      //       }
+      //     });
+      //   });
 
       describe("should have score when user mint", async () => {
         it("mint ZRX", async () => {
@@ -590,8 +643,9 @@ contract("BScore", async (accounts) => {
           //   console.log("compSupplyState[cZRX].index: " + compSupplyState["index"]);
           //   console.log("cZRX totalSupply: " + (await cZRX.totalSupply()).toString());
 
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
+          const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+          await ZRX.approve(bZRX_addr, _500USD_ZRX, { from: a.user1 });
+          await bZRX.mint(_500USD_ZRX, { from: a.user1 });
           //   console.log("cZRX totalSupply: " + (await cZRX.totalSupply()).toString());
           const avatar1 = await registry.avatarOf(a.user1);
 
@@ -603,14 +657,18 @@ contract("BScore", async (accounts) => {
           await advanceBlockAndRefresh(100);
 
           // mint againt
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
+          await ZRX.approve(bZRX_addr, _500USD_ZRX, { from: a.user1 });
+          await bZRX.mint(_500USD_ZRX, { from: a.user1 });
 
           await time.increase(50000);
 
           await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.not.equal(ZERO);
+          await setMainnetCompSpeeds();
+
+          expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.equal(
+            cZRX_COMP_SPEEDS_MAINNET,
+          );
 
           compSupplyState = await comptroller.compSupplyState(cZRX_addr);
           const currCompSupplyIndex = compSupplyState["index"];
@@ -625,6 +683,7 @@ contract("BScore", async (accounts) => {
           const collAsset = await score.collAsset(cZRX_addr);
           const userScore = await score.getScore(user, collAsset, now, 0, 0);
           expect(userScore).to.be.bignumber.not.equal(ZERO);
+          expect(userScore).to.be.bignumber.not.equal(_500USD_ZRX.mul(new BN(2)));
           //   console.log("userScore:" + userScore.toString());
           const supplyMultiplier = await score.supplyMultiplier(cZRX_addr);
           // ZRX supplyMultiplier is 2
@@ -661,25 +720,30 @@ contract("BScore", async (accounts) => {
           await comptroller.refreshCompSpeeds();
 
           // user1 mint
-          await bETH.mint({ from: a.user1, value: FIVE_ETH });
+          const _500USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(500));
+          await bETH.mint({ from: a.user1, value: _500USD_ETH });
           const avatar1 = await registry.avatarOf(a.user1);
 
           // user2 borrow ETH so that index changes
           await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user2 });
           await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user2 });
-          await bETH.borrow(ONE_ETH, { from: a.user2 });
+          await bETH.borrow(ONE_ETH.div(new BN(4)), { from: a.user2 });
 
           await advanceBlockAndRefresh(100);
           await advanceBlockAndRefresh(100);
 
           // user1 mint againt
-          await bETH.mint({ from: a.user1, value: FIVE_ETH });
+          await bETH.mint({ from: a.user1, value: _500USD_ETH });
 
           await time.increase(50000);
 
           await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cETH_addr)).to.be.bignumber.not.equal(ZERO);
+          await setMainnetCompSpeeds();
+
+          expect(await comptroller.compSpeeds(cETH_addr)).to.be.bignumber.equal(
+            cETH_COMP_SPEEDS_MAINNET,
+          );
 
           compSupplyState = await comptroller.compSupplyState(cETH_addr);
           const currCompSupplyIndex = compSupplyState["index"];
@@ -714,362 +778,362 @@ contract("BScore", async (accounts) => {
           expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
         });
 
-        it("mint USDT", async () => {
-          let compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
-          const prevCompSupplyIndex = compSupplyState["index"];
+        // it("mint USDT", async () => {
+        //   let compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
+        //   const prevCompSupplyIndex = compSupplyState["index"];
 
-          await comptroller.refreshCompSpeeds();
+        //   await comptroller.refreshCompSpeeds();
 
-          await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user1 });
-          await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user1 });
-          const avatar1 = await registry.avatarOf(a.user1);
+        //   await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user1 });
+        //   await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user1 });
+        //   const avatar1 = await registry.avatarOf(a.user1);
 
-          // user2 borrow USDT so that index changes
-          await bETH.mint({ from: a.user2, value: TEN_ETH });
-          await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user2 });
+        //   // user2 borrow USDT so that index changes
+        //   await bETH.mint({ from: a.user2, value: TEN_ETH });
+        //   await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user2 });
 
-          await advanceBlockAndRefresh(100);
-          await advanceBlockAndRefresh(100);
+        //   await advanceBlockAndRefresh(100);
+        //   await advanceBlockAndRefresh(100);
 
-          // mint againt
-          await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user1 });
-          await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user1 });
+        //   // mint againt
+        //   await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user1 });
+        //   await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user1 });
 
-          await time.increase(50000);
+        //   await time.increase(50000);
 
-          await comptroller.refreshCompSpeeds();
+        //   await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cUSDT_addr)).to.be.bignumber.not.equal(ZERO);
+        //   expect(await comptroller.compSpeeds(cUSDT_addr)).to.be.bignumber.not.equal(ZERO);
 
-          compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
-          const currCompSupplyIndex = compSupplyState["index"];
+        //   compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
+        //   const currCompSupplyIndex = compSupplyState["index"];
 
-          const now = await nowTime();
-          const userCollScore = await score.getCollScore.call(a.user1, cUSDT_addr, now, 0);
+        //   const now = await nowTime();
+        //   const userCollScore = await score.getCollScore.call(a.user1, cUSDT_addr, now, 0);
 
-          const user = await score.user(avatar1);
-          const collAsset = await score.collAsset(cUSDT_addr);
-          const userScore = await score.getScore(user, collAsset, now, 0, 0);
-          expect(userScore).to.be.bignumber.not.equal(ZERO);
+        //   const user = await score.user(avatar1);
+        //   const collAsset = await score.collAsset(cUSDT_addr);
+        //   const userScore = await score.getScore(user, collAsset, now, 0, 0);
+        //   expect(userScore).to.be.bignumber.not.equal(ZERO);
 
-          const supplyMultiplier = await score.supplyMultiplier(cUSDT_addr);
-          // USDT supplyMultiplier is 3
-          expect(supplyMultiplier).to.be.bignumber.equal(new BN(3));
+        //   const supplyMultiplier = await score.supplyMultiplier(cUSDT_addr);
+        //   // USDT supplyMultiplier is 3
+        //   expect(supplyMultiplier).to.be.bignumber.equal(new BN(3));
 
-          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
-          const deltaSupplyIndex = currCompSupplyIndex
-            .sub(prevCompSupplyIndex)
-            .mul(ONE_ETH)
-            .div(await cUSDT.exchangeRateCurrent.call());
+        //   expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+        //   const deltaSupplyIndex = currCompSupplyIndex
+        //     .sub(prevCompSupplyIndex)
+        //     .mul(ONE_ETH)
+        //     .div(await cUSDT.exchangeRateCurrent.call());
 
-          const expectedCollScore = userScore.mul(supplyMultiplier).mul(deltaSupplyIndex);
-          console.log("expectedCollScore: " + expectedCollScore.toString());
-          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
-          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
-        });
+        //   const expectedCollScore = userScore.mul(supplyMultiplier).mul(deltaSupplyIndex);
+        //   console.log("expectedCollScore: " + expectedCollScore.toString());
+        //   expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+        //   expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+        // });
 
-        it("mint WBTC", async () => {
-          let compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
-          const prevCompSupplyIndex = compSupplyState["index"];
+        // it("mint WBTC", async () => {
+        //   let compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
+        //   const prevCompSupplyIndex = compSupplyState["index"];
 
-          await comptroller.refreshCompSpeeds();
+        //   await comptroller.refreshCompSpeeds();
 
-          const POINT_ZERO_FIVE = HALF_WBTC.div(new BN(10)); // $500
-          await WBTC.approve(bWBTC_addr, POINT_ZERO_FIVE, { from: a.user1 });
-          await bWBTC.mint(POINT_ZERO_FIVE, { from: a.user1 });
-          const avatar1 = await registry.avatarOf(a.user1);
+        //   const POINT_ZERO_FIVE = HALF_WBTC.div(new BN(10)); // $500
+        //   await WBTC.approve(bWBTC_addr, POINT_ZERO_FIVE, { from: a.user1 });
+        //   await bWBTC.mint(POINT_ZERO_FIVE, { from: a.user1 });
+        //   const avatar1 = await registry.avatarOf(a.user1);
 
-          // user2 borrow WBTC so that index changes
-          const POINT_ZERO_ONE = POINT_ZERO_FIVE.div(new BN(5)); // $100
-          await bETH.mint({ from: a.user2, value: TEN_ETH });
-          await bWBTC.borrow(POINT_ZERO_ONE, { from: a.user2 });
+        //   // user2 borrow WBTC so that index changes
+        //   const POINT_ZERO_ONE = POINT_ZERO_FIVE.div(new BN(5)); // $100
+        //   await bETH.mint({ from: a.user2, value: TEN_ETH });
+        //   await bWBTC.borrow(POINT_ZERO_ONE, { from: a.user2 });
 
-          await advanceBlockAndRefresh(100);
-          await advanceBlockAndRefresh(100);
+        //   await advanceBlockAndRefresh(100);
+        //   await advanceBlockAndRefresh(100);
 
-          // mint againt
-          await WBTC.approve(bWBTC_addr, POINT_ZERO_FIVE, { from: a.user1 });
-          await bWBTC.mint(POINT_ZERO_FIVE, { from: a.user1 });
+        //   // mint againt
+        //   await WBTC.approve(bWBTC_addr, POINT_ZERO_FIVE, { from: a.user1 });
+        //   await bWBTC.mint(POINT_ZERO_FIVE, { from: a.user1 });
 
-          await time.increase(50000);
+        //   await time.increase(50000);
 
-          await comptroller.refreshCompSpeeds();
+        //   await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cWBTC_addr)).to.be.bignumber.not.equal(ZERO);
+        //   expect(await comptroller.compSpeeds(cWBTC_addr)).to.be.bignumber.not.equal(ZERO);
 
-          compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
-          const currCompSupplyIndex = compSupplyState["index"];
+        //   compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
+        //   const currCompSupplyIndex = compSupplyState["index"];
 
-          const now = await nowTime();
-          const userCollScore = await score.getCollScore.call(a.user1, cWBTC_addr, now, 0);
+        //   const now = await nowTime();
+        //   const userCollScore = await score.getCollScore.call(a.user1, cWBTC_addr, now, 0);
 
-          const user = await score.user(avatar1);
-          const collAsset = await score.collAsset(cWBTC_addr);
-          const userScore = await score.getScore(user, collAsset, now, 0, 0);
-          expect(userScore).to.be.bignumber.not.equal(ZERO);
+        //   const user = await score.user(avatar1);
+        //   const collAsset = await score.collAsset(cWBTC_addr);
+        //   const userScore = await score.getScore(user, collAsset, now, 0, 0);
+        //   expect(userScore).to.be.bignumber.not.equal(ZERO);
 
-          const supplyMultiplier = await score.supplyMultiplier(cWBTC_addr);
-          // WBTC supplyMultiplier is 5
-          expect(supplyMultiplier).to.be.bignumber.equal(new BN(5));
+        //   const supplyMultiplier = await score.supplyMultiplier(cWBTC_addr);
+        //   // WBTC supplyMultiplier is 5
+        //   expect(supplyMultiplier).to.be.bignumber.equal(new BN(5));
 
-          console.log(prevCompSupplyIndex.toString());
-          console.log(currCompSupplyIndex.toString());
-          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
-          const deltaSupplyIndex = currCompSupplyIndex
-            .sub(prevCompSupplyIndex)
-            .mul(ONE_ETH)
-            .div(await cWBTC.exchangeRateCurrent.call());
+        //   console.log(prevCompSupplyIndex.toString());
+        //   console.log(currCompSupplyIndex.toString());
+        //   expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+        //   const deltaSupplyIndex = currCompSupplyIndex
+        //     .sub(prevCompSupplyIndex)
+        //     .mul(ONE_ETH)
+        //     .div(await cWBTC.exchangeRateCurrent.call());
 
-          const expectedCollScore = userScore.mul(supplyMultiplier).mul(deltaSupplyIndex);
-          console.log("expectedCollScore: " + expectedCollScore.toString());
-          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
-          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
-        });
+        //   const expectedCollScore = userScore.mul(supplyMultiplier).mul(deltaSupplyIndex);
+        //   console.log("expectedCollScore: " + expectedCollScore.toString());
+        //   expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+        //   expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+        // });
       });
 
-      describe("should have score when user borrow", async () => {
-        it("borrow ZRX", async () => {
-          let compBorrowState = await comptroller.compBorrowState(cZRX_addr);
-          const prevCompBorrowIndex = compBorrowState["index"];
-          expect(prevCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //   describe("should have score when user borrow", async () => {
+      //     it("borrow ZRX", async () => {
+      //       let compBorrowState = await comptroller.compBorrowState(cZRX_addr);
+      //       const prevCompBorrowIndex = compBorrowState["index"];
+      //       expect(prevCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          // user2 mints ZRX
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
+      //       // user2 mints ZRX
+      //       await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
+      //       await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
 
-          // user1 borrow ZRX
-          await bETH.mint({ from: a.user1, value: TEN_ETH });
-          await bZRX.borrow(ONE_HUNDRED_ZRX, { from: a.user1 });
-          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+      //       // user1 borrow ZRX
+      //       await bETH.mint({ from: a.user1, value: TEN_ETH });
+      //       await bZRX.borrow(ONE_HUNDRED_ZRX, { from: a.user1 });
+      //       const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
 
-          await advanceBlockAndRefresh(100);
-          await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
 
-          // user2 mint againt
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
+      //       // user2 mint againt
+      //       await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
+      //       await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
 
-          await time.increase(50000);
+      //       await time.increase(50000);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.not.equal(ZERO);
+      //       expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.not.equal(ZERO);
 
-          const userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
-          expect(userDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_ZRX);
+      //       const userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+      //       expect(userDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_ZRX);
 
-          const debtScore = await getNowDebtScore(avatar1.address, cZRX_addr);
-          expect(debtScore).to.be.bignumber.not.equal(ZERO);
+      //       const debtScore = await getNowDebtScore(avatar1.address, cZRX_addr);
+      //       expect(debtScore).to.be.bignumber.not.equal(ZERO);
 
-          compBorrowState = await comptroller.compBorrowState(cZRX_addr);
-          const currCompBorrowIndex = compBorrowState["index"];
-          expect(currCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
-          const deltaBorrowIndex = currCompBorrowIndex.sub(prevCompBorrowIndex);
-          expect(deltaBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //       compBorrowState = await comptroller.compBorrowState(cZRX_addr);
+      //       const currCompBorrowIndex = compBorrowState["index"];
+      //       expect(currCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //       const deltaBorrowIndex = currCompBorrowIndex.sub(prevCompBorrowIndex);
+      //       expect(deltaBorrowIndex).to.be.bignumber.not.equal(ZERO);
 
-          const borrowMultiplier = await score.borrowMultiplier(cZRX_addr);
-          expect(borrowMultiplier).to.be.bignumber.equal(new BN(3));
+      //       const borrowMultiplier = await score.borrowMultiplier(cZRX_addr);
+      //       expect(borrowMultiplier).to.be.bignumber.equal(new BN(3));
 
-          const expectedDebtScore = debtScore.mul(borrowMultiplier).mul(deltaBorrowIndex);
+      //       const expectedDebtScore = debtScore.mul(borrowMultiplier).mul(deltaBorrowIndex);
 
-          const now = await nowTime();
-          const userDebtScore = await score.getDebtScore.call(a.user1, cZRX_addr, now, 0);
-          expect(userDebtScore).to.be.bignumber.not.equal(ZERO);
-          expect(expectedDebtScore).to.be.bignumber.equal(userDebtScore);
+      //       const now = await nowTime();
+      //       const userDebtScore = await score.getDebtScore.call(a.user1, cZRX_addr, now, 0);
+      //       expect(userDebtScore).to.be.bignumber.not.equal(ZERO);
+      //       expect(expectedDebtScore).to.be.bignumber.equal(userDebtScore);
 
-          const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cZRX_addr);
-          expect(globalDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_ZRX);
-        });
+      //       const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cZRX_addr);
+      //       expect(globalDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_ZRX);
+      //     });
 
-        it("borrow ETH", async () => {
-          let compBorrowState = await comptroller.compBorrowState(cETH_addr);
-          const prevCompBorrowIndex = compBorrowState["index"];
-          expect(prevCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //     it("borrow ETH", async () => {
+      //       let compBorrowState = await comptroller.compBorrowState(cETH_addr);
+      //       const prevCompBorrowIndex = compBorrowState["index"];
+      //       expect(prevCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          // user2 mints ETH
-          await bETH.mint({ from: a.user2, value: FIVE_ETH });
+      //       // user2 mints ETH
+      //       await bETH.mint({ from: a.user2, value: FIVE_ETH });
 
-          // user1 borrow ETH
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bETH.borrow(ONE_ETH, { from: a.user1 });
-          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+      //       // user1 borrow ETH
+      //       await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       await bETH.borrow(ONE_ETH, { from: a.user1 });
+      //       const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
 
-          await advanceBlockAndRefresh(100);
-          await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
 
-          // user2 mint againt
-          await bETH.mint({ from: a.user2, value: FIVE_ETH });
+      //       // user2 mint againt
+      //       await bETH.mint({ from: a.user2, value: FIVE_ETH });
 
-          await time.increase(50000);
+      //       await time.increase(50000);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cETH_addr)).to.be.bignumber.not.equal(ZERO);
+      //       expect(await comptroller.compSpeeds(cETH_addr)).to.be.bignumber.not.equal(ZERO);
 
-          const userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cETH_addr);
-          expect(userDebtScoreBalance).to.be.bignumber.equal(ONE_ETH);
+      //       const userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cETH_addr);
+      //       expect(userDebtScoreBalance).to.be.bignumber.equal(ONE_ETH);
 
-          const debtScore = await getNowDebtScore(avatar1.address, cETH_addr);
-          expect(debtScore).to.be.bignumber.not.equal(ZERO);
+      //       const debtScore = await getNowDebtScore(avatar1.address, cETH_addr);
+      //       expect(debtScore).to.be.bignumber.not.equal(ZERO);
 
-          compBorrowState = await comptroller.compBorrowState(cETH_addr);
-          const currCompBorrowIndex = compBorrowState["index"];
-          expect(currCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
-          const deltaBorrowIndex = currCompBorrowIndex.sub(prevCompBorrowIndex);
-          expect(deltaBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //       compBorrowState = await comptroller.compBorrowState(cETH_addr);
+      //       const currCompBorrowIndex = compBorrowState["index"];
+      //       expect(currCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //       const deltaBorrowIndex = currCompBorrowIndex.sub(prevCompBorrowIndex);
+      //       expect(deltaBorrowIndex).to.be.bignumber.not.equal(ZERO);
 
-          const borrowMultiplier = await score.borrowMultiplier(cETH_addr);
-          expect(borrowMultiplier).to.be.bignumber.equal(new BN(10));
+      //       const borrowMultiplier = await score.borrowMultiplier(cETH_addr);
+      //       expect(borrowMultiplier).to.be.bignumber.equal(new BN(10));
 
-          const expectedDebtScore = debtScore.mul(borrowMultiplier).mul(deltaBorrowIndex);
+      //       const expectedDebtScore = debtScore.mul(borrowMultiplier).mul(deltaBorrowIndex);
 
-          const now = await nowTime();
-          const userDebtScore = await score.getDebtScore.call(a.user1, cETH_addr, now, 0);
-          expect(userDebtScore).to.be.bignumber.not.equal(ZERO);
-          expect(expectedDebtScore).to.be.bignumber.equal(userDebtScore);
+      //       const now = await nowTime();
+      //       const userDebtScore = await score.getDebtScore.call(a.user1, cETH_addr, now, 0);
+      //       expect(userDebtScore).to.be.bignumber.not.equal(ZERO);
+      //       expect(expectedDebtScore).to.be.bignumber.equal(userDebtScore);
 
-          const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cETH_addr);
-          expect(globalDebtScoreBalance).to.be.bignumber.equal(ONE_ETH);
-        });
+      //       const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cETH_addr);
+      //       expect(globalDebtScoreBalance).to.be.bignumber.equal(ONE_ETH);
+      //     });
 
-        it("borrow USDT", async () => {
-          let compBorrowState = await comptroller.compBorrowState(cUSDT_addr);
-          const prevCompBorrowIndex = compBorrowState["index"];
-          expect(prevCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //     it("borrow USDT", async () => {
+      //       let compBorrowState = await comptroller.compBorrowState(cUSDT_addr);
+      //       const prevCompBorrowIndex = compBorrowState["index"];
+      //       expect(prevCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          // user2 mints USDT
-          await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user2 });
-          await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user2 });
+      //       // user2 mints USDT
+      //       await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user2 });
+      //       await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user2 });
 
-          // user1 borrow USDT
-          await bETH.mint({ from: a.user1, value: TEN_ETH });
-          await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user1 });
-          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+      //       // user1 borrow USDT
+      //       await bETH.mint({ from: a.user1, value: TEN_ETH });
+      //       await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user1 });
+      //       const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
 
-          await advanceBlockAndRefresh(100);
-          await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
 
-          // user2 mint againt
-          await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user2 });
-          await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user2 });
+      //       // user2 mint againt
+      //       await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user2 });
+      //       await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user2 });
 
-          await time.increase(50000);
+      //       await time.increase(50000);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          expect(await comptroller.compSpeeds(cUSDT_addr)).to.be.bignumber.not.equal(ZERO);
+      //       expect(await comptroller.compSpeeds(cUSDT_addr)).to.be.bignumber.not.equal(ZERO);
 
-          const userDebtScoreBalance = await getCurrentDebtScoreBalance(
-            avatar1.address,
-            cUSDT_addr,
-          );
-          expect(userDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_USDT);
+      //       const userDebtScoreBalance = await getCurrentDebtScoreBalance(
+      //         avatar1.address,
+      //         cUSDT_addr,
+      //       );
+      //       expect(userDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_USDT);
 
-          const debtScore = await getNowDebtScore(avatar1.address, cUSDT_addr);
-          expect(debtScore).to.be.bignumber.not.equal(ZERO);
+      //       const debtScore = await getNowDebtScore(avatar1.address, cUSDT_addr);
+      //       expect(debtScore).to.be.bignumber.not.equal(ZERO);
 
-          compBorrowState = await comptroller.compBorrowState(cUSDT_addr);
-          const currCompBorrowIndex = compBorrowState["index"];
-          expect(currCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
-          const deltaBorrowIndex = currCompBorrowIndex.sub(prevCompBorrowIndex);
-          expect(deltaBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //       compBorrowState = await comptroller.compBorrowState(cUSDT_addr);
+      //       const currCompBorrowIndex = compBorrowState["index"];
+      //       expect(currCompBorrowIndex).to.be.bignumber.not.equal(ZERO);
+      //       const deltaBorrowIndex = currCompBorrowIndex.sub(prevCompBorrowIndex);
+      //       expect(deltaBorrowIndex).to.be.bignumber.not.equal(ZERO);
 
-          const borrowMultiplier = await score.borrowMultiplier(cUSDT_addr);
-          expect(borrowMultiplier).to.be.bignumber.equal(new BN(4));
+      //       const borrowMultiplier = await score.borrowMultiplier(cUSDT_addr);
+      //       expect(borrowMultiplier).to.be.bignumber.equal(new BN(4));
 
-          const expectedDebtScore = debtScore.mul(borrowMultiplier).mul(deltaBorrowIndex);
+      //       const expectedDebtScore = debtScore.mul(borrowMultiplier).mul(deltaBorrowIndex);
 
-          const now = await nowTime();
-          const userDebtScore = await score.getDebtScore.call(a.user1, cUSDT_addr, now, 0);
-          expect(userDebtScore).to.be.bignumber.not.equal(ZERO);
-          expect(expectedDebtScore).to.be.bignumber.equal(userDebtScore);
+      //       const now = await nowTime();
+      //       const userDebtScore = await score.getDebtScore.call(a.user1, cUSDT_addr, now, 0);
+      //       expect(userDebtScore).to.be.bignumber.not.equal(ZERO);
+      //       expect(expectedDebtScore).to.be.bignumber.equal(userDebtScore);
 
-          const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cUSDT_addr);
-          expect(globalDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_USDT);
-        });
+      //       const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cUSDT_addr);
+      //       expect(globalDebtScoreBalance).to.be.bignumber.equal(ONE_HUNDRED_USDT);
+      //     });
 
-        it("borrow WBTC");
-      });
+      //     it("borrow WBTC");
+      //   });
 
-      it("should have score when repay");
+      //   it("should have score when repay");
 
-      it("should have score when withdraw");
+      //   it("should have score when withdraw");
 
-      it("should have score when liquidate");
+      //   it("should have score when liquidate");
 
-      it("should have score when transfer");
+      //   it("should have score when transfer");
 
-      it("should have score when transferFrom");
+      //   it("should have score when transferFrom");
 
-      describe("=> should not update the score when user quit <=", async () => {
-        it("when mint", async () => {
-          await comptroller.refreshCompSpeeds();
+      //   describe("=> should not update the score when user quit <=", async () => {
+      //     it("when mint", async () => {
+      //       await comptroller.refreshCompSpeeds();
 
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
-          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+      //       await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
 
-          // user2 borrow ZRX so that index changes
-          await bETH.mint({ from: a.user2, value: TEN_ETH });
-          await bZRX.borrow(ONE_HUNDRED_ZRX, { from: a.user2 });
+      //       // user2 borrow ZRX so that index changes
+      //       await bETH.mint({ from: a.user2, value: TEN_ETH });
+      //       await bZRX.borrow(ONE_HUNDRED_ZRX, { from: a.user2 });
 
-          await advanceBlockAndRefresh(100);
-          await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
+      //       await advanceBlockAndRefresh(100);
 
-          // mint againt
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       // mint againt
+      //       await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
 
-          await time.increase(50000);
+      //       await time.increase(50000);
 
-          await comptroller.refreshCompSpeeds();
+      //       await comptroller.refreshCompSpeeds();
 
-          let now = await nowTime();
-          const collBalance = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
-          expect(collBalance).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
-          const userCollScore = await score.getCollScore.call(a.user1, cZRX_addr, now, 0);
-          expect(userCollScore).to.be.bignumber.not.equal(ZERO);
+      //       let now = await nowTime();
+      //       const collBalance = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+      //       expect(collBalance).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+      //       const userCollScore = await score.getCollScore.call(a.user1, cZRX_addr, now, 0);
+      //       expect(userCollScore).to.be.bignumber.not.equal(ZERO);
 
-          // user quit
-          expect(await avatar1.quit()).to.be.equal(false);
-          await avatar1.quitB({ from: a.user1 });
-          expect(await avatar1.quit()).to.be.equal(true);
+      //       // user quit
+      //       expect(await avatar1.quit()).to.be.equal(false);
+      //       await avatar1.quitB({ from: a.user1 });
+      //       expect(await avatar1.quit()).to.be.equal(true);
 
-          // user1 get more ZRX from deployer
-          await ZRX.transfer(a.user1, FIVE_HUNDRED_ZRX, { from: a.deployer });
-          // mint again
-          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
-          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       // user1 get more ZRX from deployer
+      //       await ZRX.transfer(a.user1, FIVE_HUNDRED_ZRX, { from: a.deployer });
+      //       // mint again
+      //       await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user1 });
+      //       await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user1 });
 
-          // no change in coll balance
-          const updatedCollBalance = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
-          expect(updatedCollBalance).to.be.bignumber.equal(collBalance);
-          expect(updatedCollBalance).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
-        });
+      //       // no change in coll balance
+      //       const updatedCollBalance = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+      //       expect(updatedCollBalance).to.be.bignumber.equal(collBalance);
+      //       expect(updatedCollBalance).to.be.bignumber.equal(ONE_THOUSAND_ZRX);
+      //     });
 
-        it("when borrow");
+      //     it("when borrow");
 
-        it("when repay");
+      //     it("when repay");
 
-        it("when withdraw");
+      //     it("when withdraw");
 
-        it("when liquidate");
+      //     it("when liquidate");
 
-        it("when transfer");
+      //     it("when transfer");
 
-        it("when transferFrom");
-      });
+      //     it("when transferFrom");
+      //   });
 
-      describe("Integration Tests with Jar", async () => {
-        it("two users, member liquidate one user, Jar balance shared with users");
-      });
+      //   describe("Integration Tests with Jar", async () => {
+      //     it("two users, member liquidate one user, Jar balance shared with users");
+      //   });
     });
   });
 });

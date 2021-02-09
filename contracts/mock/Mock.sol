@@ -7,7 +7,7 @@ pragma solidity 0.5.16;
  */
 import { Comp } from "../../compound-protocol/contracts/Governance/Comp.sol";
 import { Comptroller } from "../../compound-protocol/contracts/Comptroller.sol";
-import { ComptrollerHarness } from "../../compound-protocol/tests/Contracts/ComptrollerHarness.sol";
+import { ComptrollerScenario } from "../../compound-protocol/tests/Contracts/ComptrollerHarness.sol";
 import { CEther } from "../../compound-protocol/contracts/CEther.sol";
 import { CErc20 } from "../../compound-protocol/contracts/CErc20.sol";
 
