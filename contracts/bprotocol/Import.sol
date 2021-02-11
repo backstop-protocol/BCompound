@@ -60,6 +60,7 @@ contract Import is Exponential {
         for(uint i = 0 ; i < cTokenCollateral.length ; i++) {
             ICToken cColl = ICToken(cTokenCollateral[i]);
             uint collBalance = cColl.balanceOf(account);
+            bComptroller.enterMarketOnAvatar(IAvatar(avatar), bComptroller.c2b(address(cColl)));
             IAvatar(avatar).collectCToken(address(cColl), account, collBalance);
         }
     }
@@ -76,6 +77,20 @@ contract Import is Exponential {
             address bTokenDebt = bComptroller.c2b(cTokenDebt[i]);
             require(BErc20(bTokenDebt).borrowOnAvatar(avatar, debt) == 0, "borrowOnAvatar-failed");
         }
+    }
+
+    // this import function should be called if accounts that don't have debt
+    // this is safe only if the owner of the compound account is an EOA    
+    function importCollateral(address[] calldata cTokenCollateral) external {
+        address account = tx.origin;
+        address avatar = registry.getAvatar(account);
+
+        // redeem all non ETH collateral from Compound and deposit it in B
+        _transferCollateral(
+            cTokenCollateral,
+            account,
+            avatar
+        );        
     }
 
     // this is safe only if the owner of the compound account is an EOA
