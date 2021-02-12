@@ -174,12 +174,14 @@ contract BScore is ScoringMachine, Exponential {
         address avatar = registry.avatarOf(_user);
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
         uint score = getScore(user(avatar), collAsset(cToken), time, spinStart, 0);
-        return mul_(score, supplyMultiplier[cToken], deltaSupplyIndex);
+        // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+        return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
 
     function getCollGlobalScore(address cToken, uint256 time, uint256 spinStart) public returns (uint) {
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
         uint score = getScore(GLOBAL_USER, collAsset(cToken), time, spinStart, 0);
-        return mul_(score, supplyMultiplier[cToken], deltaSupplyIndex);
+        // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+        return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
 }
