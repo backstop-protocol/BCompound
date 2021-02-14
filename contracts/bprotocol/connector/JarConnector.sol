@@ -1,6 +1,5 @@
 pragma solidity 0.5.16;
 
-import { IRegistry } from "../interfaces/IRegistry.sol";
 import { IBTokenScore } from "../scoring/IBTokenScore.sol";
 
 /**
@@ -9,13 +8,10 @@ import { IBTokenScore } from "../scoring/IBTokenScore.sol";
 contract JarConnector {
 
     IBTokenScore public score;
-    IRegistry registry;
     address[] public cTokens;
 
-    constructor(address[] memory _cTokens, address _registry) public {
-        require(registry == IRegistry(0), "registry-already-set");
-        registry = IRegistry(_registry);
-        score = IBTokenScore(registry.score());
+    constructor(address[] memory _cTokens, address _score) public {
+        score = IBTokenScore(_score);
 
         cTokens = _cTokens;
     }
