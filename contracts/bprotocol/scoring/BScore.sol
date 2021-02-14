@@ -37,6 +37,7 @@ contract BScore is ScoringMachine, Exponential {
     }
 
     constructor(
+        address _registry,
         uint _startDate,
         uint _endDate,
         address[] memory cTokens,
@@ -44,6 +45,10 @@ contract BScore is ScoringMachine, Exponential {
         uint[] memory bMultipliers
     ) public {
         require(_endDate > now, "Score: end-date-not-in-future");
+
+        registry = IRegistry(_registry);
+        comptroller = IComptroller(registry.comptroller());
+
         startDate = _startDate;
         endDate = _endDate;
         for(uint i = 0; i < cTokens.length; i++) {
@@ -56,12 +61,6 @@ contract BScore is ScoringMachine, Exponential {
         }
 
         _updateIndex(cTokens, true);        
-    }
-
-    function setRegistry(address _registry) public onlyOwner {
-        require(address(registry) == address(0), "Score: registry-already-set");
-        registry = IRegistry(_registry);
-        comptroller = IComptroller(registry.comptroller());
     }
 
     // Create Asset ID
