@@ -643,11 +643,13 @@ contract("BScore", async (accounts) => {
           compSupplyState = await comptroller.compSupplyState(cZRX_addr);
           const currCompSupplyIndex = compSupplyState["index"];
 
+          await score.updateIndex(cTokens);
           //   console.log("compSupplyState[cZRX].block: " + supplyState["block"]);
           //   console.log("compSupplyState[cZRX].index: " + compSupplyState["index"]);
           //   console.log("cZRX totalSupply: " + (await cZRX.totalSupply()).toString());
           const now = await nowTime();
           const userCollScore = await score.getCollScore(a.user1, cZRX_addr, now);
+          expect(userCollScore).to.be.bignumber.not.equal(ZERO);
           const user = await score.user(avatar1);
           const collAsset = await score.collAsset(cZRX_addr);
           const userScore = await score.getScore(user, collAsset, now, 0, 0);
