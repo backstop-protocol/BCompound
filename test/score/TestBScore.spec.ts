@@ -385,6 +385,8 @@ contract("BScore", async (accounts) => {
 
       // MAINNET
       await setMainnetTokenPrice();
+
+      await comptroller.refreshCompSpeeds();
     });
 
     describe("BScore.init()", async () => {
@@ -398,7 +400,6 @@ contract("BScore", async (accounts) => {
           supplyMultipliers,
           borrowMultipliers,
         );
-        await score.updateIndex(cTokens);
 
         expect(await newScore.registry()).to.be.equal(registry.address);
         expect(await newScore.endDate()).to.be.bignumber.equal(endDate);
@@ -408,6 +409,23 @@ contract("BScore", async (accounts) => {
           expect(await newScore.supplyMultiplier(cTokenAddr)).to.be.bignumber.equal(new BN(1));
           expect(await newScore.borrowMultiplier(cTokenAddr)).to.be.bignumber.equal(new BN(1));
 
+          const initSnapshot = await newScore.initialSnapshot(cTokenAddr);
+          const cToken = await CToken.at(cTokenAddr);
+          const expectedExchangeRate = await cToken.exchangeRateCurrent.call();
+          const borrowState = await comptroller.compBorrowState(cTokenAddr);
+          const supplyState = await comptroller.compSupplyState(cTokenAddr);
+          const expectedBorrowIndex = borrowState["index"];
+          const expectedSupplyIndex = supplyState["index"];
+
+          expect(expectedExchangeRate).to.be.bignumber.equal(initSnapshot["exchangeRate"]);
+          expect(expectedSupplyIndex).to.be.bignumber.equal(initSnapshot["supplyIndex"]);
+          expect(expectedBorrowIndex).to.be.bignumber.equal(initSnapshot["borrowIndex"]);
+        }
+
+        await newScore.updateIndex(cTokens);
+
+        for (let i = 0; i < cTokens.length; i++) {
+          const cTokenAddr = cTokens[i];
           const snapshot = await newScore.snapshot(cTokenAddr);
           const cToken = await CToken.at(cTokenAddr);
           const expectedExchangeRate = await cToken.exchangeRateCurrent.call();
@@ -421,66 +439,52 @@ contract("BScore", async (accounts) => {
           expect(expectedBorrowIndex).to.be.bignumber.equal(snapshot["borrowIndex"]);
         }
       });
-      /*
-      it("should fail when registry not set", async () => {
-        const newScore = await BScore.new();
-        await expectRevert(
-          newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers),
-          "Score: registry-not-set",
-        );
-      });
-
-      it("cannot call init again", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-        await newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
-
-        await expectRevert(
-          newScore.init(endDate, cTokens, supplyMultipliers, borrowMultipliers),
-          "Score: already-init",
-        );
-      });
 
       it("should fail when endDate is not in the future", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
         const now = new BN((await web3.eth.getBlock("latest")).timestamp);
         await expectRevert(
-          newScore.init(now, cTokens, supplyMultipliers, borrowMultipliers),
+          BScore.new(registry.address, now, now, cTokens, supplyMultipliers, borrowMultipliers),
           "Score: end-date-not-in-future",
         );
       });
 
       it("should fail when cToken address is zero", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-
+        const now = new BN((await web3.eth.getBlock("latest")).timestamp);
         await expectRevert(
-          newScore.init(endDate, [ZERO_ADDRESS], [new BN(1)], [new BN(1)]),
+          BScore.new(registry.address, now, endDate, [ZERO_ADDRESS], [new BN(1)], [new BN(1)]),
           "Score: cToken-address-is-zero",
         );
       });
 
       it("should fail when supplyMultiplier is zero", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-
+        const now = new BN((await web3.eth.getBlock("latest")).timestamp);
         await expectRevert(
-          newScore.init(endDate, [compoundUtil.getContracts("cETH")], [new BN(0)], [new BN(1)]),
+          BScore.new(
+            registry.address,
+            now,
+            endDate,
+            [compoundUtil.getContracts("cETH")],
+            [new BN(0)],
+            [new BN(1)],
+          ),
           "Score: supply-multiplier-is-zero",
         );
       });
 
       it("should fail when borrowMultiplier is zero", async () => {
-        const newScore = await BScore.new();
-        await newScore.setRegistry(registry.address);
-
+        const now = new BN((await web3.eth.getBlock("latest")).timestamp);
         await expectRevert(
-          newScore.init(endDate, [compoundUtil.getContracts("cETH")], [new BN(1)], [new BN(0)]),
+          BScore.new(
+            registry.address,
+            now,
+            endDate,
+            [compoundUtil.getContracts("cETH")],
+            [new BN(1)],
+            [new BN(0)],
+          ),
           "Score: borrow-multiplier-is-zero",
         );
       });
-      */
     });
 
     describe("BScore.user()", async () => {
@@ -585,6 +589,7 @@ contract("BScore", async (accounts) => {
               compSupplyState["index"],
               "not have index for cToken:" + name,
             ).to.be.bignumber.not.equal(ZERO);
+
             expect(
               compSupplyState["block"],
               "zero block for cToken:" + name,
@@ -654,7 +659,6 @@ contract("BScore", async (accounts) => {
           const collAsset = await score.collAsset(cZRX_addr);
           const userScore = await score.getScore(user, collAsset, now, 0, 0);
           expect(userScore).to.be.bignumber.not.equal(ZERO);
-          expect(userScore).to.be.bignumber.equal(_500USD_ZRX);
           //   console.log("userScore:" + userScore.toString());
 
           const supplyMultiplier = await score.supplyMultiplier(cZRX_addr);
@@ -696,210 +700,212 @@ contract("BScore", async (accounts) => {
           const globalScoreBal = await getGlobalCollScoreBalance(cZRX_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_ZRX);
         });
+        /*
+        it("mint ETH", async () => {
+          let compSupplyState = await comptroller.compSupplyState(cETH_addr);
+          const prevCompSupplyIndex = compSupplyState["index"];
+          //   console.log(prevCompSupplyIndex.toString());
 
-        // it("mint ETH", async () => {
-        //   let compSupplyState = await comptroller.compSupplyState(cETH_addr);
-        //   const prevCompSupplyIndex = compSupplyState["index"];
-        //   //   console.log(prevCompSupplyIndex.toString());
+          // user1 mint
+          const _500USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(500));
+          await bETH.mint({ from: a.user1, value: _500USD_ETH });
+          const avatar1 = await registry.avatarOf(a.user1);
 
-        //   // user1 mint
-        //   const _500USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(500));
-        //   await bETH.mint({ from: a.user1, value: _500USD_ETH });
-        //   const avatar1 = await registry.avatarOf(a.user1);
+          // user2 borrow ETH so that index changes
+          await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user2 });
+          await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user2 });
+          await bETH.borrow(ONE_ETH.div(new BN(4)), { from: a.user2 });
 
-        //   // user2 borrow ETH so that index changes
-        //   await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user2 });
-        //   await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user2 });
-        //   await bETH.borrow(ONE_ETH.div(new BN(4)), { from: a.user2 });
+          await advanceBlockInCompound(200);
 
-        //   await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
 
-        //   await setMainnetCompSpeeds();
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cETH_addr, avatar1, ONE_ETH);
 
-        //   // just trigger supply index recalculation
-        //   await comptroller.mintAllowed(cETH_addr, avatar1, ONE_ETH);
+          await time.increase(ONE_MONTH);
 
-        //   await time.increase(ONE_MONTH);
+          expect(await comptroller.compSpeeds(cETH_addr)).to.be.bignumber.equal(
+            cETH_COMP_SPEEDS_MAINNET,
+          );
+          compSupplyState = await comptroller.compSupplyState(cETH_addr);
+          const currCompSupplyIndex = compSupplyState["index"];
 
-        //   expect(await comptroller.compSpeeds(cETH_addr)).to.be.bignumber.equal(
-        //     cETH_COMP_SPEEDS_MAINNET,
-        //   );
-        //   compSupplyState = await comptroller.compSupplyState(cETH_addr);
-        //   const currCompSupplyIndex = compSupplyState["index"];
+          console.log("cETH.totalSupply:" + (await cETH.totalSupply()).toString());
+          const now = await nowTime();
+          const userCollScore = await score.getCollScore(a.user1, cETH_addr, now);
+          const user = await score.user(avatar1);
+          const collAsset = await score.collAsset(cETH_addr);
+          const userScore = await score.getScore(user, collAsset, now, 0, 0);
+          expect(userScore).to.be.bignumber.not.equal(ZERO);
 
-        //   console.log("cETH.totalSupply:" + (await cETH.totalSupply()).toString());
-        //   const now = await nowTime();
-        //   const userCollScore = await score.getCollScore(a.user1, cETH_addr, now);
-        //   const user = await score.user(avatar1);
-        //   const collAsset = await score.collAsset(cETH_addr);
-        //   const userScore = await score.getScore(user, collAsset, now, 0, 0);
-        //   expect(userScore).to.be.bignumber.not.equal(ZERO);
+          const supplyMultiplier = await score.supplyMultiplier(cETH_addr);
+          // ETH supplyMultiplier is 5
+          expect(supplyMultiplier).to.be.bignumber.equal(new BN(5));
+          //   console.log("currCompSupplyIndex: " + currCompSupplyIndex.toString());
+          //   console.log("borrowRatePerBlock: " + (await cETH.borrowRatePerBlock()).toString());
+          //   console.log("totalBorrows: " + (await cETH.totalBorrows()).toString());
+          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+          const actualDeltaSupplyIndex = currCompSupplyIndex.sub(prevCompSupplyIndex);
+          console.log("actualDeltaIndex: " + actualDeltaSupplyIndex.toString());
+          const deltaSupplyIndex = currCompSupplyIndex
+            .sub(prevCompSupplyIndex)
+            .mul(ONE_ETH)
+            .div(await cETH.exchangeRateCurrent.call());
+          // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+          const expectedCollScore = supplyMultiplier
+            .mul(deltaSupplyIndex)
+            .div(SCALE)
+            .mul(userScore);
+          console.log("Score deltaSupplyIndex: " + deltaSupplyIndex.toString());
 
-        //   const supplyMultiplier = await score.supplyMultiplier(cETH_addr);
-        //   // ETH supplyMultiplier is 5
-        //   expect(supplyMultiplier).to.be.bignumber.equal(new BN(5));
-        //   //   console.log("currCompSupplyIndex: " + currCompSupplyIndex.toString());
-        //   //   console.log("borrowRatePerBlock: " + (await cETH.borrowRatePerBlock()).toString());
-        //   //   console.log("totalBorrows: " + (await cETH.totalBorrows()).toString());
-        //   expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
-        //   const actualDeltaSupplyIndex = currCompSupplyIndex.sub(prevCompSupplyIndex);
-        //   console.log("actualDeltaIndex: " + actualDeltaSupplyIndex.toString());
-        //   const deltaSupplyIndex = currCompSupplyIndex
-        //     .sub(prevCompSupplyIndex)
-        //     .mul(ONE_ETH)
-        //     .div(await cETH.exchangeRateCurrent.call());
-        //   // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
-        //   const expectedCollScore = supplyMultiplier
-        //     .mul(deltaSupplyIndex)
-        //     .div(SCALE)
-        //     .mul(userScore);
-        //   console.log("Score deltaSupplyIndex: " + deltaSupplyIndex.toString());
+          console.log("expectedCollScore: " + expectedCollScore.toString());
+          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+          //   console.log(userScore.toString());
 
-        //   console.log("expectedCollScore: " + expectedCollScore.toString());
-        //   expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
-        //   expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
-        //   //   console.log(userScore.toString());
+          const globalCollScore = await score.getCollGlobalScore(cETH_addr, now);
+          expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
 
-        //   const globalCollScore = await score.getCollGlobalScore(cETH_addr, now);
-        //   expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
+          const userScoreBal = await getCurrentCollScoreBalance(avatar1, cETH_addr);
+          expect(userScoreBal).to.be.bignumber.equal(_500USD_ETH);
 
-        //   const userScoreBal = await getCurrentCollScoreBalance(avatar1, cETH_addr);
-        //   expect(userScoreBal).to.be.bignumber.equal(_500USD_ETH);
+          const globalScoreBal = await getGlobalCollScoreBalance(cETH_addr);
+          expect(globalScoreBal).to.be.bignumber.equal(_500USD_ETH);
+        });
 
-        //   const globalScoreBal = await getGlobalCollScoreBalance(cETH_addr);
-        //   expect(globalScoreBal).to.be.bignumber.equal(_500USD_ETH);
-        // });
+        it("mint USDT", async () => {
+          let compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
+          const prevCompSupplyIndex = compSupplyState["index"];
 
-        // it("mint USDT", async () => {
-        //   let compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
-        //   const prevCompSupplyIndex = compSupplyState["index"];
+          const _500USD_USDT = ONE_USD_WO_USDT_MAINNET.mul(new BN(500));
+          await USDT.approve(bUSDT_addr, _500USD_USDT, { from: a.user1 });
+          await bUSDT.mint(_500USD_USDT, { from: a.user1 });
+          const avatar1 = await registry.avatarOf(a.user1);
 
-        //   const _500USD_USDT = ONE_USD_WO_USDT_MAINNET.mul(new BN(500));
-        //   await USDT.approve(bUSDT_addr, _500USD_USDT, { from: a.user1 });
-        //   await bUSDT.mint(_500USD_USDT, { from: a.user1 });
-        //   const avatar1 = await registry.avatarOf(a.user1);
+          // user2 borrow USDT so that index changes
+          await bETH.mint({ from: a.user2, value: TEN_ETH });
+          await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user2 });
 
-        //   // user2 borrow USDT so that index changes
-        //   await bETH.mint({ from: a.user2, value: TEN_ETH });
-        //   await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user2 });
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
 
-        //   await advanceBlockInCompound(200);
-        //   await setMainnetCompSpeeds();
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cUSDT_addr, avatar1, ONE_USDT);
 
-        //   // just trigger supply index recalculation
-        //   await comptroller.mintAllowed(cUSDT_addr, avatar1, ONE_USDT);
+          await time.increase(ONE_MONTH);
 
-        //   await time.increase(ONE_MONTH);
+          expect(await comptroller.compSpeeds(cUSDT_addr)).to.be.bignumber.equal(
+            cUSDT_COMP_SPEEDS_MAINNET,
+          );
+          compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
+          const currCompSupplyIndex = compSupplyState["index"];
+          const now = await nowTime();
+          const userCollScore = await score.getCollScore(a.user1, cUSDT_addr, now);
+          const user = await score.user(avatar1);
+          const collAsset = await score.collAsset(cUSDT_addr);
+          const userScore = await score.getScore(user, collAsset, now, 0, 0);
+          expect(userScore).to.be.bignumber.not.equal(ZERO);
 
-        //   expect(await comptroller.compSpeeds(cUSDT_addr)).to.be.bignumber.equal(
-        //     cUSDT_COMP_SPEEDS_MAINNET,
-        //   );
-        //   compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
-        //   const currCompSupplyIndex = compSupplyState["index"];
-        //   const now = await nowTime();
-        //   const userCollScore = await score.getCollScore(a.user1, cUSDT_addr, now);
-        //   const user = await score.user(avatar1);
-        //   const collAsset = await score.collAsset(cUSDT_addr);
-        //   const userScore = await score.getScore(user, collAsset, now, 0, 0);
-        //   expect(userScore).to.be.bignumber.not.equal(ZERO);
+          const supplyMultiplier = await score.supplyMultiplier(cUSDT_addr);
+          // USDT supplyMultiplier is 3
+          expect(supplyMultiplier).to.be.bignumber.equal(new BN(3));
+          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
 
-        //   const supplyMultiplier = await score.supplyMultiplier(cUSDT_addr);
-        //   // USDT supplyMultiplier is 3
-        //   expect(supplyMultiplier).to.be.bignumber.equal(new BN(3));
-        //   expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+          // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+          const deltaSupplyIndex = currCompSupplyIndex
+            .sub(prevCompSupplyIndex)
+            .mul(ONE_ETH)
+            .div(await cUSDT.exchangeRateCurrent.call());
+          console.log("Score deltaSupplyIndex: " + deltaSupplyIndex.toString());
 
-        //   // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
-        //   const deltaSupplyIndex = currCompSupplyIndex
-        //     .sub(prevCompSupplyIndex)
-        //     .mul(ONE_ETH)
-        //     .div(await cUSDT.exchangeRateCurrent.call());
-        //   console.log("Score deltaSupplyIndex: " + deltaSupplyIndex.toString());
+          const expectedCollScore = supplyMultiplier
+            .mul(deltaSupplyIndex)
+            .div(SCALE)
+            .mul(userScore);
 
-        //   const expectedCollScore = supplyMultiplier
-        //     .mul(deltaSupplyIndex)
-        //     .div(SCALE)
-        //     .mul(userScore);
+          console.log("expectedCollScore: " + expectedCollScore.toString());
+          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
 
-        //   console.log("expectedCollScore: " + expectedCollScore.toString());
-        //   expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
-        //   expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+          const globalCollScore = await score.getCollGlobalScore(cUSDT_addr, now);
+          expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
 
-        //   const globalCollScore = await score.getCollGlobalScore(cUSDT_addr, now);
-        //   expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
+          const userScoreBal = await getCurrentCollScoreBalance(avatar1, cUSDT_addr);
+          expect(userScoreBal).to.be.bignumber.equal(_500USD_USDT);
 
-        //   const userScoreBal = await getCurrentCollScoreBalance(avatar1, cUSDT_addr);
-        //   expect(userScoreBal).to.be.bignumber.equal(_500USD_USDT);
+          const globalScoreBal = await getGlobalCollScoreBalance(cUSDT_addr);
+          expect(globalScoreBal).to.be.bignumber.equal(_500USD_USDT);
+        });
 
-        //   const globalScoreBal = await getGlobalCollScoreBalance(cUSDT_addr);
-        //   expect(globalScoreBal).to.be.bignumber.equal(_500USD_USDT);
-        // });
+        it("mint WBTC", async () => {
+          let compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
+          const prevCompSupplyIndex = compSupplyState["index"];
 
-        // it("mint WBTC", async () => {
-        //   let compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
-        //   const prevCompSupplyIndex = compSupplyState["index"];
+          const _500USD_WBTC = ONE_USD_WO_WBTC_MAINNET.mul(new BN(500));
+          await WBTC.approve(bWBTC_addr, _500USD_WBTC, { from: a.user1 });
+          await bWBTC.mint(_500USD_WBTC, { from: a.user1 });
+          const avatar1 = await registry.avatarOf(a.user1);
 
-        //   const _500USD_WBTC = ONE_USD_WO_WBTC_MAINNET.mul(new BN(500));
-        //   await WBTC.approve(bWBTC_addr, _500USD_WBTC, { from: a.user1 });
-        //   await bWBTC.mint(_500USD_WBTC, { from: a.user1 });
-        //   const avatar1 = await registry.avatarOf(a.user1);
+          // user2 borrow WBTC so that index changes
+          const POINT_ZERO_ONE = POINT_ONE_WBTC.div(new BN(10)); // $100
+          await bETH.mint({ from: a.user2, value: TEN_ETH });
+          await bWBTC.borrow(POINT_ZERO_ONE, { from: a.user2 });
 
-        //   // user2 borrow WBTC so that index changes
-        //   const POINT_ZERO_ONE = POINT_ONE_WBTC.div(new BN(10)); // $100
-        //   await bETH.mint({ from: a.user2, value: TEN_ETH });
-        //   await bWBTC.borrow(POINT_ZERO_ONE, { from: a.user2 });
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
 
-        //   await advanceBlockInCompound(200);
-        //   await setMainnetCompSpeeds();
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cWBTC_addr, avatar1, POINT_ZERO_ONE);
 
-        //   // just trigger supply index recalculation
-        //   await comptroller.mintAllowed(cWBTC_addr, avatar1, POINT_ZERO_ONE);
+          await time.increase(ONE_MONTH);
 
-        //   await time.increase(ONE_MONTH);
+          expect(await comptroller.compSpeeds(cWBTC_addr)).to.be.bignumber.equal(
+            cWBTC_COMP_SPEEDS_MAINNET,
+          );
+          compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
+          const currCompSupplyIndex = compSupplyState["index"];
+          const now = await nowTime();
+          const userCollScore = await score.getCollScore(a.user1, cWBTC_addr, now);
+          const user = await score.user(avatar1);
+          const collAsset = await score.collAsset(cWBTC_addr);
+          const userScore = await score.getScore(user, collAsset, now, 0, 0);
+          expect(userScore).to.be.bignumber.not.equal(ZERO);
 
-        //   expect(await comptroller.compSpeeds(cWBTC_addr)).to.be.bignumber.equal(
-        //     cWBTC_COMP_SPEEDS_MAINNET,
-        //   );
-        //   compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
-        //   const currCompSupplyIndex = compSupplyState["index"];
-        //   const now = await nowTime();
-        //   const userCollScore = await score.getCollScore(a.user1, cWBTC_addr, now);
-        //   const user = await score.user(avatar1);
-        //   const collAsset = await score.collAsset(cWBTC_addr);
-        //   const userScore = await score.getScore(user, collAsset, now, 0, 0);
-        //   expect(userScore).to.be.bignumber.not.equal(ZERO);
+          const supplyMultiplier = await score.supplyMultiplier(cWBTC_addr);
+          // WBTC supplyMultiplier is 5
+          expect(supplyMultiplier).to.be.bignumber.equal(new BN(5));
+          //   console.log(prevCompSupplyIndex.toString());
+          //   console.log(currCompSupplyIndex.toString());
 
-        //   const supplyMultiplier = await score.supplyMultiplier(cWBTC_addr);
-        //   // WBTC supplyMultiplier is 5
-        //   expect(supplyMultiplier).to.be.bignumber.equal(new BN(5));
-        //   //   console.log(prevCompSupplyIndex.toString());
-        //   //   console.log(currCompSupplyIndex.toString());
+          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+          const deltaSupplyIndex = currCompSupplyIndex
+            .sub(prevCompSupplyIndex)
+            .mul(ONE_ETH)
+            .div(await cWBTC.exchangeRateCurrent.call());
+          // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+          const expectedCollScore = supplyMultiplier
+            .mul(deltaSupplyIndex)
+            .div(SCALE)
+            .mul(userScore);
+          console.log("deltaSupplyIndex: " + deltaSupplyIndex.toString());
 
-        //   expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
-        //   const deltaSupplyIndex = currCompSupplyIndex
-        //     .sub(prevCompSupplyIndex)
-        //     .mul(ONE_ETH)
-        //     .div(await cWBTC.exchangeRateCurrent.call());
-        //   // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
-        //   const expectedCollScore = supplyMultiplier
-        //     .mul(deltaSupplyIndex)
-        //     .div(SCALE)
-        //     .mul(userScore);
-        //   console.log("deltaSupplyIndex: " + deltaSupplyIndex.toString());
+          console.log("expectedCollScore: " + expectedCollScore.toString());
+          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
 
-        //   console.log("expectedCollScore: " + expectedCollScore.toString());
-        //   expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
-        //   expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+          const globalCollScore = await score.getCollGlobalScore(cWBTC_addr, now);
+          expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
 
-        //   const globalCollScore = await score.getCollGlobalScore(cWBTC_addr, now);
-        //   expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
+          const userScoreBal = await getCurrentCollScoreBalance(avatar1, cWBTC_addr);
+          expect(userScoreBal).to.be.bignumber.equal(_500USD_WBTC);
 
-        //   const userScoreBal = await getCurrentCollScoreBalance(avatar1, cWBTC_addr);
-        //   expect(userScoreBal).to.be.bignumber.equal(_500USD_WBTC);
-
-        //   const globalScoreBal = await getGlobalCollScoreBalance(cWBTC_addr);
-        //   expect(globalScoreBal).to.be.bignumber.equal(_500USD_WBTC);
-        // });
+          const globalScoreBal = await getGlobalCollScoreBalance(cWBTC_addr);
+          expect(globalScoreBal).to.be.bignumber.equal(_500USD_WBTC);
+        });
+        */
       });
+
       /*
       describe("should have score when user borrow", async () => {
         it("borrow ZRX", async () => {

@@ -96,9 +96,9 @@ contract BScore is ScoringMachine, Exponential {
     }
 
     function _updateIndex(address[] memory cTokens, bool init) internal {
+        require(endDate > now, "Score: expired");
         for(uint i = 0 ; i < cTokens.length ; i++) {
             address cToken = cTokens[i];
-            require(endDate > now, "Score: expired");
             uint224 supplyIndex;
             uint224 borrowIndex;
             uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
@@ -184,7 +184,8 @@ contract BScore is ScoringMachine, Exponential {
     function getDebtGlobalScore(address cToken, uint256 time) public view returns (uint) {
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
         uint score = getScore(GLOBAL_USER, debtAsset(cToken), time, start, 0);
-        return mul_(score, borrowMultiplier[cToken], deltaBorrowIndex);
+        // (borrowMultiplier[cToken] * deltaBorrowIndex / 1e18) * score
+        return mul_(div_(mul_(borrowMultiplier[cToken], deltaBorrowIndex), expScale), score);
     }
 
     function getCollScore(address _user, address cToken, uint256 time) public view returns (uint) {
@@ -198,6 +199,7 @@ contract BScore is ScoringMachine, Exponential {
     function getCollGlobalScore(address cToken, uint256 time) public view returns (uint) {
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
         uint score = getScore(GLOBAL_USER, collAsset(cToken), time, start, 0);
-        return mul_(score, supplyMultiplier[cToken], deltaSupplyIndex);
+        // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+        return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
 }
