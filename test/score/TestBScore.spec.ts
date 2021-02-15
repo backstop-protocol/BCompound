@@ -700,7 +700,7 @@ contract("BScore", async (accounts) => {
           const globalScoreBal = await getGlobalCollScoreBalance(cZRX_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_ZRX);
         });
-        /*
+
         it("mint ETH", async () => {
           let compSupplyState = await comptroller.compSupplyState(cETH_addr);
           const prevCompSupplyIndex = compSupplyState["index"];
@@ -732,6 +732,7 @@ contract("BScore", async (accounts) => {
           const currCompSupplyIndex = compSupplyState["index"];
 
           console.log("cETH.totalSupply:" + (await cETH.totalSupply()).toString());
+          await score.updateIndex(cTokens);
           const now = await nowTime();
           const userCollScore = await score.getCollScore(a.user1, cETH_addr, now);
           const user = await score.user(avatar1);
@@ -800,6 +801,7 @@ contract("BScore", async (accounts) => {
           );
           compSupplyState = await comptroller.compSupplyState(cUSDT_addr);
           const currCompSupplyIndex = compSupplyState["index"];
+          await score.updateIndex(cTokens);
           const now = await nowTime();
           const userCollScore = await score.getCollScore(a.user1, cUSDT_addr, now);
           const user = await score.user(avatar1);
@@ -865,6 +867,7 @@ contract("BScore", async (accounts) => {
           );
           compSupplyState = await comptroller.compSupplyState(cWBTC_addr);
           const currCompSupplyIndex = compSupplyState["index"];
+          await score.updateIndex(cTokens);
           const now = await nowTime();
           const userCollScore = await score.getCollScore(a.user1, cWBTC_addr, now);
           const user = await score.user(avatar1);
@@ -903,7 +906,6 @@ contract("BScore", async (accounts) => {
           const globalScoreBal = await getGlobalCollScoreBalance(cWBTC_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_WBTC);
         });
-        */
       });
 
       /*
