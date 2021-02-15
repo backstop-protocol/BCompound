@@ -119,7 +119,7 @@ contract BScore is ScoringMachine, Exponential {
     }
 
     function _getDeltaSupplyIndex(address cToken) internal view returns (uint224 deltaSupplyIndex) {
-        uint224 currSupplyIndex = initialSnapshot[cToken].supplyIndex;
+        uint224 currSupplyIndex = snapshot[cToken].supplyIndex;
         uint deltaSupplyIndexForCToken = sub_(uint(currSupplyIndex), uint(initialSnapshot[cToken].supplyIndex));
 
         // NOTICE: supplyIndex takes cToken.totalSupply() which is in cToken quantity
@@ -138,7 +138,7 @@ contract BScore is ScoringMachine, Exponential {
     }
 
     function _getDeltaBorrowIndex(address cToken) internal view returns (uint224 deltaBorrowIndex) {
-        uint224 currBorrowIndex = initialSnapshot[cToken].borrowIndex;
+        uint224 currBorrowIndex = snapshot[cToken].borrowIndex;
         deltaBorrowIndex = safe224(
             sub_(uint(currBorrowIndex), uint(initialSnapshot[cToken].borrowIndex)),
             "unable-to-cast-to-uint224"
@@ -177,7 +177,8 @@ contract BScore is ScoringMachine, Exponential {
         address avatar = registry.avatarOf(_user);
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
         uint score = getScore(user(avatar), debtAsset(cToken), time, start, 0);
-        return mul_(score, borrowMultiplier[cToken], deltaBorrowIndex);
+        // (borrowMultiplier[cToken] * deltaBorrowIndex / 1e18) * score
+        return mul_(div_(mul_(borrowMultiplier[cToken], deltaBorrowIndex), expScale), score);
     }
 
     function getDebtGlobalScore(address cToken, uint256 time) public view returns (uint) {
@@ -190,7 +191,8 @@ contract BScore is ScoringMachine, Exponential {
         address avatar = registry.avatarOf(_user);
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
         uint score = getScore(user(avatar), collAsset(cToken), time, start, 0);
-        return mul_(score, supplyMultiplier[cToken], deltaSupplyIndex);
+        // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+        return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
 
     function getCollGlobalScore(address cToken, uint256 time) public view returns (uint) {

@@ -101,7 +101,6 @@ export class BProtocolEngine {
     _bProtocol.pool = await this.deployPool();
     _bProtocol.bComptroller = await this.deployBComptroller();
     _bProtocol.registry = await this.deployRegistry();
-    console.log(_bProtocol.registry.address);
     _bProtocol.score = await this.deployScore();
     _bProtocol.jarConnector = await this.deployJarConnector();
 
@@ -180,7 +179,6 @@ export class BProtocolEngine {
     supplyMultipliers[4] = new BN(5); // 5x
     borrowMultipliers[4] = new BN(10); // 10x
 
-    console.log(this.bProtocol.registry.address);
     const score = await BScore.new(
       this.bProtocol.registry.address,
       now,
@@ -190,6 +188,7 @@ export class BProtocolEngine {
       borrowMultipliers,
     );
     await score.spin();
+    await score.updateIndex(cTokens);
     return score;
   }
 
