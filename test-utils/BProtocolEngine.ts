@@ -98,17 +98,16 @@ export class BProtocolEngine {
     const _bProtocol = this.bProtocol;
     _bProtocol.jar = this.accounts[5]; // TODO
 
-    _bProtocol.score = await this.deployScore();
     _bProtocol.pool = await this.deployPool();
     _bProtocol.bComptroller = await this.deployBComptroller();
     _bProtocol.registry = await this.deployRegistry();
+    console.log(_bProtocol.registry.address);
+    _bProtocol.score = await this.deployScore();
     _bProtocol.jarConnector = await this.deployJarConnector();
 
     await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
-    await _bProtocol.score.setRegistry(_bProtocol.registry.address);
-    await this.initScore();
     await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
-    await _bProtocol.jarConnector.setRegistry(_bProtocol.registry.address);
+    await _bProtocol.registry.setScore(_bProtocol.score.address);
 
     _bProtocol.compound = new Compound();
     _bProtocol.compound.comptroller = await Comptroller.at(this.compoundUtil.getComptroller());
@@ -130,7 +129,7 @@ export class BProtocolEngine {
       this.compoundUtil.getContracts("cBAT"),
       this.compoundUtil.getContracts("cUSDT"),
     ];
-    return await JarConnector.new(cTokens);
+    return await JarConnector.new(cTokens, this.bProtocol.score.address);
   }
 
   // Deploy Pool contract
@@ -147,7 +146,7 @@ export class BProtocolEngine {
     return pool;
   }
 
-  private async initScore() {
+  private async deployScore() {
     const now = new BN((await web3.eth.getBlock("latest")).timestamp);
     const duration = new BN(6).mul(ONE_MONTH); // 1 month = 4 weeks
 
@@ -181,12 +180,17 @@ export class BProtocolEngine {
     supplyMultipliers[4] = new BN(5); // 5x
     borrowMultipliers[4] = new BN(10); // 10x
 
-    await this.bProtocol.score.init(endDate, cTokens, supplyMultipliers, borrowMultipliers);
-    await this.bProtocol.score.spin();
-  }
-
-  private async deployScore(): Promise<b.BScoreInstance> {
-    return await BScore.new();
+    console.log(this.bProtocol.registry.address);
+    const score = await BScore.new(
+      this.bProtocol.registry.address,
+      now,
+      endDate,
+      cTokens,
+      supplyMultipliers,
+      borrowMultipliers,
+    );
+    await score.spin();
+    return score;
   }
 
   // Deploy BComptroller contract
@@ -201,17 +205,8 @@ export class BProtocolEngine {
     const cETH = this.compoundUtil.getContracts("cETH");
     const pool = this.bProtocol.pool;
     const bComptroller = this.bProtocol.bComptroller.address;
-    const bScore = this.bProtocol.score.address;
     const compVoter = this.getCompVoterAddress();
-    return await Registry.new(
-      comptroller,
-      comp,
-      cETH,
-      pool.address,
-      bComptroller,
-      bScore,
-      compVoter,
-    );
+    return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, compVoter);
   }
 
   public getBProtocol(): BProtocol {

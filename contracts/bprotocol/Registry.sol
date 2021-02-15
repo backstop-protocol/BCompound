@@ -58,7 +58,6 @@ contract Registry is Ownable {
         address _cEther,
         address _pool,
         address _bComptroller,
-        address _score,
         address _compVoter
     )
         public
@@ -68,7 +67,6 @@ contract Registry is Ownable {
         cEther = _cEther;
         pool = _pool;
         bComptroller = _bComptroller;
-        score = _score;
         compVoter = _compVoter;
 
         avatarImpl = address(new Avatar());
