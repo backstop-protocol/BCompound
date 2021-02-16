@@ -4,9 +4,10 @@ import { BAccounts } from "../../test-utils/BAccounts";
 import { takeSnapshot, revertToSnapShot } from "../../test-utils/SnapshotUtils";
 
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
-const { balance, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
+const { balance, expectEvent, expectRevert, time, send } = require("@openzeppelin/test-helpers");
 import BN from "bn.js";
 import { CompoundUtils } from "@utils/CompoundUtils";
+import { toWei } from "web3-utils";
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -29,6 +30,7 @@ contract("BScore", async (accounts) => {
   let score: b.BScoreInstance;
   let compoundUtil: CompoundUtils;
   let priceOracle: b.FakePriceOracleInstance;
+  let jar: b.CompoundJarInstance;
   let jarConnector: b.JarConnectorInstance;
   const a: BAccounts = new BAccounts(accounts);
   const engine = new BProtocolEngine(accounts);
@@ -47,6 +49,7 @@ contract("BScore", async (accounts) => {
     bProtocol = await engine.deployBProtocol();
     registry = bProtocol.registry;
     score = bProtocol.score;
+    jar = bProtocol.jar;
     jarConnector = bProtocol.jarConnector;
     comptroller = bProtocol.compound.comptroller;
     compoundUtil = bProtocol.compound.compoundUtil;
@@ -1263,7 +1266,13 @@ contract("BScore", async (accounts) => {
         });
       });
 
-      //   it("should have score when liquidate");
+      describe("should have score when member liquidate", async () => {
+        it("liquidate ZRX");
+
+        it("liquidate ETH");
+
+        it("liquidate WBTC");
+      });
 
       describe("should have score when transfer", async () => {
         it("transfer ZRX", async () => {
@@ -1595,14 +1604,13 @@ contract("BScore", async (accounts) => {
           console.log("dummy1CollScore: " + dummy1CollScore.toString());
           expect(dummy1CollScore).to.be.bignumber.not.equal(ZERO);
 
-          /*
-          const userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1, cWBTC_addr);
-          expectInRange(userScoreBalUser1, _500USD_WBTC.sub(_100USD_WBTC), 1);
-          
-          const avatarDummy1 = await registry.avatarOf(a.dummy1);
-          const userScoreBalDummy1 = await getCurrentCollScoreBalance(avatarDummy1, cWBTC_addr);
-          expectInRange(userScoreBalDummy1, _100USD_WBTC, 1);
-          */
+          //   const userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1, cWBTC_addr);
+          //   expectInRange(userScoreBalUser1, _500USD_WBTC.sub(_100USD_WBTC), 1);
+
+          //   const avatarDummy1 = await registry.avatarOf(a.dummy1);
+          //   const userScoreBalDummy1 = await getCurrentCollScoreBalance(avatarDummy1, cWBTC_addr);
+          //   expectInRange(userScoreBalDummy1, _100USD_WBTC, 1);
+
           globalScoreBal = await getGlobalCollScoreBalance(cWBTC_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_WBTC);
         });
@@ -1671,7 +1679,93 @@ contract("BScore", async (accounts) => {
       });
 
       describe("Integration Tests with Jar", async () => {
-        it("two users, member liquidate one user, Jar balance shared with users");
+        it("two users mints same USD value ETH and WBTC, Jar balance shared 50-50", async () => {
+          // user1 mints ETH
+          const _5000USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(5000));
+          await bETH.mint({ from: a.user1, value: _5000USD_ETH });
+
+          // user2 mints WBTC
+          const _5000USD_WBTC = ONE_USD_WO_WBTC_MAINNET.mul(new BN(5000));
+          await WBTC.approve(bWBTC_addr, _5000USD_WBTC, { from: a.user2 });
+          await bWBTC.mint(_5000USD_WBTC, { from: a.user2 });
+
+          const avatar1 = await registry.avatarOf(a.user1);
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
+
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cETH_addr, avatar1, ONE_USD_WO_ETH_MAINNET);
+          await comptroller.mintAllowed(cWBTC_addr, avatar2, ONE_USD_WO_WBTC_MAINNET);
+
+          await time.increase(ONE_MONTH);
+          await score.updateIndex(cTokens);
+
+          const now = await nowTime();
+          const user1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, now);
+          expect(user1ETHCollScore).to.be.bignumber.not.equal(ZERO);
+          console.log("user1ETHCollScore: " + user1ETHCollScore.toString());
+
+          const user1WBTCCollScore = await score.getCollScore(a.user2, cWBTC_addr, now);
+          expect(user1WBTCCollScore).to.be.bignumber.not.equal(ZERO);
+          console.log("user1WBTCCollScore: " + user1WBTCCollScore.toString());
+
+          // Transfer some cETH and cWBTC to Jar
+          await cETH.mint({ from: a.deployer, value: ONE_ETH });
+          await WBTC.approve(cWBTC_addr, ONE_WBTC, { from: a.deployer });
+          await cWBTC.mint(ONE_WBTC, { from: a.deployer });
+          const cETHBal = await cETH.balanceOf(a.deployer);
+          const cWBTCBal = await cWBTC.balanceOf(a.deployer);
+          expect(cETHBal).to.be.bignumber.not.equal(ZERO);
+          expect(cWBTCBal).to.be.bignumber.not.equal(ZERO);
+
+          await cETH.transfer(jar.address, cETHBal, { from: a.deployer });
+          await cWBTC.transfer(jar.address, cWBTCBal, { from: a.deployer });
+
+          // increase time 6 months
+          await time.increase(SIX_MONTHS);
+
+          // validate balance at Jar
+          expect(await cETH.balanceOf(jar.address)).to.be.bignumber.not.equal(ZERO);
+          expect(await cWBTC.balanceOf(jar.address)).to.be.bignumber.not.equal(ZERO);
+
+          // user1 withdraw cETH
+          const prevUser1cETHBal = await cETH.balanceOf(a.user1);
+          expect(prevUser1cETHBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user1, cETH_addr, { from: a.user1 });
+          const newUser1cETHBal = await cETH.balanceOf(a.user1);
+          console.log("user1cETHBal: " + newUser1cETHBal.toString());
+          expect(newUser1cETHBal).to.be.bignumber.not.equal(ZERO);
+
+          // user1 withdraw cWBTC
+          const prevUser1cWBTCBal = await cWBTC.balanceOf(a.user1);
+          expect(prevUser1cWBTCBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user1, cWBTC_addr, { from: a.user1 });
+          const newUser1cWBTCBal = await cWBTC.balanceOf(a.user1);
+          console.log("user1cWBTCBal: " + newUser1cWBTCBal.toString());
+          expect(newUser1cWBTCBal).to.be.bignumber.not.equal(ZERO);
+
+          // user2 withdraw cETH
+          const prevUser2cETHBal = await cETH.balanceOf(a.user2);
+          expect(prevUser2cETHBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user2, cETH_addr, { from: a.user2 });
+          const newUser2cETHBal = await cETH.balanceOf(a.user2);
+          console.log("newUser2cETHBal: " + newUser2cETHBal.toString());
+          expect(newUser2cETHBal).to.be.bignumber.not.equal(ZERO);
+
+          // user2 withdraw cWBTC
+          const prevUser2cWBTCBal = await cWBTC.balanceOf(a.user2);
+          expect(prevUser2cWBTCBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user2, cWBTC_addr, { from: a.user2 });
+          const newUser2cWBTCBal = await cWBTC.balanceOf(a.user2);
+          console.log("newUser2cWBTCBal: " + newUser2cWBTCBal.toString());
+          expect(newUser2cWBTCBal).to.be.bignumber.not.equal(ZERO);
+
+          // validate that the difference of balance is approx 1%
+          expectInRange(newUser1cETHBal, newUser2cETHBal, 1);
+          expectInRange(newUser1cWBTCBal, newUser2cWBTCBal, 1);
+        });
       });
     });
   });
