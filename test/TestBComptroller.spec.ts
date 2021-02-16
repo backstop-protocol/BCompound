@@ -623,24 +623,30 @@ contract("BComptroller", async (accounts) => {
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(false);
 
-      await bProtocol.registry.delegateAvatar(a.user2, {from :a.user1});
+      await bProtocol.registry.delegateAvatar(a.user2, { from: a.user1 });
 
-      await expectRevert(bComptroller.enterMarketsOnAvatar(avatar1, [bZRX_addr, bETH_addr], { from: a.user3 }),
-      "BComptroller: delegatee-not-authorized");
+      await expectRevert(
+        bComptroller.enterMarketsOnAvatar(avatar1, [bZRX_addr, bETH_addr], { from: a.user3 }),
+        "BComptroller: delegatee-not-authorized",
+      );
       await bComptroller.enterMarketsOnAvatar(avatar1, [bZRX_addr, bETH_addr], { from: a.user2 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
-      await expectRevert(bComptroller.exitMarketOnAvatar(avatar1, bZRX_addr, { from: a.user3 }),
-      "BComptroller: delegatee-not-authorized");
+      await expectRevert(
+        bComptroller.exitMarketOnAvatar(avatar1, bZRX_addr, { from: a.user3 }),
+        "BComptroller: delegatee-not-authorized",
+      );
       await bComptroller.exitMarketOnAvatar(avatar1, bZRX_addr, { from: a.user2 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(false);
       expect(await comptroller.checkMembership(avatar1, cETH_addr)).to.be.equal(true);
 
-      await expectRevert(bComptroller.enterMarketOnAvatar(avatar1, bZRX_addr, { from: a.user3 }),
-      "BComptroller: delegatee-not-authorized");
+      await expectRevert(
+        bComptroller.enterMarketOnAvatar(avatar1, bZRX_addr, { from: a.user3 }),
+        "BComptroller: delegatee-not-authorized",
+      );
       await bComptroller.enterMarketOnAvatar(avatar1, bZRX_addr, { from: a.user2 });
 
       expect(await comptroller.checkMembership(avatar1, cZRX_addr)).to.be.equal(true);
@@ -648,5 +654,12 @@ contract("BComptroller", async (accounts) => {
     });
 
     it("TODO: what should happen when token all max approval is used?");
+  });
+
+  describe("BComptroller.getAllMarkets()", async () => {
+    it("should get all markets", async () => {
+      const markets = await bComptroller.getAllMarkets();
+      expect(markets.length > 0).to.be.equal(true);
+    });
   });
 });
