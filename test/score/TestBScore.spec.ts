@@ -1711,24 +1711,51 @@ contract("BScore", async (accounts) => {
           expect(user1WBTCCollScore).to.be.bignumber.not.equal(ZERO);
           console.log("user1WBTCCollScore: " + user1WBTCCollScore.toString());
 
-          // Transfer some cETH and cWBTC to Jar
+          // Deployer mints some cZRX, cETH, cUSDT, cWBTC and send to the Jar contract
+          // cZRX
+          await ZRX.approve(cZRX_addr, ONE_HUNDRED_ZRX, { from: a.deployer });
+          await cZRX.mint(ONE_HUNDRED_ZRX, { from: a.deployer });
+          // cETH
           await cETH.mint({ from: a.deployer, value: ONE_ETH });
+          // cUSDT
+          await USDT.approve(cUSDT_addr, ONE_THOUSAND_USDT, { from: a.deployer });
+          await cUSDT.mint(ONE_THOUSAND_USDT, { from: a.deployer });
+          // cWBTC
           await WBTC.approve(cWBTC_addr, ONE_WBTC, { from: a.deployer });
           await cWBTC.mint(ONE_WBTC, { from: a.deployer });
+
+          // validate cToken balances
+          const cZRXBal = await cZRX.balanceOf(a.deployer);
           const cETHBal = await cETH.balanceOf(a.deployer);
+          const cUSDTBal = await cETH.balanceOf(a.deployer);
           const cWBTCBal = await cWBTC.balanceOf(a.deployer);
+          expect(cZRXBal).to.be.bignumber.not.equal(ZERO);
           expect(cETHBal).to.be.bignumber.not.equal(ZERO);
+          expect(cUSDTBal).to.be.bignumber.not.equal(ZERO);
           expect(cWBTCBal).to.be.bignumber.not.equal(ZERO);
 
+          // transfer cTokens to Jar contract
+          await cZRX.transfer(jar.address, cZRXBal, { from: a.deployer });
           await cETH.transfer(jar.address, cETHBal, { from: a.deployer });
+          await cUSDT.transfer(jar.address, cUSDTBal, { from: a.deployer });
           await cWBTC.transfer(jar.address, cWBTCBal, { from: a.deployer });
 
-          // increase time 6 months
+          // increase time 6 months, so that users can withdraw
           await time.increase(SIX_MONTHS);
 
           // validate balance at Jar
+          expect(await cZRX.balanceOf(jar.address)).to.be.bignumber.not.equal(ZERO);
           expect(await cETH.balanceOf(jar.address)).to.be.bignumber.not.equal(ZERO);
+          expect(await cUSDT.balanceOf(jar.address)).to.be.bignumber.not.equal(ZERO);
           expect(await cWBTC.balanceOf(jar.address)).to.be.bignumber.not.equal(ZERO);
+
+          // user1 withdraw cZRX
+          const prevUser1cZRXBal = await cZRX.balanceOf(a.user1);
+          expect(prevUser1cZRXBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user1, cZRX_addr, { from: a.user1 });
+          const newUser1cZRXBal = await cZRX.balanceOf(a.user1);
+          console.log("newUser1cZRXBal: " + newUser1cZRXBal.toString());
+          expect(newUser1cZRXBal).to.be.bignumber.not.equal(ZERO);
 
           // user1 withdraw cETH
           const prevUser1cETHBal = await cETH.balanceOf(a.user1);
@@ -1738,6 +1765,14 @@ contract("BScore", async (accounts) => {
           console.log("user1cETHBal: " + newUser1cETHBal.toString());
           expect(newUser1cETHBal).to.be.bignumber.not.equal(ZERO);
 
+          // user1 withdraw cUSDT
+          const prevUser1cUSDTBal = await cUSDT.balanceOf(a.user1);
+          expect(prevUser1cUSDTBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user1, cUSDT_addr, { from: a.user1 });
+          const newUser1cUSDTBal = await cUSDT.balanceOf(a.user1);
+          console.log("newUser1cUSDTBal: " + newUser1cUSDTBal.toString());
+          expect(newUser1cUSDTBal).to.be.bignumber.not.equal(ZERO);
+
           // user1 withdraw cWBTC
           const prevUser1cWBTCBal = await cWBTC.balanceOf(a.user1);
           expect(prevUser1cWBTCBal).to.be.bignumber.equal(ZERO);
@@ -1746,6 +1781,15 @@ contract("BScore", async (accounts) => {
           console.log("user1cWBTCBal: " + newUser1cWBTCBal.toString());
           expect(newUser1cWBTCBal).to.be.bignumber.not.equal(ZERO);
 
+          // =====
+          // user2 withdraw cZRX
+          const prevUser2cZRXBal = await cZRX.balanceOf(a.user2);
+          expect(prevUser2cZRXBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user2, cZRX_addr, { from: a.user2 });
+          const newUser2cZRXBal = await cZRX.balanceOf(a.user2);
+          console.log("newUser2cZRXBal: " + newUser2cZRXBal.toString());
+          expect(newUser2cZRXBal).to.be.bignumber.not.equal(ZERO);
+
           // user2 withdraw cETH
           const prevUser2cETHBal = await cETH.balanceOf(a.user2);
           expect(prevUser2cETHBal).to.be.bignumber.equal(ZERO);
@@ -1753,6 +1797,14 @@ contract("BScore", async (accounts) => {
           const newUser2cETHBal = await cETH.balanceOf(a.user2);
           console.log("newUser2cETHBal: " + newUser2cETHBal.toString());
           expect(newUser2cETHBal).to.be.bignumber.not.equal(ZERO);
+
+          // user2 withdraw cUSDT
+          const prevUser2cUSDTBal = await cUSDT.balanceOf(a.user2);
+          expect(prevUser2cUSDTBal).to.be.bignumber.equal(ZERO);
+          await jar.withdraw(a.user2, cUSDT_addr, { from: a.user2 });
+          const newUser2cUSDTBal = await cUSDT.balanceOf(a.user2);
+          console.log("newUser2cUSDTBal: " + newUser2cUSDTBal.toString());
+          expect(newUser2cUSDTBal).to.be.bignumber.not.equal(ZERO);
 
           // user2 withdraw cWBTC
           const prevUser2cWBTCBal = await cWBTC.balanceOf(a.user2);
