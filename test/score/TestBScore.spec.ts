@@ -1815,7 +1815,9 @@ contract("BScore", async (accounts) => {
           expect(newUser2cWBTCBal).to.be.bignumber.not.equal(ZERO);
 
           // validate that the difference of balance is approx 1%
+          expectInRange(newUser1cZRXBal, newUser2cZRXBal, 1);
           expectInRange(newUser1cETHBal, newUser2cETHBal, 1);
+          expectInRange(newUser1cUSDTBal, newUser2cUSDTBal, 1);
           expectInRange(newUser1cWBTCBal, newUser2cWBTCBal, 1);
         });
       });
