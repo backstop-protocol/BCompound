@@ -25,6 +25,8 @@ const CEther: b.CEtherContract = artifacts.require("CEther");
 contract("BScore", async (accounts) => {
   const SIX_MONTHS = new BN(6).mul(ONE_MONTH);
   let bProtocol: BProtocol;
+  let pool: b.PoolInstance;
+  let bComptroller: b.BComptrollerInstance;
   let registry: b.RegistryInstance;
   let comptroller: b.ComptrollerInstance;
   let score: b.BScoreInstance;
@@ -47,6 +49,8 @@ contract("BScore", async (accounts) => {
 
     // Deploy BProtocol contracts
     bProtocol = await engine.deployBProtocol();
+    pool = bProtocol.pool;
+    bComptroller = bProtocol.bComptroller;
     registry = bProtocol.registry;
     score = bProtocol.score;
     jar = bProtocol.jar;
@@ -1916,6 +1920,121 @@ contract("BScore", async (accounts) => {
         });
       });
       */
+    });
+
+    describe("should decrease score when member liquidateBorrow", async () => {
+      it("liquidate ZRX", async () => {
+        const _10000USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(10000));
+        // deployer give tokens to user2
+        await ZRX.transfer(a.user2, _10000USD_ZRX, { from: a.deployer });
+
+        // user1 mint ETH collateral
+        // 50 USD extra to cover some truncation errors
+        const _10050USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(10050));
+        await bETH.mint({ from: a.user1, value: _10050USD_ETH });
+        const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+        // user2 mint- supply ZRX liquidity
+        await ZRX.approve(bZRX_addr, _10000USD_ZRX, { from: a.user2 });
+        await bZRX.mint(_10000USD_ZRX, { from: a.user2 });
+
+        // user1 borrow ZRX
+        // borrow close to max limit
+        const _5000USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(5000));
+        await bZRX.borrow(_5000USD_ZRX, { from: a.user1 });
+
+        let user1AccLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+        expect(user1AccLiquidity["liquidity"].toString()).to.be.bignumber.not.equal(ZERO);
+        expect(user1AccLiquidity["shortFall"].toString()).to.be.bignumber.equal(ZERO);
+
+        await advanceBlockInCompound(200);
+        await setMainnetCompSpeeds();
+
+        // just trigger supply index recalculation
+        await comptroller.mintAllowed(cETH_addr, avatar1.address, ONE_USD_WO_ETH_MAINNET);
+        // just trigger borrow index recalculation
+        await comptroller.borrowAllowed(cZRX_addr, avatar1.address, ONE_USD_WO_ZRX_MAINNET);
+
+        // time change
+        await time.increase(ONE_MONTH);
+
+        // update index
+        await score.updateIndex(cTokens);
+        let user1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        const user1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
+        console.log(user1ETHCollScore.toString());
+        console.log(user1ZRXDebtScore.toString());
+
+        await time.increase(1);
+
+        const newUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        console.log(newUser1ETHCollScore.sub(user1ETHCollScore).toString());
+        // validate user1 collateral score
+        expect(user1ETHCollScore).to.be.bignumber.not.equal(ZERO);
+        // validate user1 debt score
+        expect(user1ZRXDebtScore).to.be.bignumber.not.equal(ZERO);
+        let ethScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
+        console.log("ethScoreBalUser1:" + ethScoreBalUser1.toString());
+        let ethScoreBalGlobal = await getGlobalCollScoreBalance(cETH_addr);
+        console.log("ethScoreBalGlobal: " + ethScoreBalGlobal.toString());
+        let zrxScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        console.log("zrxScoreBalUser1:" + zrxScoreBalUser1.toString());
+        let zrxScoreBalGlobal = await getGlobalDebtScoreBalance(cZRX_addr);
+        console.log("zrxScoreBalGlobal: " + zrxScoreBalGlobal.toString());
+
+        // Change ZRX rate 110%
+        const newZRXPrice = ONE_ZRX_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cZRX_addr, newZRXPrice);
+
+        // open for liquidation
+        user1AccLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+        expect(user1AccLiquidity["liquidity"].toString()).to.be.bignumber.equal(ZERO);
+        expect(user1AccLiquidity["shortFall"].toString()).to.be.bignumber.not.equal(ZERO);
+
+        // member deposit minTopup
+        const debtInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
+        const minTopup = debtInfo["minTopup"];
+        await ZRX.approve(pool.address, minTopup, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, minTopup, { from: a.member1 });
+        // member topup
+        await pool.topup(a.user1, bZRX_addr, minTopup, false, { from: a.member1 });
+        const maxLiquidationAmount = await avatar1.getMaxLiquidationAmount.call(cZRX_addr);
+        expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
+        expect(await avatar1.canLiquidate.call()).to.be.equal(true);
+
+        // member liquidate
+        const remainingBalToDeposit = maxLiquidationAmount.sub(minTopup);
+        await ZRX.approve(pool.address, remainingBalToDeposit, { from: a.member1 });
+        await pool.methods["deposit(address,uint256)"](ZRX_addr, remainingBalToDeposit, {
+          from: a.member1,
+        });
+        await pool.liquidateBorrow(a.user1, bETH_addr, bZRX_addr, maxLiquidationAmount, {
+          from: a.member1,
+        });
+        expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+
+        // trigger token price change effect in index
+        await comptroller.refreshCompSpeeds();
+        await time.increase(1);
+
+        ethScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
+        console.log("ethScoreBalUser1:" + ethScoreBalUser1.toString());
+        ethScoreBalGlobal = await getGlobalCollScoreBalance(cETH_addr);
+        console.log("ethScoreBalGlobal: " + ethScoreBalGlobal.toString());
+        zrxScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        console.log("zrxScoreBalUser1:" + zrxScoreBalUser1.toString());
+        zrxScoreBalGlobal = await getGlobalDebtScoreBalance(cZRX_addr);
+        console.log("zrxScoreBalGlobal: " + zrxScoreBalGlobal.toString());
+
+        // validate user1 collateral and debt score
+        const currUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        await time.increase(1);
+        const newUser1ETHCollScore2 = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        console.log(newUser1ETHCollScore2.sub(currUser1ETHCollScore).toString());
+        const currUser1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
+        expect(currUser1ETHCollScore).to.be.bignumber.lessThan(user1ETHCollScore);
+        expect(currUser1ZRXDebtScore).to.be.bignumber.lessThan(user1ZRXDebtScore);
+      });
     });
   });
 });
