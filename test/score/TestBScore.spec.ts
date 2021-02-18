@@ -393,6 +393,7 @@ contract("BScore", async (accounts) => {
       await comptroller.refreshCompSpeeds();
     });
 
+    /*
     describe("BScore.init()", async () => {
       it("should init", async () => {
         const now = new BN((await web3.eth.getBlock("latest")).timestamp);
@@ -534,8 +535,10 @@ contract("BScore", async (accounts) => {
     describe("BScore.getCollGlobalScore()", async () => {
       it("");
     });
+    */
 
     describe("Integration Tests", async () => {
+      /*
       describe("=> Deployment setup pre-conditions check...", async () => {
         it("should have compMarket for all cTokens", async () => {
           // THIS TEST IS TO ENSURE THAT THE SETUP IS OK FOR FURTHER TESTS
@@ -1677,8 +1680,40 @@ contract("BScore", async (accounts) => {
 
         it("when transferFrom");
       });
-
+*/
+      /*
       describe("Integration Tests with Jar", async () => {
+        async function mintSomeCTokensOnCompoundAndSendToJar() {
+          // Deployer mints some cZRX, cETH, cUSDT, cWBTC and send to the Jar contract
+          // cZRX
+          await ZRX.approve(cZRX_addr, ONE_HUNDRED_ZRX, { from: a.deployer });
+          await cZRX.mint(ONE_HUNDRED_ZRX, { from: a.deployer });
+          // cETH
+          await cETH.mint({ from: a.deployer, value: ONE_ETH });
+          // cUSDT
+          await USDT.approve(cUSDT_addr, ONE_THOUSAND_USDT, { from: a.deployer });
+          await cUSDT.mint(ONE_THOUSAND_USDT, { from: a.deployer });
+          // cWBTC
+          await WBTC.approve(cWBTC_addr, ONE_WBTC, { from: a.deployer });
+          await cWBTC.mint(ONE_WBTC, { from: a.deployer });
+
+          // validate cToken balances
+          const cZRXBal = await cZRX.balanceOf(a.deployer);
+          const cETHBal = await cETH.balanceOf(a.deployer);
+          const cUSDTBal = await cETH.balanceOf(a.deployer);
+          const cWBTCBal = await cWBTC.balanceOf(a.deployer);
+          expect(cZRXBal).to.be.bignumber.not.equal(ZERO);
+          expect(cETHBal).to.be.bignumber.not.equal(ZERO);
+          expect(cUSDTBal).to.be.bignumber.not.equal(ZERO);
+          expect(cWBTCBal).to.be.bignumber.not.equal(ZERO);
+
+          // transfer cTokens to Jar contract
+          await cZRX.transfer(jar.address, cZRXBal, { from: a.deployer });
+          await cETH.transfer(jar.address, cETHBal, { from: a.deployer });
+          await cUSDT.transfer(jar.address, cUSDTBal, { from: a.deployer });
+          await cWBTC.transfer(jar.address, cWBTCBal, { from: a.deployer });
+        }
+
         it("two users mints same USD value ETH and WBTC, Jar balance shared 50-50", async () => {
           // user1 mints ETH
           const _5000USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(5000));
@@ -1711,34 +1746,8 @@ contract("BScore", async (accounts) => {
           expect(user1WBTCCollScore).to.be.bignumber.not.equal(ZERO);
           console.log("user1WBTCCollScore: " + user1WBTCCollScore.toString());
 
-          // Deployer mints some cZRX, cETH, cUSDT, cWBTC and send to the Jar contract
-          // cZRX
-          await ZRX.approve(cZRX_addr, ONE_HUNDRED_ZRX, { from: a.deployer });
-          await cZRX.mint(ONE_HUNDRED_ZRX, { from: a.deployer });
-          // cETH
-          await cETH.mint({ from: a.deployer, value: ONE_ETH });
-          // cUSDT
-          await USDT.approve(cUSDT_addr, ONE_THOUSAND_USDT, { from: a.deployer });
-          await cUSDT.mint(ONE_THOUSAND_USDT, { from: a.deployer });
-          // cWBTC
-          await WBTC.approve(cWBTC_addr, ONE_WBTC, { from: a.deployer });
-          await cWBTC.mint(ONE_WBTC, { from: a.deployer });
-
-          // validate cToken balances
-          const cZRXBal = await cZRX.balanceOf(a.deployer);
-          const cETHBal = await cETH.balanceOf(a.deployer);
-          const cUSDTBal = await cETH.balanceOf(a.deployer);
-          const cWBTCBal = await cWBTC.balanceOf(a.deployer);
-          expect(cZRXBal).to.be.bignumber.not.equal(ZERO);
-          expect(cETHBal).to.be.bignumber.not.equal(ZERO);
-          expect(cUSDTBal).to.be.bignumber.not.equal(ZERO);
-          expect(cWBTCBal).to.be.bignumber.not.equal(ZERO);
-
-          // transfer cTokens to Jar contract
-          await cZRX.transfer(jar.address, cZRXBal, { from: a.deployer });
-          await cETH.transfer(jar.address, cETHBal, { from: a.deployer });
-          await cUSDT.transfer(jar.address, cUSDTBal, { from: a.deployer });
-          await cWBTC.transfer(jar.address, cWBTCBal, { from: a.deployer });
+          // mint cTokens on Compound so that index is not affected at B
+          await mintSomeCTokensOnCompoundAndSendToJar();
 
           // increase time 6 months, so that users can withdraw
           await time.increase(SIX_MONTHS);
@@ -1820,7 +1829,93 @@ contract("BScore", async (accounts) => {
           expectInRange(newUser1cUSDTBal, newUser2cUSDTBal, 1);
           expectInRange(newUser1cWBTCBal, newUser2cWBTCBal, 1);
         });
+
+        it("user cannot withdraw already withdrawn cToken again", async () => {
+          // user1 mints ETH
+          const _5000USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(5000));
+          await bETH.mint({ from: a.user1, value: _5000USD_ETH });
+
+          // user2 mints WBTC
+          const _5000USD_WBTC = ONE_USD_WO_WBTC_MAINNET.mul(new BN(5000));
+          await WBTC.approve(bWBTC_addr, _5000USD_WBTC, { from: a.user2 });
+          await bWBTC.mint(_5000USD_WBTC, { from: a.user2 });
+
+          const avatar1 = await registry.avatarOf(a.user1);
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
+
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cETH_addr, avatar1, ONE_USD_WO_ETH_MAINNET);
+          await comptroller.mintAllowed(cWBTC_addr, avatar2, ONE_USD_WO_WBTC_MAINNET);
+
+          await time.increase(ONE_MONTH);
+          await score.updateIndex(cTokens);
+
+          const now = await nowTime();
+          const user1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, now);
+          expect(user1ETHCollScore).to.be.bignumber.not.equal(ZERO);
+          console.log("user1ETHCollScore: " + user1ETHCollScore.toString());
+
+          const user1WBTCCollScore = await score.getCollScore(a.user2, cWBTC_addr, now);
+          expect(user1WBTCCollScore).to.be.bignumber.not.equal(ZERO);
+          console.log("user1WBTCCollScore: " + user1WBTCCollScore.toString());
+
+          // mint cTokens on Compound so that index is not affected at B
+          await mintSomeCTokensOnCompoundAndSendToJar();
+
+          // increase time 6 months, so that users can withdraw
+          await time.increase(SIX_MONTHS);
+
+          await jar.withdraw(a.user1, cZRX_addr, { from: a.user1 });
+          await jar.withdraw(a.user1, cETH_addr, { from: a.user1 });
+          await jar.withdraw(a.user1, cUSDT_addr, { from: a.user1 });
+          await jar.withdraw(a.user1, cWBTC_addr, { from: a.user1 });
+
+          await jar.withdraw(a.user2, cZRX_addr, { from: a.user2 });
+          await jar.withdraw(a.user2, cETH_addr, { from: a.user2 });
+          await jar.withdraw(a.user2, cUSDT_addr, { from: a.user2 });
+          await jar.withdraw(a.user2, cWBTC_addr, { from: a.user2 });
+
+          // user1 cannot withdraw again
+          await expectRevert(
+            jar.withdraw(a.user1, cZRX_addr, { from: a.user1 }),
+            "user-withdrew-rewards-before",
+          );
+          await expectRevert(
+            jar.withdraw(a.user1, cETH_addr, { from: a.user1 }),
+            "user-withdrew-rewards-before",
+          );
+          await expectRevert(
+            jar.withdraw(a.user1, cUSDT_addr, { from: a.user1 }),
+            "user-withdrew-rewards-before",
+          );
+          await expectRevert(
+            jar.withdraw(a.user1, cWBTC_addr, { from: a.user1 }),
+            "user-withdrew-rewards-before",
+          );
+
+          // user2 cannot withdraw again
+          await expectRevert(
+            jar.withdraw(a.user2, cZRX_addr, { from: a.user2 }),
+            "user-withdrew-rewards-before",
+          );
+          await expectRevert(
+            jar.withdraw(a.user2, cETH_addr, { from: a.user2 }),
+            "user-withdrew-rewards-before",
+          );
+          await expectRevert(
+            jar.withdraw(a.user2, cUSDT_addr, { from: a.user2 }),
+            "user-withdrew-rewards-before",
+          );
+          await expectRevert(
+            jar.withdraw(a.user2, cWBTC_addr, { from: a.user2 }),
+            "user-withdrew-rewards-before",
+          );
+        });
       });
+      */
     });
   });
 });
