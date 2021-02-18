@@ -397,7 +397,6 @@ contract("BScore", async (accounts) => {
       await comptroller.refreshCompSpeeds();
     });
 
-    /*
     describe("BScore.init()", async () => {
       it("should init", async () => {
         const now = new BN((await web3.eth.getBlock("latest")).timestamp);
@@ -539,10 +538,8 @@ contract("BScore", async (accounts) => {
     describe("BScore.getCollGlobalScore()", async () => {
       it("");
     });
-    */
 
     describe("Integration Tests", async () => {
-      /*
       describe("=> Deployment setup pre-conditions check...", async () => {
         it("should have compMarket for all cTokens", async () => {
           // THIS TEST IS TO ENSURE THAT THE SETUP IS OK FOR FURTHER TESTS
@@ -1684,8 +1681,7 @@ contract("BScore", async (accounts) => {
 
         it("when transferFrom");
       });
-*/
-      /*
+
       describe("Integration Tests with Jar", async () => {
         async function mintSomeCTokensOnCompoundAndSendToJar() {
           // Deployer mints some cZRX, cETH, cUSDT, cWBTC and send to the Jar contract
@@ -1919,7 +1915,6 @@ contract("BScore", async (accounts) => {
           );
         });
       });
-      */
     });
 
     describe("should decrease score when member liquidateBorrow", async () => {
@@ -1952,33 +1947,44 @@ contract("BScore", async (accounts) => {
 
         // just trigger supply index recalculation
         await comptroller.mintAllowed(cETH_addr, avatar1.address, ONE_USD_WO_ETH_MAINNET);
+        let result = await comptroller.mintAllowed.call(
+          cETH_addr,
+          avatar1.address,
+          ONE_USD_WO_ETH_MAINNET,
+        );
+        expect(result).to.be.bignumber.equal(ZERO);
         // just trigger borrow index recalculation
         await comptroller.borrowAllowed(cZRX_addr, avatar1.address, ONE_USD_WO_ZRX_MAINNET);
-
+        result = await comptroller.borrowAllowed.call(
+          cZRX_addr,
+          avatar1.address,
+          ONE_USD_WO_ZRX_MAINNET,
+        );
+        expect(result).to.be.bignumber.equal(ZERO);
         // time change
         await time.increase(ONE_MONTH);
 
         // update index
         await score.updateIndex(cTokens);
+
         let user1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
-        const user1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
-        console.log(user1ETHCollScore.toString());
-        console.log(user1ZRXDebtScore.toString());
-
+        let user1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
         await time.increase(1);
+        let newUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        let newUser1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
+        const beforePerSecondETHCollScoreIncrease = newUser1ETHCollScore.sub(user1ETHCollScore);
+        const beforePerSecondZRXDebtScoreIncrease = newUser1ZRXDebtScore.sub(user1ZRXDebtScore);
 
-        const newUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
-        console.log(newUser1ETHCollScore.sub(user1ETHCollScore).toString());
         // validate user1 collateral score
         expect(user1ETHCollScore).to.be.bignumber.not.equal(ZERO);
         // validate user1 debt score
         expect(user1ZRXDebtScore).to.be.bignumber.not.equal(ZERO);
         let ethScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
-        console.log("ethScoreBalUser1:" + ethScoreBalUser1.toString());
+        console.log("ethScoreBalUser1: " + ethScoreBalUser1.toString());
         let ethScoreBalGlobal = await getGlobalCollScoreBalance(cETH_addr);
         console.log("ethScoreBalGlobal: " + ethScoreBalGlobal.toString());
         let zrxScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
-        console.log("zrxScoreBalUser1:" + zrxScoreBalUser1.toString());
+        console.log("zrxScoreBalUser1: " + zrxScoreBalUser1.toString());
         let zrxScoreBalGlobal = await getGlobalDebtScoreBalance(cZRX_addr);
         console.log("zrxScoreBalGlobal: " + zrxScoreBalGlobal.toString());
 
@@ -2013,27 +2019,177 @@ contract("BScore", async (accounts) => {
         });
         expect(await avatar1.canLiquidate.call()).to.be.equal(false);
 
-        // trigger token price change effect in index
+        const currEthScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
+        console.log("currEthScoreBalUser1: " + currEthScoreBalUser1.toString());
+        const currEthScoreBalGlobal = await getGlobalCollScoreBalance(cETH_addr);
+        console.log("currEthScoreBalGlobal: " + currEthScoreBalGlobal.toString());
+        const currZrxScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        console.log("currZrxScoreBalUser1: " + currZrxScoreBalUser1.toString());
+        const currZrxScoreBalGlobal = await getGlobalDebtScoreBalance(cZRX_addr);
+        console.log("currZrxScoreBalGlobal: " + currZrxScoreBalGlobal.toString());
+
+        // validate user1 collateral and debt balance should have decreased
+        expect(currEthScoreBalUser1).to.be.bignumber.lessThan(ethScoreBalUser1);
+        expect(currEthScoreBalGlobal).to.be.bignumber.lessThan(ethScoreBalGlobal);
+        expect(currZrxScoreBalUser1).to.be.bignumber.lessThan(zrxScoreBalUser1);
+        expect(currZrxScoreBalGlobal).to.be.bignumber.lessThan(zrxScoreBalGlobal);
+
+        // refresh comp speeds to update the index
         await comptroller.refreshCompSpeeds();
-        await time.increase(1);
 
-        ethScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
-        console.log("ethScoreBalUser1:" + ethScoreBalUser1.toString());
-        ethScoreBalGlobal = await getGlobalCollScoreBalance(cETH_addr);
+        // validate that per second increase in score is slowed down after liquidateBorrow
+        user1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        user1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
+        await time.increase(1);
+        newUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        newUser1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
+        const afterPerSecondETHCollScoreIncrease = newUser1ETHCollScore.sub(user1ETHCollScore);
+        const afterPerSecondZRXDebtScoreIncrease = newUser1ZRXDebtScore.sub(user1ZRXDebtScore);
+
+        expect(beforePerSecondETHCollScoreIncrease).to.be.bignumber.greaterThan(
+          afterPerSecondETHCollScoreIncrease,
+        );
+        expect(beforePerSecondZRXDebtScoreIncrease).to.be.bignumber.greaterThan(
+          afterPerSecondZRXDebtScoreIncrease,
+        );
+      });
+
+      it("liquidate ETH", async () => {
+        const _10000USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(10000));
+        // deployer give tokens to user1 and user2
+        const _8000USD_USDT = ONE_USD_WO_USDT_MAINNET.mul(new BN(8000));
+        await USDT.transfer(a.user1, _8000USD_USDT, { from: a.deployer });
+
+        // user1 mint USDT collateral
+        await USDT.approve(bUSDT_addr, _8000USD_USDT, { from: a.user1 });
+        await bUSDT.mint(_8000USD_USDT, { from: a.user1 });
+        const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+        // user2 mint- supply ETH liquidity
+        await bETH.mint({ from: a.user2, value: _10000USD_ETH });
+
+        // user1 borrow ETH
+        // borrow close to max limit
+        // 50 USD less to cover some truncation errors
+        const _3950USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(3950));
+        await bETH.borrow(_3950USD_ETH, { from: a.user1 });
+
+        let user1AccLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+        expect(user1AccLiquidity["liquidity"].toString()).to.be.bignumber.not.equal(ZERO);
+        expect(user1AccLiquidity["shortFall"].toString()).to.be.bignumber.equal(ZERO);
+
+        await advanceBlockInCompound(200);
+        await setMainnetCompSpeeds();
+
+        // just trigger supply index recalculation
+        await comptroller.mintAllowed(cUSDT_addr, avatar1.address, ONE_USD_WO_USDT_MAINNET);
+        let result = await comptroller.mintAllowed.call(
+          cUSDT_addr,
+          avatar1.address,
+          ONE_USD_WO_USDT_MAINNET,
+        );
+        expect(result).to.be.bignumber.equal(ZERO);
+
+        // just trigger borrow index recalculation
+        await comptroller.borrowAllowed(cETH_addr, avatar1.address, ONE_USD_WO_ETH_MAINNET);
+        result = await comptroller.borrowAllowed.call(
+          cETH_addr,
+          avatar1.address,
+          ONE_USD_WO_ETH_MAINNET,
+        );
+        expect(result).to.be.bignumber.equal(ZERO);
+
+        // time change
+        await time.increase(ONE_MONTH);
+
+        // update index
+        await score.updateIndex(cTokens);
+
+        let user1USDTCollScore = await score.getCollScore(a.user1, cUSDT_addr, await nowTime());
+        let user1ETHDebtScore = await score.getDebtScore(a.user1, cETH_addr, await nowTime());
+        expect(user1ETHDebtScore).to.be.bignumber.not.equal(ZERO);
+        await time.increase(1);
+        let newUser1USDTCollScore = await score.getCollScore(a.user1, cUSDT_addr, await nowTime());
+        let newUser1ETHDebtScore = await score.getDebtScore(a.user1, cETH_addr, await nowTime());
+        const beforePerSecondUSDTCollScoreIncrease = newUser1USDTCollScore.sub(user1USDTCollScore);
+        const beforePerSecondETHDebtScoreIncrease = newUser1ETHDebtScore.sub(user1ETHDebtScore);
+
+        // validate user1 collateral score
+        expect(user1USDTCollScore).to.be.bignumber.not.equal(ZERO);
+        // validate user1 debt score
+        expect(user1ETHDebtScore).to.be.bignumber.not.equal(ZERO);
+        let usdtScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cUSDT_addr);
+        console.log("usdtScoreBalUser1: " + usdtScoreBalUser1.toString());
+        let usdtScoreBalGlobal = await getGlobalCollScoreBalance(cUSDT_addr);
+        console.log("usdtScoreBalGlobal: " + usdtScoreBalGlobal.toString());
+        let ethScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cETH_addr);
+        console.log("ethScoreBalUser1: " + ethScoreBalUser1.toString());
+        let ethScoreBalGlobal = await getGlobalDebtScoreBalance(cETH_addr);
         console.log("ethScoreBalGlobal: " + ethScoreBalGlobal.toString());
-        zrxScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
-        console.log("zrxScoreBalUser1:" + zrxScoreBalUser1.toString());
-        zrxScoreBalGlobal = await getGlobalDebtScoreBalance(cZRX_addr);
-        console.log("zrxScoreBalGlobal: " + zrxScoreBalGlobal.toString());
 
-        // validate user1 collateral and debt score
-        const currUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, await nowTime());
+        // Change ETH rate 110%
+        const newETHPrice = ONE_ETH_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
+        await priceOracle.setPrice(cETH_addr, newETHPrice);
+
+        // open for liquidation
+        user1AccLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+        expect(user1AccLiquidity["liquidity"].toString()).to.be.bignumber.equal(ZERO);
+        expect(user1AccLiquidity["shortFall"].toString()).to.be.bignumber.not.equal(ZERO);
+
+        // member deposit minTopup
+        const debtInfo = await pool.getDebtTopupInfo.call(a.user1, bETH_addr);
+        const minTopup = debtInfo["minTopup"];
+        await pool.methods["deposit()"]({ from: a.member1, value: minTopup });
+        // member topup
+        await pool.topup(a.user1, bETH_addr, minTopup, false, { from: a.member1 });
+        const maxLiquidationAmount = await avatar1.getMaxLiquidationAmount.call(cETH_addr);
+        expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
+        expect(await avatar1.canLiquidate.call()).to.be.equal(true);
+
+        // member liquidate
+        const remainingBalToDeposit = maxLiquidationAmount.sub(minTopup);
+        await pool.methods["deposit()"]({
+          from: a.member1,
+          value: remainingBalToDeposit,
+        });
+        await pool.liquidateBorrow(a.user1, bUSDT_addr, bETH_addr, maxLiquidationAmount, {
+          from: a.member1,
+        });
+        expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+
+        const currUsdtScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cUSDT_addr);
+        console.log("currUsdtScoreBalUser1: " + currUsdtScoreBalUser1.toString());
+        const currUsdtScoreBalGlobal = await getGlobalCollScoreBalance(cUSDT_addr);
+        console.log("currUsdtScoreBalGlobal: " + currUsdtScoreBalGlobal.toString());
+        const currEthScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cETH_addr);
+        console.log("currEthScoreBalUser1: " + currEthScoreBalUser1.toString());
+        const currEthScoreBalGlobal = await getGlobalDebtScoreBalance(cETH_addr);
+        console.log("currEthScoreBalGlobal: " + currEthScoreBalGlobal.toString());
+
+        // validate user1 collateral and debt balance should have decreased
+        expect(currUsdtScoreBalUser1).to.be.bignumber.lessThan(usdtScoreBalUser1);
+        expect(currUsdtScoreBalGlobal).to.be.bignumber.lessThan(usdtScoreBalGlobal);
+        expect(currEthScoreBalUser1).to.be.bignumber.lessThan(ethScoreBalUser1);
+        expect(currEthScoreBalGlobal).to.be.bignumber.lessThan(ethScoreBalGlobal);
+
+        // refresh comp speeds to update the index
+        await comptroller.refreshCompSpeeds();
+
+        // validate that per second increase in score is slowed down after liquidateBorrow
+        user1USDTCollScore = await score.getCollScore(a.user1, cUSDT_addr, await nowTime());
+        user1ETHDebtScore = await score.getDebtScore(a.user1, cETH_addr, await nowTime());
         await time.increase(1);
-        const newUser1ETHCollScore2 = await score.getCollScore(a.user1, cETH_addr, await nowTime());
-        console.log(newUser1ETHCollScore2.sub(currUser1ETHCollScore).toString());
-        const currUser1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, await nowTime());
-        expect(currUser1ETHCollScore).to.be.bignumber.lessThan(user1ETHCollScore);
-        expect(currUser1ZRXDebtScore).to.be.bignumber.lessThan(user1ZRXDebtScore);
+        newUser1USDTCollScore = await score.getCollScore(a.user1, cUSDT_addr, await nowTime());
+        newUser1ETHDebtScore = await score.getDebtScore(a.user1, cETH_addr, await nowTime());
+        const afterPerSecondETHCollScoreIncrease = newUser1USDTCollScore.sub(user1USDTCollScore);
+        const afterPerSecondZRXDebtScoreIncrease = newUser1ETHDebtScore.sub(user1ETHDebtScore);
+
+        expect(beforePerSecondUSDTCollScoreIncrease).to.be.bignumber.greaterThan(
+          afterPerSecondETHCollScoreIncrease,
+        );
+        expect(beforePerSecondETHDebtScoreIncrease).to.be.bignumber.greaterThan(
+          afterPerSecondZRXDebtScoreIncrease,
+        );
       });
     });
   });
