@@ -100,8 +100,8 @@ contract AbsCToken is AbsAvatarBase {
         uint256 underlyingSeizedTokens = _toUnderlying(cTokenDebt, seizedCTokens);
         if(! quit) {
             IScore score = _score();
-            score.updateCollScore(address(this), address(cTokenDebt), -toInt256(underlyingSeizedTokens));
-            score.updateDebtScore(address(this), address(cTokenCollateral), -toInt256(underlyingAmtToLiquidate));
+            score.updateCollScore(address(this), address(cTokenCollateral), -toInt256(underlyingSeizedTokens));
+            score.updateDebtScore(address(this), address(cTokenDebt), -toInt256(underlyingAmtToLiquidate));
         }
         return 0;
     }
