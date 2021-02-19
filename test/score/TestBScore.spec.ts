@@ -495,47 +495,7 @@ contract("BScore", async (accounts) => {
       });
     });
 
-    describe("BScore.user()", async () => {
-      it("");
-    });
-
-    describe("BScore.debtAsset()", async () => {
-      it("");
-    });
-
-    describe("BScore.collAsset()", async () => {
-      it("");
-    });
-
-    describe("BScore.updateDebtScore()", async () => {
-      it("");
-    });
-
-    describe("BScore.updateCollScore()", async () => {
-      it("");
-    });
-
-    describe("BScore.updateIndex()", async () => {
-      it("");
-    });
-
     describe("BScore.slashScore()", async () => {
-      it("");
-    });
-
-    describe("BScore.getDebtScore()", async () => {
-      it("");
-    });
-
-    describe("BScore.getDebtGlobalScore()", async () => {
-      it("");
-    });
-
-    describe("BScore.getCollScore()", async () => {
-      it("");
-    });
-
-    describe("BScore.getCollGlobalScore()", async () => {
       it("");
     });
 
@@ -2477,13 +2437,287 @@ contract("BScore", async (accounts) => {
 
         it("when repay");
 
-        it("when withdraw");
+        it("when redeem");
 
-        it("when liquidate");
+        it("when redeemUnderlying");
 
-        it("when transfer");
+        it("when liquidateBorrow", async () => {
+          const _10000USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(10000));
+          // deployer give tokens to user2
+          await ZRX.transfer(a.user2, _10000USD_ZRX, { from: a.deployer });
 
-        it("when transferFrom");
+          // user1 mint ETH collateral
+          // 50 USD extra to cover some truncation errors
+          const _10050USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(10050));
+          await bETH.mint({ from: a.user1, value: _10050USD_ETH });
+          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          // user2 mint- supply ZRX liquidity
+          await ZRX.approve(bZRX_addr, _10000USD_ZRX, { from: a.user2 });
+          await bZRX.mint(_10000USD_ZRX, { from: a.user2 });
+
+          // user1 borrow ZRX
+          // borrow close to max limit
+          const _5000USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(5000));
+          await bZRX.borrow(_5000USD_ZRX, { from: a.user1 });
+
+          let user1AccLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+          expect(user1AccLiquidity["liquidity"].toString()).to.be.bignumber.not.equal(ZERO);
+          expect(user1AccLiquidity["shortFall"].toString()).to.be.bignumber.equal(ZERO);
+
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
+
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cETH_addr, avatar1.address, ONE_USD_WO_ETH_MAINNET);
+          let result = await comptroller.mintAllowed.call(
+            cETH_addr,
+            avatar1.address,
+            ONE_USD_WO_ETH_MAINNET,
+          );
+          expect(result).to.be.bignumber.equal(ZERO);
+          // just trigger borrow index recalculation
+          await comptroller.borrowAllowed(cZRX_addr, avatar1.address, ONE_USD_WO_ZRX_MAINNET);
+          result = await comptroller.borrowAllowed.call(
+            cZRX_addr,
+            avatar1.address,
+            ONE_USD_WO_ZRX_MAINNET,
+          );
+          expect(result).to.be.bignumber.equal(ZERO);
+          // time change
+          await time.increase(ONE_MONTH);
+
+          // update index
+          await score.updateIndex(cTokens);
+
+          let now = await nowTime();
+          let user1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, now);
+          let user1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, now);
+          await time.increase(1);
+          now = now.add(new BN(1)); // fix intermittent timestamp issue. ensure to calculate only for 1 sec
+          let newUser1ETHCollScore = await score.getCollScore(a.user1, cETH_addr, now);
+          let newUser1ZRXDebtScore = await score.getDebtScore(a.user1, cZRX_addr, now);
+          const beforePerSecondETHCollScoreIncrease = newUser1ETHCollScore.sub(user1ETHCollScore);
+          const beforePerSecondZRXDebtScoreIncrease = newUser1ZRXDebtScore.sub(user1ZRXDebtScore);
+
+          // validate user1 collateral score
+          expect(user1ETHCollScore).to.be.bignumber.not.equal(ZERO);
+          // validate user1 debt score
+          expect(user1ZRXDebtScore).to.be.bignumber.not.equal(ZERO);
+          let ethScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
+          expect(ethScoreBalUser1).to.be.bignumber.not.equal(ZERO);
+          console.log("ethScoreBalUser1: " + ethScoreBalUser1.toString());
+          let ethScoreBalGlobal = await getGlobalCollScoreBalance(cETH_addr);
+          expect(ethScoreBalGlobal).to.be.bignumber.not.equal(ZERO);
+          console.log("ethScoreBalGlobal: " + ethScoreBalGlobal.toString());
+          let zrxScoreBalUser1 = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+          expect(zrxScoreBalUser1).to.be.bignumber.not.equal(ZERO);
+          console.log("zrxScoreBalUser1: " + zrxScoreBalUser1.toString());
+          let zrxScoreBalGlobal = await getGlobalDebtScoreBalance(cZRX_addr);
+          expect(zrxScoreBalGlobal).to.be.bignumber.not.equal(ZERO);
+          console.log("zrxScoreBalGlobal: " + zrxScoreBalGlobal.toString());
+
+          // Change ZRX rate 110%
+          const newZRXPrice = ONE_ZRX_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
+          await priceOracle.setPrice(cZRX_addr, newZRXPrice);
+
+          // open for liquidation
+          user1AccLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+          expect(user1AccLiquidity["liquidity"].toString()).to.be.bignumber.equal(ZERO);
+          expect(user1AccLiquidity["shortFall"].toString()).to.be.bignumber.not.equal(ZERO);
+
+          // user quit before liquidation
+          expect(await avatar1.quit()).to.be.equal(false);
+          await avatar1.quitB({ from: a.user1 });
+          expect(await avatar1.quit()).to.be.equal(true);
+
+          // member deposit minTopup
+          const debtInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX_addr);
+          const minTopup = debtInfo["minTopup"];
+          await ZRX.approve(pool.address, minTopup, { from: a.member1 });
+          await pool.methods["deposit(address,uint256)"](ZRX_addr, minTopup, { from: a.member1 });
+
+          // member try to topup, but cannot
+          await expectRevert(
+            pool.topup(a.user1, bZRX_addr, minTopup, false, { from: a.member1 }),
+            "Cushion: user-quit-B",
+          );
+          const maxLiquidationAmount = await avatar1.getMaxLiquidationAmount.call(cZRX_addr);
+          expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
+
+          // MEMBER CANNOT CALL liquidateBorrow(), HENCE NOT SCORE UPDATION
+          expect(await avatar1.canLiquidate.call()).to.be.equal(false);
+        });
+
+        it("when transfer", async () => {
+          let compSupplyState = await comptroller.compSupplyState(cZRX_addr);
+          const prevCompSupplyIndex = compSupplyState["index"];
+
+          const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+          await ZRX.approve(bZRX_addr, _500USD_ZRX, { from: a.user1 });
+          await bZRX.mint(_500USD_ZRX, { from: a.user1 });
+          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
+
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cZRX_addr, avatar1.address, ONE_USD_WO_ZRX_MAINNET);
+
+          await time.increase(ONE_MONTH);
+
+          expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.equal(
+            cZRX_COMP_SPEEDS_MAINNET,
+          );
+          compSupplyState = await comptroller.compSupplyState(cZRX_addr);
+          const currCompSupplyIndex = compSupplyState["index"];
+          await score.updateIndex(cTokens);
+          const now = await nowTime();
+          const userCollScore = await score.getCollScore(a.user1, cZRX_addr, now);
+          const user = await score.user(avatar1.address);
+          const collAsset = await score.collAsset(cZRX_addr);
+          const userScore = await score.getScore(user, collAsset, now, 0, 0);
+
+          const supplyMultiplier = await score.supplyMultiplier(cZRX_addr);
+          // ZRX supplyMultiplier is 2
+          expect(supplyMultiplier).to.be.bignumber.equal(new BN(2));
+
+          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+
+          const deltaSupplyIndex = currCompSupplyIndex
+            .sub(prevCompSupplyIndex)
+            .mul(ONE_ETH)
+            .div(await cZRX.exchangeRateCurrent.call());
+
+          // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+          const expectedCollScore = supplyMultiplier
+            .mul(deltaSupplyIndex)
+            .div(SCALE)
+            .mul(userScore);
+          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+
+          const globalCollScore = await score.getCollGlobalScore(cZRX_addr, now);
+          expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
+
+          let userScoreBal = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+          expect(userScoreBal).to.be.bignumber.equal(_500USD_ZRX);
+
+          let globalScoreBal = await getGlobalCollScoreBalance(cZRX_addr);
+          expect(globalScoreBal).to.be.bignumber.equal(_500USD_ZRX);
+
+          // quit
+          expect(await avatar1.quit()).to.be.equal(false);
+          await avatar1.quitB({ from: a.user1 });
+          expect(await avatar1.quit()).to.be.equal(true);
+
+          // TRANSFER
+          const _100USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(100));
+          const cTokenAmt = await toCTokenAmount(cZRX_addr, _100USD_ZRX);
+
+          await bZRX.transfer(a.dummy1, cTokenAmt, { from: a.user1 });
+
+          let userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+          expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
+
+          const avatarDummy1 = await registry.avatarOf(a.dummy1);
+          const userScoreBalDummy1 = await getCurrentCollScoreBalance(avatarDummy1, cZRX_addr);
+          expectInRange(userScoreBalDummy1, _100USD_ZRX, 1);
+
+          await time.increase(1);
+
+          // no change in score of user1
+          userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+          expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
+
+          const dummy1CollScore = await score.getCollScore(a.dummy1, cZRX_addr, await nowTime());
+          expect(dummy1CollScore).to.be.bignumber.not.equal(ZERO);
+        });
+
+        it("when transferFrom", async () => {
+          let compSupplyState = await comptroller.compSupplyState(cZRX_addr);
+          const prevCompSupplyIndex = compSupplyState["index"];
+
+          const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+          await ZRX.approve(bZRX_addr, _500USD_ZRX, { from: a.user1 });
+          await bZRX.mint(_500USD_ZRX, { from: a.user1 });
+          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
+
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cZRX_addr, avatar1.address, ONE_USD_WO_ZRX_MAINNET);
+
+          await time.increase(ONE_MONTH);
+
+          expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.equal(
+            cZRX_COMP_SPEEDS_MAINNET,
+          );
+          compSupplyState = await comptroller.compSupplyState(cZRX_addr);
+          const currCompSupplyIndex = compSupplyState["index"];
+          await score.updateIndex(cTokens);
+          const now = await nowTime();
+          const userCollScore = await score.getCollScore(a.user1, cZRX_addr, now);
+          const user = await score.user(avatar1.address);
+          const collAsset = await score.collAsset(cZRX_addr);
+          const userScore = await score.getScore(user, collAsset, now, 0, 0);
+
+          const supplyMultiplier = await score.supplyMultiplier(cZRX_addr);
+          // ZRX supplyMultiplier is 2
+          expect(supplyMultiplier).to.be.bignumber.equal(new BN(2));
+
+          expect(currCompSupplyIndex.gt(prevCompSupplyIndex)).to.be.equal(true);
+
+          const deltaSupplyIndex = currCompSupplyIndex
+            .sub(prevCompSupplyIndex)
+            .mul(ONE_ETH)
+            .div(await cZRX.exchangeRateCurrent.call());
+
+          // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
+          const expectedCollScore = supplyMultiplier
+            .mul(deltaSupplyIndex)
+            .div(SCALE)
+            .mul(userScore);
+          expect(expectedCollScore).to.be.bignumber.not.equal(ZERO);
+          expect(expectedCollScore).to.be.bignumber.equal(userCollScore);
+
+          const globalCollScore = await score.getCollGlobalScore(cZRX_addr, now);
+          expect(globalCollScore).to.be.bignumber.equal(expectedCollScore);
+
+          let userScoreBal = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+          expect(userScoreBal).to.be.bignumber.equal(_500USD_ZRX);
+
+          let globalScoreBal = await getGlobalCollScoreBalance(cZRX_addr);
+          expect(globalScoreBal).to.be.bignumber.equal(_500USD_ZRX);
+
+          // quit
+          expect(await avatar1.quit()).to.be.equal(false);
+          await avatar1.quitB({ from: a.user1 });
+          expect(await avatar1.quit()).to.be.equal(true);
+
+          // TRANSFER FROM
+          const _100USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(100));
+          const cTokenAmt = await toCTokenAmount(cZRX_addr, _100USD_ZRX);
+
+          await bZRX.approve(a.dummy1, cTokenAmt, { from: a.user1 });
+          await bZRX.transferFrom(a.user1, a.dummy1, cTokenAmt, { from: a.dummy1 });
+
+          let userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+          expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
+
+          const avatarDummy1 = await registry.avatarOf(a.dummy1);
+          const userScoreBalDummy1 = await getCurrentCollScoreBalance(avatarDummy1, cZRX_addr);
+          expectInRange(userScoreBalDummy1, _100USD_ZRX, 1);
+
+          await time.increase(1);
+
+          userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+          expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
+
+          const dummy1CollScore = await score.getCollScore(a.dummy1, cZRX_addr, await nowTime());
+          expect(dummy1CollScore).to.be.bignumber.not.equal(ZERO);
+        });
       });
 
       describe("Integration Tests with Jar", async () => {
