@@ -496,7 +496,62 @@ contract("BScore", async (accounts) => {
     });
 
     describe("BScore.slashScore()", async () => {
-      it("");
+      it("when repayBorrowBehalf() on Compound", async () => {
+        // user2 mints ZRX
+        await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
+        await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
+
+        // user1 borrow ZRX
+        const _1200USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(1200));
+        const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+        await bETH.mint({ from: a.user1, value: _1200USD_ETH });
+        await bZRX.borrow(_500USD_ZRX, { from: a.user1 });
+        const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+        await advanceBlockInCompound(200);
+        await time.increase(ONE_MONTH);
+
+        await setMainnetCompSpeeds();
+
+        // trigger borrow index update
+        await comptroller.borrowAllowed(cZRX_addr, avatar1.address, ONE_ZRX);
+
+        expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.not.equal(ZERO);
+        expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.equal(
+          cZRX_COMP_SPEEDS_MAINNET,
+        );
+
+        const prevBorrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+        expectInRange(prevBorrowBal, _500USD_ZRX, 1); // 1% in range, as interest on borrow
+        const borrowInterestAccured = prevBorrowBal.sub(_500USD_ZRX);
+
+        let userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        expect(userDebtScoreBalance).to.be.bignumber.equal(_500USD_ZRX);
+
+        await score.updateIndex(cTokens);
+        const now = await nowTime();
+
+        // repayBorrowBehalf() on Compound
+        // Assume member4 = someone repaying on behalf of user1
+        const _100USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(100));
+        await ZRX.approve(cZRX_addr, _100USD_ZRX, { from: a.member4 });
+        await cZRX.repayBorrowBehalf(avatar1.address, _100USD_ZRX, { from: a.member4 });
+
+        // borrow balance reduced on B approx $400
+        const currBorrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+        expect(currBorrowBal).to.be.bignumber.equal(prevBorrowBal.sub(_100USD_ZRX));
+
+        // no change in score approx $500
+        userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        expect(userDebtScoreBalance).to.be.bignumber.equal(_500USD_ZRX);
+
+        // someone slash score
+        await score.slashScore(a.user1, cZRX_addr, { from: a.dummy1 });
+
+        // score balance should be reduced
+        userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        expectInRange(userDebtScoreBalance, _500USD_ZRX.sub(_100USD_ZRX), 1);
+      });
     });
 
     describe("Integration Tests", async () => {
