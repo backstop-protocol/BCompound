@@ -68,7 +68,6 @@ contract Registry is Ownable {
         cEther = _cEther;
         pool = _pool;
         bComptroller = _bComptroller;
-        score = _score;
         compVoter = _compVoter;
 
         avatarImpl = _avatarImpl;

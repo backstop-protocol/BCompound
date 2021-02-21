@@ -6,6 +6,13 @@ import BN from "bn.js";
 
 const shell = require("shelljs");
 
+// Constants
+export const ONE_MINUTE = new BN(60);
+export const ONE_HOUR = new BN(60).mul(ONE_MINUTE);
+export const ONE_DAY = new BN(24).mul(ONE_HOUR);
+export const ONE_WEEK = new BN(7).mul(ONE_DAY);
+export const ONE_MONTH = new BN(4).mul(ONE_WEEK); // 1 month = 4 weeks
+
 // Compound contracts
 const Comp: b.CompContract = artifacts.require("Comp");
 const Comptroller: b.ComptrollerContract = artifacts.require("Comptroller");
@@ -18,7 +25,9 @@ const Registry: b.RegistryContract = artifacts.require("Registry");
 const BEther: b.BEtherContract = artifacts.require("BEther");
 const BErc20: b.BErc20Contract = artifacts.require("BErc20");
 const Avatar: b.AvatarContract = artifacts.require("Avatar");
-const BTokenScore: b.BTokenScoreContract = artifacts.require("BTokenScore");
+const BScore: b.BScoreContract = artifacts.require("BScore");
+const CompoundJar: b.CompoundJarContract = artifacts.require("CompoundJar");
+const JarConnector: b.JarConnectorContract = artifacts.require("JarConnector");
 
 // Compound class to store all Compound deployed contracts
 export class Compound {
@@ -35,8 +44,9 @@ export class BProtocol {
   public bComptroller!: b.BComptrollerInstance;
   public registry!: b.RegistryInstance;
   public bTokens: Map<string, b.AbsBTokenInstance> = new Map();
-  public jar!: string;
-  public score!: b.BTokenScoreInstance;
+  public jar!: b.CompoundJarInstance;
+  public jarConnector!: b.JarConnectorInstance;
+  public score!: b.BScoreInstance;
 
   // variable to hold all Compound contracts
   public compound!: Compound;
@@ -87,16 +97,18 @@ export class BProtocolEngine {
   public async deployBProtocol(): Promise<BProtocol> {
     this.bProtocol = new BProtocol();
     const _bProtocol = this.bProtocol;
-    _bProtocol.jar = this.accounts[5]; // TODO
 
-    _bProtocol.score = await this.deployScore();
+    _bProtocol.jar = await this.deployCompoundJar();
     _bProtocol.pool = await this.deployPool();
     _bProtocol.bComptroller = await this.deployBComptroller();
     _bProtocol.registry = await this.deployRegistry();
+    _bProtocol.score = await this.deployScore();
+    _bProtocol.jarConnector = await this.deployJarConnector();
+    _bProtocol.jar.setConnector(_bProtocol.jarConnector.address);
 
     await _bProtocol.pool.setRegistry(_bProtocol.registry.address);
-    await _bProtocol.score.setRegistry(_bProtocol.registry.address);
     await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
+    await _bProtocol.registry.setScore(_bProtocol.score.address);
 
     _bProtocol.compound = new Compound();
     _bProtocol.compound.comptroller = await Comptroller.at(this.compoundUtil.getComptroller());
@@ -111,6 +123,23 @@ export class BProtocolEngine {
     return this.bProtocol;
   }
 
+  private async deployCompoundJar(): Promise<b.CompoundJarInstance> {
+    const now = new BN((await web3.eth.getBlock("latest")).timestamp);
+    const SIX_MONTHS = ONE_MONTH.mul(new BN(6));
+    return await CompoundJar.new(now.add(SIX_MONTHS));
+  }
+
+  private async deployJarConnector(): Promise<b.JarConnectorInstance> {
+    const cTokens: string[] = [
+      this.compoundUtil.getContracts("cETH"),
+      this.compoundUtil.getContracts("cZRX"),
+      this.compoundUtil.getContracts("cBAT"),
+      this.compoundUtil.getContracts("cUSDT"),
+      this.compoundUtil.getContracts("cWBTC"),
+    ];
+    return await JarConnector.new(cTokens, this.bProtocol.score.address);
+  }
+
   // Deploy Pool contract
   private async deployPool(): Promise<b.PoolInstance> {
     this.bProtocol.members.push(this.accounts[6]);
@@ -119,14 +148,57 @@ export class BProtocolEngine {
     this.bProtocol.members.push(this.accounts[9]);
     const comptroller = this.compoundUtil.getContracts("Comptroller");
     const cETH = this.compoundUtil.getContracts("cETH");
-    const pool = await Pool.new(this.bProtocol.jar);
+    const pool = await Pool.new(this.bProtocol.jar.address);
     await pool.setMembers(this.bProtocol.members);
     await pool.setProfitParams(105, 110);
     return pool;
   }
 
-  private async deployScore(): Promise<b.BTokenScoreInstance> {
-    return await BTokenScore.new();
+  private async deployScore() {
+    const now = new BN((await web3.eth.getBlock("latest")).timestamp);
+    const duration = new BN(6).mul(ONE_MONTH); // 1 month = 4 weeks
+
+    const endDate = now.add(duration);
+    const cTokens: string[] = new Array(5);
+    const supplyMultipliers: BN[] = new Array(5);
+    const borrowMultipliers: BN[] = new Array(5);
+
+    // cETH
+    cTokens[0] = this.compoundUtil.getContracts("cETH");
+    supplyMultipliers[0] = new BN(5); // 5x at supply ETH
+    borrowMultipliers[0] = new BN(10); // 10x at borrow ETH
+
+    // cBAT
+    cTokens[1] = this.compoundUtil.getContracts("cBAT");
+    supplyMultipliers[1] = new BN(2); // 2x
+    borrowMultipliers[1] = new BN(3); // 3x
+
+    // cZRX
+    cTokens[2] = this.compoundUtil.getContracts("cZRX");
+    supplyMultipliers[2] = new BN(2); // 2x
+    borrowMultipliers[2] = new BN(3); // 3x
+
+    // cUSDT
+    cTokens[3] = this.compoundUtil.getContracts("cUSDT");
+    supplyMultipliers[3] = new BN(3); // 3x
+    borrowMultipliers[3] = new BN(4); // 4x
+
+    // cWBTC
+    cTokens[4] = this.compoundUtil.getContracts("cWBTC");
+    supplyMultipliers[4] = new BN(5); // 5x
+    borrowMultipliers[4] = new BN(10); // 10x
+
+    const score = await BScore.new(
+      this.bProtocol.registry.address,
+      now,
+      endDate,
+      cTokens,
+      supplyMultipliers,
+      borrowMultipliers,
+    );
+    await score.spin();
+    await score.updateIndex(cTokens);
+    return score;
   }
 
   // Deploy BComptroller contract
@@ -141,8 +213,8 @@ export class BProtocolEngine {
     const cETH = this.compoundUtil.getContracts("cETH");
     const pool = this.bProtocol.pool;
     const bComptroller = this.bProtocol.bComptroller.address;
-    const bScore = this.bProtocol.score.address;
     const compVoter = this.getCompVoterAddress();
+
     const avatar = await Avatar.new();
     return await Registry.new(
       comptroller,
@@ -208,6 +280,7 @@ export class BProtocolEngine {
     await priceOracle.setPrice(this.compoundUtil.getContracts("cETH"), FAKE_PRICE);
     await priceOracle.setPrice(this.compoundUtil.getContracts("cZRX"), FAKE_PRICE);
     await priceOracle.setPrice(this.compoundUtil.getContracts("cBAT"), FAKE_PRICE);
+    await priceOracle.setPrice(this.compoundUtil.getContracts("cUSDT"), FAKE_PRICE);
     // Set the FakePriceOracle in Comptroller
     await this.bProtocol.compound.comptroller._setPriceOracle(priceOracle.address);
     return priceOracle;

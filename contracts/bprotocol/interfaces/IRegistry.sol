@@ -3,6 +3,9 @@ pragma solidity 0.5.16;
 
 interface IRegistry {
 
+    // Ownable
+    function transferOwnership(address newOwner) external;
+
     // Compound contracts
     function comp() external view returns (address);
     function comptroller() external view returns (address);
@@ -23,4 +26,6 @@ interface IRegistry {
     function getAvatar(address owner) external returns (address);
     // avatar whitelisted calls
     function whitelistedAvatarCalls(address target, bytes4 functionSig) external view returns(bool);
+
+    function setPool(address newPool) external;
 }

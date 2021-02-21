@@ -87,21 +87,21 @@ contract AbsCToken is AbsAvatarBase {
     // CEther / CErc20
     // ===============
     function liquidateBorrow(
-        uint256 underlyingAmtToLiquidate,
+        uint256 underlyingAmtToLiquidateDebt,
         uint256 amtToDeductFromTopup,
-        ICToken cTokenCollateral
+        ICToken cTokenColl
     ) external payable returns (uint256) {
         // 1. Can liquidate?
         require(canLiquidate(), "cant-liquidate");
 
         ICToken cTokenDebt = toppedUpCToken;
-        uint256 seizedCTokens = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidate, amtToDeductFromTopup, cTokenCollateral);
+        uint256 seizedCTokensColl = _doLiquidateBorrow(cTokenDebt, underlyingAmtToLiquidateDebt, amtToDeductFromTopup, cTokenColl);
         // Convert seizedCToken to underlyingTokens
-        uint256 underlyingSeizedTokens = _toUnderlying(cTokenDebt, seizedCTokens);
+        uint256 underlyingSeizedTokensColl = _toUnderlying(cTokenColl, seizedCTokensColl);
         if(! quit) {
             IScore score = _score();
-            score.updateCollScore(address(this), address(cTokenDebt), -toInt256(underlyingSeizedTokens));
-            score.updateDebtScore(address(this), address(cTokenCollateral), -toInt256(underlyingAmtToLiquidate));
+            score.updateCollScore(address(this), address(cTokenColl), -toInt256(underlyingSeizedTokensColl));
+            score.updateDebtScore(address(this), address(cTokenDebt), -toInt256(underlyingAmtToLiquidateDebt));
         }
         return 0;
     }
