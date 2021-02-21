@@ -1,7 +1,7 @@
 import "hardhat-typechain";
 require("ts-node/register");
 require("@nomiclabs/hardhat-truffle5");
-require("@nomiclabs/hardhat-ethers");
+import "@nomiclabs/hardhat-ethers";
 
 // You have to export an object to set up your config
 // This object can have the following optional entries:
@@ -13,6 +13,7 @@ export default {
     hardhat: {
       blockGasLimit: 12500000,
       allowUnlimitedContractSize: true,
+      chainId: 1337,
       accounts: [
         // 20 accounts with 10^14 ETH each
         // Addresses:
