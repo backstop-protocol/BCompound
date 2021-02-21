@@ -23,7 +23,7 @@ contract OracleLike {
 contract ERC20Like {
     function decimals() public returns(uint);
     function name() public returns(string memory);
-    function balanceOf(address user) public view returns(uint);
+    function balanceOf(address user) public returns(uint);
     function allowance(address owner, address spender) public returns(uint);
 }
 
@@ -37,7 +37,7 @@ contract CTokenLike {
 }
 
 contract RegistryLike {
-    function getAvatar(address user) public view returns(address);
+    function getAvatar(address user) public returns(address);
     function avatarLength() public view returns(uint);
     function avatars(uint i) public view returns(address);
     function comptroller() public view returns(address);    
@@ -169,7 +169,7 @@ contract UserInfo {
             
             (info.listed[i], info.collateralFactor[i], ) = ComptrollerLike(comptroller).markets(info.ctoken[i]);
 
-            info.bTotalSupply[i] = CTokenLike(info.btoken[i]).totalSupply();
+            if(info.btoken[i] != address(0)) info.bTotalSupply[i] = CTokenLike(info.btoken[i]).totalSupply();
         }
         
         return info;
@@ -183,6 +183,7 @@ contract UserInfo {
 
         
         for(uint i = 0 ; i < ctoken.length ; i++) {
+            if(ctoken[i] == address(0)) continue;
             info.ctokenBalance[i] = ERC20Like(ctoken[i]).balanceOf(user);
             info.ctokenBorrowBalance[i] = CTokenLike(ctoken[i]).borrowBalanceCurrent(user);
             if(underlying[i] == ETH) {
@@ -222,14 +223,14 @@ contract UserInfo {
         info.comp = comp;
     }
 
-    function getJarInfo(address jar, address[] memory ctoken) public view returns(JarInfo memory info) {
+    function getJarInfo(address jar, address[] memory ctoken) public returns(JarInfo memory info) {
         info.ctokenBalance = new uint[](ctoken.length);
         for(uint i = 0 ; i < ctoken.length ; i++) {
             info.ctokenBalance[i] = ERC20Like(ctoken[i]).balanceOf(jar); 
         }
     }
 
-    function getTvlInfo(address[] memory ctokens, address registry) public view returns(TvlInfo memory info) {
+    function getTvlInfo(address[] memory ctokens, address registry) public returns(TvlInfo memory info) {
         info.ctokenBalance = new uint[](ctokens.length);
         uint numAvatars = RegistryLike(registry).avatarLength();
         for(uint i = 0 ; i < numAvatars ; i++) {
