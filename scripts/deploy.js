@@ -72,11 +72,15 @@ async function main() {
   await registry.setScore(score.address, {from:me, gasLimit : 7000000, gasPrice:100e9});
 
   const bTokens = [];
+  const symbols = [];
   for(ctoken of cTokens) {
     await bComptroller.newBToken(ctoken, {from:me, gasLimit : 5000000, gasPrice:100e9});
     const bToken = await bComptroller.c2b(ctoken);
+    const token = await BErc20.at(bToken);
+    const symbol = await token.symbol();
     bTokens.push(bToken);
-    console.log(bToken);
+    symbols.push(symbol);
+    console.log(bToken, symbol);
   }
 
   const importContract = await Import.new(registry.address, bComptroller.address, {from:me, gasLimit : 7000000, gasPrice:100e9});
@@ -97,6 +101,7 @@ async function main() {
   console.log("flash import", flashImport.address);
   console.log("sugar daddy", keeperPool);
   console.log("ctokens", cTokens);
+  console.log("symbols", symbols);
   console.log("btokens", bTokens);
 
   return;

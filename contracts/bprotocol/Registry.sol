@@ -57,7 +57,6 @@ contract Registry is Ownable {
         address _cEther,
         address _pool,
         address _bComptroller,
-        address _score,
         address _compVoter,
         address _avatarImpl
     )
