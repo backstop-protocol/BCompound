@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 
 contract ComptrollerLike {
+    function getAllMarkets() public view returns (address[] memory);
     function allMarkets(uint m) public view returns(address);
     function markets(address cTokenAddress) public view returns (bool, uint, bool);
     function oracle() public view returns(address);
@@ -37,6 +38,9 @@ contract CTokenLike {
 
 contract RegistryLike {
     function getAvatar(address user) public view returns(address);
+    function avatarLength() public view returns(uint);
+    function avatars(uint i) public view returns(address);
+    function comptroller() public view returns(address);    
 }
 
 contract JarConnectorLike {
@@ -44,8 +48,6 @@ contract JarConnectorLike {
     function getGlobalScore() external view returns (uint);    
     function getUserScoreProgressPerSec(address user) external view returns (uint);
 }
-
-
 
 contract UserInfo {
     struct TokenInfo {
@@ -90,6 +92,11 @@ contract UserInfo {
     struct JarInfo {
         uint[] ctokenBalance;
     }
+    
+    struct TvlInfo {
+        uint numAccounts;
+        uint[] ctokenBalance;
+    }
 
     struct Info {
         TokenInfo     tokenInfo;
@@ -99,6 +106,7 @@ contract UserInfo {
         ScoreInfo     scoreInfo;
         CompTokenInfo compTokenInfo;
         JarInfo       jarInfo;
+        TvlInfo       tvlInfo;
     }
     
     address constant ETH = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
@@ -123,11 +131,13 @@ contract UserInfo {
         return 0;
     }
     
-    function getTokenInfo(address comptroller, address bComptroller, uint numMarkets) public returns(TokenInfo memory info) {
+    function getTokenInfo(address comptroller, address bComptroller) public returns(TokenInfo memory info) {
+        address[] memory markets = ComptrollerLike(comptroller).getAllMarkets();
+        uint numMarkets = markets.length;
         info.btoken = new address[](numMarkets);        
         info.ctoken = new address[](numMarkets);
         for(uint m = 0 ; m < numMarkets ; m++) {
-            info.ctoken[m] = ComptrollerLike(comptroller).allMarkets(m);
+            info.ctoken[m] = markets[m];
             info.btoken[m] = BComptrollerLike(bComptroller).c2b(info.ctoken[m]);
         }
         info.ctokenDecimals = new uint[](info.ctoken.length);
@@ -219,6 +229,19 @@ contract UserInfo {
         }
     }
 
+    function getTvlInfo(address[] memory ctokens, address registry) public view returns(TvlInfo memory info) {
+        info.ctokenBalance = new uint[](ctokens.length);
+        uint numAvatars = RegistryLike(registry).avatarLength();
+        for(uint i = 0 ; i < numAvatars ; i++) {
+            address avatar = RegistryLike(registry).avatars(i);
+            for(uint j = 0 ; j < ctokens.length ; j++) {
+                info.ctokenBalance[j] += ERC20Like(ctokens[j]).balanceOf(avatar);
+            }
+        }
+        
+        info.numAccounts = numAvatars;
+    }
+
     function getUserInfo(address user,
                          address comptroller,
                          address bComptroller,
@@ -226,13 +249,13 @@ contract UserInfo {
                          address sugarDaddy,
                          address jarConnector,
                          address jar) public returns(Info memory info) {
-        uint numTokens = getNumMarkets(comptroller);
-        info.tokenInfo = getTokenInfo(comptroller, bComptroller, numTokens);
+        info.tokenInfo = getTokenInfo(comptroller, bComptroller);
         info.bUser = getPerUserInfo(user, info.tokenInfo.btoken, info.tokenInfo.underlying);
         info.cUser = getPerUserInfo(user, info.tokenInfo.ctoken, info.tokenInfo.underlying);
         info.importInfo = getImportInfo(user, info.tokenInfo.ctoken, registry, sugarDaddy);
         info.scoreInfo = getScoreInfo(user, jarConnector);
         info.compTokenInfo = getCompTokenInfo(user, comptroller, registry);
         info.jarInfo = getJarInfo(jar, info.tokenInfo.ctoken);
+        info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
     }
 }
