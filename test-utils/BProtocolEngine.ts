@@ -214,7 +214,18 @@ export class BProtocolEngine {
     const pool = this.bProtocol.pool;
     const bComptroller = this.bProtocol.bComptroller.address;
     const compVoter = this.getCompVoterAddress();
-    return await Registry.new(comptroller, comp, cETH, pool.address, bComptroller, compVoter);
+
+    const avatar = await Avatar.new();
+    return await Registry.new(
+      comptroller,
+      comp,
+      cETH,
+      pool.address,
+      bComptroller,
+      bScore,
+      compVoter,
+      avatar.address,
+    );
   }
 
   public getBProtocol(): BProtocol {

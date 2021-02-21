@@ -21,11 +21,6 @@ contract AbsBToken is Exponential {
     // Compound's CToken this BToken contract is tied to
     address public cToken;
 
-    modifier onlyPool() {
-        require(msg.sender == registry.pool(), "BToken: only-pool-is-authorized");
-        _;
-    }
-
     modifier onlyDelegatee(address _avatar) {
         // `msg.sender` is delegatee
         require(registry.delegate(_avatar, msg.sender), "BToken: delegatee-not-authorized");
