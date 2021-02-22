@@ -3,15 +3,18 @@ pragma experimental ABIEncoderV2;
 
 import { Registry } from "./../Registry.sol";
 import { BComptroller } from "./../BComptroller.sol";
-import { CTokenInterface } from "./../Inteface/CTokenInterface.sol";
-import { IBToken } from "./../Inteface/IBToken.sol";
-import { ICushion } from "./../Inteface/IAvatar.sol";
-import { Pool } from "./Pool.sol";
+import { CTokenInterface } from "./../interfaces/CTokenInterfaces.sol";
+import { IBToken } from "./../interfaces/IBToken.sol";
+import { ICushion } from "./../interfaces/IAvatar.sol";
+import { IComptroller } from "./../interfaces/IComptroller.sol";
+import { Pool } from "./../Pool.sol";
 
 contract LiquidatorInfo {
     address constant ETH = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
     struct AvatarInfo {
+        address user;
+
         uint totalDebt; // total debt according to price feed
         uint totalCollateral; // total collateral according to price feed
         uint weightedCollateral; // collateral x collateral factor. liquidation when weightedCollateral < totalDebt
@@ -33,42 +36,60 @@ contract LiquidatorInfo {
         uint cushionCurrentSize;
 
         address[] cushionPossibleTokens; // which tokens could be used for cushion
-        uint[] cushionPossibleSizes; // depends on a price feed
+        uint[] cushionMaxSizes;
     }
 
-    struct liquidationInfo {
+    struct LiquidationInfo {
         // only relevant if there is a cushion. we assume only one liquidator
-        uint remainingLiquidationSize;        
-        address[] collateralTokens;
-        uint[] collateralForRemainingLiquidationSize;
-        address[] collateralCToken;        
+        uint remainingLiquidationSize;
+    }
+
+    struct AccountInfo {
+        AvatarInfo avatarInfo;
+        CushionInfo cushionInfo;
+        LiquidationInfo liquidationInfo;
+    }
+
+    function isIn(address[] memory array, address elm) internal pure returns(bool) {
+        for(uint i = 0 ; i < array.length ; i++) {
+            if(elm == array[i]) return true;
+        }
+
+        return false;
     }
 
     function getAvatarInfo(Registry registry,
                            BComptroller bComptroller,
                            address[] memory ctoken,
-                           uint[] priceFeed,
-                           address user) public view return(AvatarInfo memory info) {
+                           uint[] memory priceFeed,
+                           address avatar) public returns(AvatarInfo memory info) {
         require(ctoken.length == priceFeed.length, "ctoken-priceFeed-missmatch");
 
         uint numTokens = ctoken.length;
+        address user = registry.ownerOf(avatar);
 
+        info.user = user;
         info.debtTokens = new address[](numTokens);
-        info.debtAmounts = new address[](numTokens);
+        info.debtAmounts = new uint[](numTokens);
         info.collateralTokens = new address[](numTokens);
-        info.collateralAmounts = new address[](numTokens);
+        info.collateralAmounts = new uint[](numTokens);
         info.weightedCollateralAmounts = new uint[](numTokens);
+
+        IComptroller comptroller = bComptroller.comptroller();
+        address[] memory assetsIn = comptroller.getAssetsIn(avatar);
 
         for(uint i = 0 ; i < numTokens ; i++) {
             if(registry.cEther() == ctoken[i]) info.debtTokens[i] = ETH;
-            else info.debtTokens[i] = CTokenInterface(info.debtTokens[i]).underlying();
+            else info.debtTokens[i] = address(CTokenInterface(info.debtTokens[i]).underlying());
 
             address btoken = bComptroller.c2b(ctoken[i]);
             info.debtAmounts[i] = IBToken(btoken).borrowBalanceCurrent(user);
 
             info.collateralTokens[i] = ctoken[i];
             info.collateralAmounts[i] = CTokenInterface(btoken).exchangeRateCurrent() * CTokenInterface(btoken).balanceOf(user) / 1e18;
-            uint CR = bComptroller.comptroller().markets(ctoken[i]);
+            if(! isIn(assetsIn, ctoken[i])) info.collateralAmounts[i] = 0; 
+            // set as 0 if not in market
+            (,uint CR) = comptroller.markets(ctoken[i]);
             info.weightedCollateralAmounts[i] = info.collateralAmounts[i] * CR / 1e18;
 
             info.totalDebt += info.debtAmounts[i] * priceFeed[i] / 1e18;
@@ -77,50 +98,88 @@ contract LiquidatorInfo {
         }
     }
 
+    function ctokenToUnderlying(Registry registry, address ctoken) internal view returns(address) {
+        if(registry.cEther() == ctoken) return ETH; 
+        else return address(CTokenInterface(ctoken).underlying());
+    }
+
     function getCushionInfo(Registry registry,
                             BComptroller bComptroller,
                             Pool pool,
                             address[] memory ctoken,
-                            uint[] priceFeed,
+                            uint[] memory priceFeed,
                             uint debtAmount,
-                            uint weightedCollateralAmounts,
-                            address user,
-                            address me) public view return(CushionInfo memory info) {
-        address avatar = registry.avatarOf(user);
+                            uint weightedCollateral,
+                            address avatar,
+                            address me) public returns(CushionInfo memory info) {
+        address user = registry.ownerOf(avatar);
         info.hasCushion = ICushion(avatar).toppedUpAmount() > 0;
-        (uint expire, uint amountTopped, uint amountLiquidated) = pool.getMemberTopupInfo(user, me);
+        (, uint amountTopped,) = pool.getMemberTopupInfo(user, me);
 
-        if(debtAmount > weightedCollateralAmounts) {
+        if(debtAmount > weightedCollateral) {
             // assume there is only one member
-            if(amountTopped == 0 || info.hasCushion) info.shouldTopup = true;
+            info.shouldTopup = true;
         }
         info.shouldUntop = (!info.hasCushion && amountTopped > 0);
 
         if(amountTopped > 0) {
-            info.cushionCurrentToken = pool.topped(avatar).cToken;
+            (,address toppedToken) = pool.topped(avatar);
+            info.cushionCurrentToken = ctokenToUnderlying(registry, toppedToken);
             info.cushionCurrentSize = amountTopped;
         }
 
+        info.cushionPossibleTokens = new address[](ctoken.length);
+        info.cushionMaxSizes = new uint[](ctoken.length);        
         for(uint i = 0 ; i < ctoken.length ; i++) {
-            address btoken = bComptroller.c2b(ctoken[i]);
-            uint debt = IBToken(btoken).borrowBalanceCurrent(user);
+            uint debt = IBToken(bComptroller.c2b(ctoken[i])).borrowBalanceCurrent(user);
             uint debtUsd = debt * priceFeed[i] / 1e18;
             if(amountTopped > 0 && info.hasCushion) {
-                
+                if(info.cushionCurrentToken != ctokenToUnderlying(registry, ctoken[i])) continue;
+                debt -= amountTopped;
+            }
+
+            info.cushionPossibleTokens[i] = ctokenToUnderlying(registry, ctoken[i]);
+            info.cushionMaxSizes[i] = debt;
+
+            if(debtAmount > weightedCollateral) {
+                // not enough debt to topup
+                if(debtUsd < (debtAmount - weightedCollateral)) info.cushionMaxSizes[i] = 0;
             }
         }
-
     }
 
-    struct CushionInfo {
-        bool hasCushion;
-        bool shouldTopup;
-        bool shouldUntop;
+    function getLiquidationInfo(address  avatar) public returns(LiquidationInfo memory info) {
+        info.remainingLiquidationSize = ICushion(avatar).remainingLiquidationAmount();
+    }
 
-        address cushionCurrentToken;
-        uint cushionCurrentSize;
+    function getSingleAccountInfo(Pool pool, Registry registry, BComptroller bComptroller, 
+                                  address me, address avatar, address[] memory ctokens, uint[] memory priceFeed)
+        public returns(AccountInfo memory info) {
 
-        address[] cushionPossibleTokens; // which tokens could be used for cushion
-        uint[] cushionPossibleSizes; // depends on a price feed
+        info.avatarInfo = getAvatarInfo(registry, bComptroller, ctokens, priceFeed, avatar);
+        info.cushionInfo = getCushionInfo(registry, bComptroller, pool, ctokens, priceFeed,
+                                          info.avatarInfo.totalDebt, info.avatarInfo.weightedCollateral,
+                                          avatar, me);
+        info.liquidationInfo = getLiquidationInfo(avatar);
+    }
+
+    function getInfo(uint startAccount, uint endAccount, address me, Pool pool, address[] memory ctokens, uint[] memory priceFeed)
+        public returns(AccountInfo[] memory info) {
+
+        info = new AccountInfo[](endAccount + 1 - startAccount);
+
+        Registry registry = Registry(address(pool.registry()));
+        BComptroller bComptroller = BComptroller(address(pool.bComptroller()));
+
+        for(uint i = 0 ; i + startAccount <= endAccount ; i++) {
+            uint accountNumber = i + startAccount;
+            address avatar = registry.avatars(accountNumber);
+            info[i] = getSingleAccountInfo(pool, registry, bComptroller, me, avatar, ctokens, priceFeed);
+        }
+    }
+
+    function getNumAvatars(Pool pool) public view returns(uint) {
+        Registry registry = Registry(address(pool.registry()));
+        return registry.avatarLength(); 
     }
 }
