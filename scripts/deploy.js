@@ -12,6 +12,7 @@ const FlashLoanImport = artifacts.require("FlashLoanImport");
 const FlashLoanStub = artifacts.require("FlashLoanStub");
 const Jar = artifacts.require("CompoundJar");
 const UserInfo = artifacts.require("UserInfo");
+const FakeBComptroller = artifacts.require("FakeBComptroller");
 
 const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 const DAI = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
@@ -24,6 +25,7 @@ async function main() {
 
   console.log("deploying user info");
   const userInfo = await UserInfo.new({from:me, gasLimit : 7000000, gasPrice:100e9})
+  const fakeBComptroller = await FakeBComptroller.new({from:me, gasLimit : 7000000, gasPrice:100e9});
 
   // Compound finance Contracts
   // ===========================
@@ -50,6 +52,7 @@ async function main() {
 
   const bComptroller = await BComptroller.new(comptroller.address, {from:me, gasLimit : 7000000, gasPrice:100e9});
   const avatar = await Avatar.new({from:me, gasLimit : 7000000, gasPrice:100e9});
+  console.log(avatar.address, "av");
 
   const registry = await Registry.new(comptroller.address,
                                       compAddress,
@@ -58,6 +61,9 @@ async function main() {
                                       bComptroller.address,
                                       poolAddress, // comp voter - dummy
                                       avatar.address, {from:me, gasLimit : 7000000});
+
+  console.log("my avatar", await registry.getAvatar.call("0x35fFd6E268610E764fF6944d07760D0EFe5E40E5"));
+                                      
   await bComptroller.setRegistry(registry.address, {from:me, gasLimit : 7000000});
   const start = Math.floor(new Date().getTime() / 1000);
   const end = start + 60 * 24 * 60 * 60;
@@ -94,6 +100,7 @@ async function main() {
   console.log("user info", userInfo.address);
   console.log("comptroller", comptroller.address);
   console.log("bcomptroller", bComptroller.address);
+  console.log("fComptroller", fakeBComptroller.address);
   console.log("registry", registry.address);
   console.log("jar", jar.address);
   console.log("jar connector", jarConnector.address);
@@ -104,6 +111,28 @@ async function main() {
   console.log("symbols", symbols);
   console.log("btokens", bTokens);
 
+  /*
+  const xxx = await userInfo.getTokenInfo.call(comptroller.address, bComptroller.address);
+  console.log({xxx});
+  return;
+/*
+  await registry.getAvatar(me);
+  const result1 = await userInfo.getImportInfo.call(me, cTokens, registry.address, keeperPool,{from:me, gasLimit : 9000000, gasPrice:100e9});
+  console.log({result1});
+  return;
+*/
+  const result = await userInfo.getUserInfo.call("0xc783df8a850f42e7f7e57013759c285caa701eb6", comptroller.address, bComptroller.address, registry.address, keeperPool, jarConnector.address, jar.address,
+    {from:me, gasLimit : 5000000, gasPrice:100e9});
+  console.log({result});
+/*
+  function getUserInfo(address user,
+    address comptroller,
+    address bComptroller,
+    address registry,
+    address sugarDaddy,
+    address jarConnector,
+    address jar)  
+*/
   return;
 
   console.log("minting ETH on compound");

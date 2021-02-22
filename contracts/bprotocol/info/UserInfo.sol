@@ -257,6 +257,10 @@ contract UserInfo {
         info.scoreInfo = getScoreInfo(user, jarConnector);
         info.compTokenInfo = getCompTokenInfo(user, comptroller, registry);
         info.jarInfo = getJarInfo(jar, info.tokenInfo.ctoken);
-        info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
+        //info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
     }
+}
+
+contract FakeBComptroller {
+    function c2b(address a) pure public returns(address) { return a;}
 }
