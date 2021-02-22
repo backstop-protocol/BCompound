@@ -90,7 +90,7 @@ contract BComptroller {
     }
 
     function exitMarket(address bToken) external returns (uint256) {
-        IAvatar avatar = IAvatar(registry.avatarOf(msg.sender));
+        IAvatar avatar = IAvatar(registry.getAvatar(msg.sender));
         return avatar.exitMarket(bToken);
     }
 
@@ -100,6 +100,9 @@ contract BComptroller {
 
     function getAccountLiquidity(address account) external view returns (uint err, uint liquidity, uint shortFall) {
         IAvatar avatar = IAvatar(registry.avatarOf(account));
+
+        if(avatar == IAvatar(0)) return (0, 0, 0);
+        
         return avatar.getAccountLiquidity();
     }
 
