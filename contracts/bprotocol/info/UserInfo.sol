@@ -9,7 +9,8 @@ contract ComptrollerLike {
     function oracle() public view returns(address);
     function claimComp(address holder) public;    
     function compAccrued(address holder) public view returns(uint);
-    function getCompAddress() public view returns (address);    
+    function getCompAddress() public view returns (address);
+    function getAssetsIn(address account) public view returns(address[] memory);
 }
 
 contract BComptrollerLike {
@@ -23,7 +24,7 @@ contract OracleLike {
 contract ERC20Like {
     function decimals() public returns(uint);
     function name() public returns(string memory);
-    function balanceOf(address user) public view returns(uint);
+    function balanceOf(address user) public returns(uint);
     function allowance(address owner, address spender) public returns(uint);
 }
 
@@ -37,10 +38,11 @@ contract CTokenLike {
 }
 
 contract RegistryLike {
-    function getAvatar(address user) public view returns(address);
+    function getAvatar(address user) public returns(address);
     function avatarLength() public view returns(uint);
     function avatars(uint i) public view returns(address);
-    function comptroller() public view returns(address);    
+    function comptroller() public view returns(address);
+    function score() public view returns(address);
 }
 
 contract JarConnectorLike {
@@ -48,6 +50,11 @@ contract JarConnectorLike {
     function getGlobalScore() external view returns (uint);    
     function getUserScoreProgressPerSec(address user) external view returns (uint);
 }
+
+contract ScoreLike {
+    function updateIndex(address[] calldata cTokens) external;
+}
+
 
 contract UserInfo {
     struct TokenInfo {
@@ -169,13 +176,21 @@ contract UserInfo {
             
             (info.listed[i], info.collateralFactor[i], ) = ComptrollerLike(comptroller).markets(info.ctoken[i]);
 
-            info.bTotalSupply[i] = CTokenLike(info.btoken[i]).totalSupply();
+            if(info.btoken[i] != address(0)) info.bTotalSupply[i] = CTokenLike(info.btoken[i]).totalSupply();
         }
         
         return info;
     }
     
-    function getPerUserInfo(address user, address[] memory ctoken, address[] memory underlying) public returns(PerUserInfo memory info) {
+    function isIn(address[] memory array, address elm) internal pure returns(bool) {
+        for(uint i = 0 ; i < array.length ; i++) {
+            if(elm == array[i]) return true;
+        }
+
+        return false;
+    }
+
+    function getPerUserInfo(address user, address[] memory ctoken, address[] memory assetsIn, address[] memory underlying) public returns(PerUserInfo memory info) {
         info.ctokenBalance = new uint[](ctoken.length);
         info.ctokenBorrowBalance = new uint[](ctoken.length);
         info.underlyingWalletBalance = new uint[](ctoken.length);
@@ -183,7 +198,9 @@ contract UserInfo {
 
         
         for(uint i = 0 ; i < ctoken.length ; i++) {
-            info.ctokenBalance[i] = ERC20Like(ctoken[i]).balanceOf(user);
+            if(ctoken[i] == address(0)) continue;
+
+            info.ctokenBalance[i] = isIn(assetsIn, ctoken[i]) ? ERC20Like(ctoken[i]).balanceOf(user) : 0;
             info.ctokenBorrowBalance[i] = CTokenLike(ctoken[i]).borrowBalanceCurrent(user);
             if(underlying[i] == ETH) {
                 info.underlyingWalletBalance[i] = user.balance;
@@ -222,14 +239,14 @@ contract UserInfo {
         info.comp = comp;
     }
 
-    function getJarInfo(address jar, address[] memory ctoken) public view returns(JarInfo memory info) {
+    function getJarInfo(address jar, address[] memory ctoken) public returns(JarInfo memory info) {
         info.ctokenBalance = new uint[](ctoken.length);
         for(uint i = 0 ; i < ctoken.length ; i++) {
             info.ctokenBalance[i] = ERC20Like(ctoken[i]).balanceOf(jar); 
         }
     }
 
-    function getTvlInfo(address[] memory ctokens, address registry) public view returns(TvlInfo memory info) {
+    function getTvlInfo(address[] memory ctokens, address registry) public returns(TvlInfo memory info) {
         info.ctokenBalance = new uint[](ctokens.length);
         uint numAvatars = RegistryLike(registry).avatarLength();
         for(uint i = 0 ; i < numAvatars ; i++) {
@@ -242,6 +259,11 @@ contract UserInfo {
         info.numAccounts = numAvatars;
     }
 
+    function getTvl(address registry, address comptroller) public returns(TvlInfo memory info) {
+        address[] memory markets = ComptrollerLike(comptroller).getAllMarkets();
+        return getTvlInfo(markets, registry);
+    }
+
     function getUserInfo(address user,
                          address comptroller,
                          address bComptroller,
@@ -250,12 +272,23 @@ contract UserInfo {
                          address jarConnector,
                          address jar) public returns(Info memory info) {
         info.tokenInfo = getTokenInfo(comptroller, bComptroller);
-        info.bUser = getPerUserInfo(user, info.tokenInfo.btoken, info.tokenInfo.underlying);
-        info.cUser = getPerUserInfo(user, info.tokenInfo.ctoken, info.tokenInfo.underlying);
+        // check which assets are in
+        address avatar = RegistryLike(registry).getAvatar(user);
+        address[] memory assetsIn = ComptrollerLike(comptroller).getAssetsIn(avatar);
+        address[] memory bAssetsIn = new address[](assetsIn.length);
+        for(uint i = 0 ; i < assetsIn.length ; i++) {
+            bAssetsIn[i] = BComptrollerLike(bComptroller).c2b(assetsIn[i]);
+        }
+        info.bUser = getPerUserInfo(user, info.tokenInfo.btoken, bAssetsIn, info.tokenInfo.underlying);
+        // all tokens are assumed to be in - since we want to import all of them
+        info.cUser = getPerUserInfo(user, info.tokenInfo.ctoken, info.tokenInfo.ctoken, info.tokenInfo.underlying);
         info.importInfo = getImportInfo(user, info.tokenInfo.ctoken, registry, sugarDaddy);
+
+        address score = RegistryLike(registry).score();
+        ScoreLike(score).updateIndex(info.tokenInfo.ctoken);
         info.scoreInfo = getScoreInfo(user, jarConnector);
         info.compTokenInfo = getCompTokenInfo(user, comptroller, registry);
         info.jarInfo = getJarInfo(jar, info.tokenInfo.ctoken);
-        info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
+        //info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
     }
 }
