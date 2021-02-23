@@ -222,7 +222,6 @@ export class BProtocolEngine {
       cETH,
       pool.address,
       bComptroller,
-      bScore,
       compVoter,
       avatar.address,
     );
