@@ -139,15 +139,21 @@ contract AbsBToken is Exponential {
     }
 
     function allowance(address owner, address spender) public view returns (uint256) {
-        return ICToken(cToken).allowance(registry.avatarOf(owner), registry.avatarOf(spender));
+        address spenderAvatar = registry.avatarOf(spender);
+        if(spenderAvatar == address(0)) return 0;
+        return ICToken(cToken).allowance(registry.avatarOf(owner), spenderAvatar);
     }
 
     function balanceOf(address owner) public view returns (uint256) {
-        return ICToken(cToken).balanceOf(registry.avatarOf(owner));
+        address avatar = registry.avatarOf(owner);
+        if(avatar == address(0)) return 0;
+        return ICToken(cToken).balanceOf(avatar);
     }
 
     function balanceOfUnderlying(address owner) external returns (uint) {
-        return ICToken(cToken).balanceOfUnderlying(registry.avatarOf(owner));
+        address avatar = registry.avatarOf(owner);
+        if(avatar == address(0)) return 0;
+        return ICToken(cToken).balanceOfUnderlying(avatar);
     }
 
     function name() public view returns (string memory) {
