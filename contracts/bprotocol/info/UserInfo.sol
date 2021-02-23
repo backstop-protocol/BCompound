@@ -259,32 +259,22 @@ contract UserInfo {
         info.numAccounts = numAvatars;
     }
 
-    function getTvl(address registry, address comptroller) public returns(TvlInfo memory info) {
-        address[] memory markets = ComptrollerLike(comptroller).getAllMarkets();
-        return getTvlInfo(markets, registry);
-    }
-
     function getUserInfo(address user,
                          address comptroller,
                          address bComptroller,
                          address registry,
                          address sugarDaddy,
                          address jarConnector,
-                         address jar) public returns(Info memory info) {
+                         address jar,
+                         bool    getTvl) public returns(Info memory info) {
         info.tokenInfo = getTokenInfo(comptroller, bComptroller);
         // check which assets are in
         address avatar = RegistryLike(registry).getAvatar(user);
         address[] memory assetsIn = ComptrollerLike(comptroller).getAssetsIn(avatar);
-        address[] memory bAssetsIn;
-        
-        if(info.tokenInfo.ctoken[0] != info.tokenInfo.btoken[0]) {
-            bAssetsIn = new address[](assetsIn.length);
-            for(uint i = 0 ; i < assetsIn.length ; i++) {
-                bAssetsIn[i] = BComptrollerLike(bComptroller).c2b(assetsIn[i]);
-            }
+        address[] memory bAssetsIn = new address[](assetsIn.length);
+        for(uint i = 0 ; i < assetsIn.length ; i++) {
+            bAssetsIn[i] = BComptrollerLike(bComptroller).c2b(assetsIn[i]);
         }
-        else bAssetsIn = info.tokenInfo.ctoken; // this is fake bcomptroller
-
         info.bUser = getPerUserInfo(user, info.tokenInfo.btoken, bAssetsIn, info.tokenInfo.underlying);
         // all tokens are assumed to be in - since we want to import all of them
         info.cUser = getPerUserInfo(user, info.tokenInfo.ctoken, info.tokenInfo.ctoken, info.tokenInfo.underlying);
@@ -295,7 +285,7 @@ contract UserInfo {
         info.scoreInfo = getScoreInfo(user, jarConnector);
         info.compTokenInfo = getCompTokenInfo(user, comptroller, registry);
         info.jarInfo = getJarInfo(jar, info.tokenInfo.ctoken);
-        //info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
+        if(getTvl) info.tvlInfo = getTvlInfo(info.tokenInfo.ctoken, registry);
     }
 }
 
