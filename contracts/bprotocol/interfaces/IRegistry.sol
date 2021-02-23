@@ -28,4 +28,5 @@ interface IRegistry {
     function whitelistedAvatarCalls(address target, bytes4 functionSig) external view returns(bool);
 
     function setPool(address newPool) external;
+    function setWhitelistAvatarCall(address target, bytes4 functionSig, bool list) external;
 }
