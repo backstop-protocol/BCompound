@@ -2595,7 +2595,7 @@ contract("BScore", async (accounts) => {
           // member try to topup, but cannot
           await expectRevert(
             pool.topup(a.user1, bZRX_addr, minTopup, false, { from: a.member1 }),
-            "Cushion: user-quit-B",
+            "user-quit-B",
           );
           const maxLiquidationAmount = await avatar1.getMaxLiquidationAmount.call(cZRX_addr);
           expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
