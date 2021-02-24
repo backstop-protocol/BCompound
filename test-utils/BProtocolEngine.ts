@@ -19,6 +19,8 @@ const Comptroller: b.ComptrollerContract = artifacts.require("Comptroller");
 const FakePriceOracle: b.FakePriceOracleContract = artifacts.require("FakePriceOracle");
 
 // BProtocol contracts
+const Migrate: b.MigrateContract = artifacts.require("Migrate");
+const GovernanceExecutor: b.GovernanceExecutorContract = artifacts.require("GovernanceExecutor");
 const Pool: b.PoolContract = artifacts.require("Pool");
 const BComptroller: b.BComptrollerContract = artifacts.require("BComptroller");
 const Registry: b.RegistryContract = artifacts.require("Registry");
@@ -47,6 +49,8 @@ export class BProtocol {
   public jar!: b.CompoundJarInstance;
   public jarConnector!: b.JarConnectorInstance;
   public score!: b.BScoreInstance;
+  public migrate!: b.MigrateInstance;
+  public governanceExecutor!: b.GovernanceExecutorInstance;
 
   // variable to hold all Compound contracts
   public compound!: Compound;
@@ -110,6 +114,12 @@ export class BProtocolEngine {
     await _bProtocol.bComptroller.setRegistry(_bProtocol.registry.address);
     await _bProtocol.registry.setScore(_bProtocol.score.address);
 
+    _bProtocol.governanceExecutor = await this.deployGovernanceExecutor();
+    _bProtocol.migrate = await this.deployMigrate();
+    await _bProtocol.governanceExecutor.setGovernance(_bProtocol.migrate.address);
+    await _bProtocol.registry.transferOwnership(_bProtocol.governanceExecutor.address);
+    await _bProtocol.score.transferOwnership(_bProtocol.jarConnector.address);
+
     _bProtocol.compound = new Compound();
     _bProtocol.compound.comptroller = await Comptroller.at(this.compoundUtil.getComptroller());
     _bProtocol.compound.comp = await Comp.at(this.compoundUtil.getComp());
@@ -121,6 +131,19 @@ export class BProtocolEngine {
     // console.log("Registry: " + _bProtocol.registry.address);
 
     return this.bProtocol;
+  }
+
+  private async deployGovernanceExecutor(): Promise<b.GovernanceExecutorInstance> {
+    const TWO_DAYS = ONE_DAY.mul(new BN(2));
+    return await GovernanceExecutor.new(this.bProtocol.registry.address, TWO_DAYS);
+  }
+
+  private async deployMigrate(): Promise<b.MigrateInstance> {
+    return await Migrate.new(
+      this.bProtocol.jarConnector.address,
+      this.bProtocol.registry.address,
+      this.bProtocol.governanceExecutor.address,
+    );
   }
 
   private async deployCompoundJar(): Promise<b.CompoundJarInstance> {
@@ -156,9 +179,9 @@ export class BProtocolEngine {
 
   private async deployScore() {
     const now = new BN((await web3.eth.getBlock("latest")).timestamp);
-    const duration = new BN(6).mul(ONE_MONTH); // 1 month = 4 weeks
+    const SIX_MONTHS = new BN(6).mul(ONE_MONTH); // 1 month = 4 weeks
 
-    const endDate = now.add(duration);
+    const endDate = now.add(SIX_MONTHS);
     const cTokens: string[] = new Array(5);
     const supplyMultipliers: BN[] = new Array(5);
     const borrowMultipliers: BN[] = new Array(5);

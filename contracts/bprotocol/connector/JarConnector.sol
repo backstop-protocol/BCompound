@@ -50,7 +50,7 @@ contract JarConnector {
     }
 
     function spin() external {
-        require(score.endTime() < now, "too-early");
+        require(score.endDate() < now, "too-early");
         score.spin();
     }
 

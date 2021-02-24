@@ -7,7 +7,9 @@ contract GovernanceExecutor is Ownable {
 
     IRegistry public registry;
     uint public delay;
+    // newPoolAddr => requestTime
     mapping(address => uint) public poolRequests;
+    // target => function => list => requestTime
     mapping(address => mapping(bytes4 => mapping(bool => uint))) whitelistRequests;
     address public governance;
 

@@ -10,5 +10,5 @@ interface IBTokenScore {
     function getDebtGlobalScore(address cToken, uint256 time) external view returns (uint);
     function getCollGlobalScore(address cToken, uint256 time) external view returns (uint);
 
-    function endTime() external view returns(uint);
+    function endDate() external view returns(uint);
 }
