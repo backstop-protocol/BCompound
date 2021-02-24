@@ -117,7 +117,6 @@ export class BProtocolEngine {
     _bProtocol.governanceExecutor = await this.deployGovernanceExecutor();
     _bProtocol.migrate = await this.deployMigrate();
     await _bProtocol.governanceExecutor.setGovernance(_bProtocol.migrate.address);
-    await _bProtocol.registry.transferOwnership(_bProtocol.governanceExecutor.address);
     await _bProtocol.score.transferOwnership(_bProtocol.jarConnector.address);
 
     _bProtocol.compound = new Compound();

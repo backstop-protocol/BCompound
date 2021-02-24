@@ -380,6 +380,9 @@ contract("Migrate", async (accounts) => {
       await setMainnetTokenPrice();
 
       await comptroller.refreshCompSpeeds();
+
+      // Registry ownership must be transferred to GovernanceExecutor contract
+      await registry.transferOwnership(governanceExecutor.address);
     });
 
     async function setupOneUserWithScore() {
