@@ -448,7 +448,7 @@ contract("Migrate", async (accounts) => {
       const user3CollScore = await score.getCollScore(a.user3, cZRX_addr, now);
       expect(user3CollScore).to.be.bignumber.not.equal(ZERO);
     }
-    /*
+
     describe("Constructor", async () => {
       beforeEach(async () => {
         await setupOneUserWithScore();
@@ -724,7 +724,7 @@ contract("Migrate", async (accounts) => {
         await expectRevert(migrate.queueProposal(ZERO), "already-queued");
       });
     });
-*/
+
     describe("Migrate.executeProposal()", async () => {
       beforeEach(async () => {
         await setupThreeUsersWithScore();
