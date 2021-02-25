@@ -9,8 +9,11 @@ import BN from "bn.js";
 import { CompoundUtils } from "@utils/CompoundUtils";
 import { toWei } from "web3-utils";
 import { governorAddress } from "compound-protocol/scenario/src/Value/GovernorValue";
+import { expandEvent } from "compound-protocol/scenario/src/Macro";
 
 const GovernanceExecutor: b.GovernanceExecutorContract = artifacts.require("GovernanceExecutor");
+const EmergencyMock: b.EmergencyMockContract = artifacts.require("EmergencyMock");
+const Avatar: b.AvatarContract = artifacts.require("Avatar");
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -226,22 +229,144 @@ contract("GovernanceExecutor", async (accounts) => {
   });
 
   describe("GovernanceExecutor.reqUpgradeWhitelist()", async () => {
-    it("only owner can request to whitelist a function");
+    let mock: b.EmergencyMockInstance;
 
-    it("non-owner cannot request to whitelist a function");
+    beforeEach(async () => {
+      mock = await EmergencyMock.new();
+    });
+
+    it("only owner can request to whitelist a function", async () => {
+      const setXCallData = await mock.setX.call(777);
+      const sig = setXCallData.substring(0, 10); // 2 chars per byte + "0x"
+
+      const tx = await governanceExecutor.reqSetWhitelistCall(mock.address, sig, true, {
+        from: a.deployer,
+      });
+      expectEvent(tx, "RequestSetWhitelistCall", {
+        target: mock.address,
+        functionSig: sig,
+        list: true,
+      });
+    });
+
+    it("non-owner cannot request to whitelist a function", async () => {
+      const setXCallData = await mock.setX.call(777);
+      const sig = setXCallData.substring(0, 10); // 2 chars per byte + "0x"
+
+      await expectRevert(
+        governanceExecutor.reqSetWhitelistCall(mock.address, sig, true, { from: a.other }),
+        "caller is not the owner",
+      );
+    });
   });
 
   describe("GovernanceExecutor.dropUpgradeWhitelist()", async () => {
-    it("only owner can drop whitelist request");
+    let mock: b.EmergencyMockInstance;
+    let fnSig: string;
 
-    it("non-owner cannot drop a whitelist request");
+    beforeEach(async () => {
+      mock = await EmergencyMock.new();
+
+      const setXCallData = await mock.setX.call(777);
+      fnSig = setXCallData.substring(0, 10); // 2 chars per byte + "0x"
+      const tx = await governanceExecutor.reqSetWhitelistCall(mock.address, fnSig, true, {
+        from: a.deployer,
+      });
+    });
+
+    it("only owner can drop whitelist request", async () => {
+      await governanceExecutor.dropWhitelistCall(mock.address, fnSig, true, { from: a.deployer });
+    });
+
+    it("non-owner cannot drop a whitelist request", async () => {
+      await expectRevert(
+        governanceExecutor.dropWhitelistCall(mock.address, fnSig, true, { from: a.other }),
+        "Ownable: caller is not the owner",
+      );
+    });
   });
 
   describe("GovernanceExecutor.execUpgradeWhitelist()", async () => {
-    it("should execute whitelist request");
+    let mock: b.EmergencyMockInstance;
+    let data: string;
+    let fnSig: string;
+    let avatar1: b.AvatarInstance;
 
-    it("should fail when delay not over yet");
+    beforeEach(async () => {
+      await registry.newAvatar({ from: a.user1 });
+      avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+      mock = await EmergencyMock.new();
 
-    it("should fail when request is invalid");
+      data = await mock.setX.call(777);
+      fnSig = data.substring(0, 10); // 2 chars per byte + "0x"
+      const tx = await governanceExecutor.reqSetWhitelistCall(mock.address, fnSig, true, {
+        from: a.deployer,
+      });
+
+      // Registry owner must be GovernanceExecutor
+      await bProtocol.registry.transferOwnership(governanceExecutor.address, { from: a.deployer });
+    });
+
+    it("should execute whitelist request", async () => {
+      await expectRevert(
+        avatar1.emergencyCall(mock.address, data, { from: a.user1 }),
+        "not-listed",
+      );
+
+      await time.increase(TWO_DAYS);
+
+      const tx = await governanceExecutor.execSetWhitelistCall(mock.address, fnSig, true);
+      expectEvent(tx, "WhitelistCallUpdated", {
+        target: mock.address,
+        functionSig: fnSig,
+        list: true,
+      });
+
+      expect(await mock.x()).to.be.bignumber.equal(new BN(5));
+      await avatar1.emergencyCall(mock.address, data, { from: a.user1 });
+      expect(await mock.x()).to.be.bignumber.equal(new BN(777));
+    });
+
+    it("should fail when delay not over yet", async () => {
+      await expectRevert(
+        avatar1.emergencyCall(mock.address, data, { from: a.user1 }),
+        "not-listed",
+      );
+
+      await time.increase(ONE_DAY);
+
+      await expectRevert(
+        governanceExecutor.execSetWhitelistCall(mock.address, fnSig, true),
+        "delay-not-over",
+      );
+
+      expect(await mock.x()).to.be.bignumber.equal(new BN(5));
+      await expectRevert(
+        avatar1.emergencyCall(mock.address, data, { from: a.user1 }),
+        "not-listed",
+      );
+      expect(await mock.x()).to.be.bignumber.equal(new BN(5));
+    });
+
+    it("should fail when request is invalid", async () => {
+      await expectRevert(
+        avatar1.emergencyCall(mock.address, data, { from: a.user1 }),
+        "not-listed",
+      );
+
+      await time.increase(TWO_DAYS);
+
+      await expectRevert(
+        governanceExecutor.execSetWhitelistCall(mock.address, fnSig, false),
+        "request-not-valid",
+      );
+
+      expect(await mock.x()).to.be.bignumber.equal(new BN(5));
+      await expectRevert(
+        avatar1.emergencyCall(mock.address, data, { from: a.user1 }),
+        "not-listed",
+      );
+      expect(await mock.x()).to.be.bignumber.equal(new BN(5));
+    });
   });
 });
