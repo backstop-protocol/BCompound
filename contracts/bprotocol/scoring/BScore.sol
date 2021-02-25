@@ -174,31 +174,35 @@ contract BScore is ScoringMachine, Exponential {
     // Get Score
     // ==========
     function getDebtScore(address _user, address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         address avatar = registry.avatarOf(_user);
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
-        uint score = getScore(user(avatar), debtAsset(cToken), time, start, 0);
+        uint score = getScore(user(avatar), debtAsset(cToken), currTime, startDate, 0);
         // (borrowMultiplier[cToken] * deltaBorrowIndex / 1e18) * score
         return mul_(div_(mul_(borrowMultiplier[cToken], deltaBorrowIndex), expScale), score);
     }
 
     function getDebtGlobalScore(address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
-        uint score = getScore(GLOBAL_USER, debtAsset(cToken), time, start, 0);
+        uint score = getScore(GLOBAL_USER, debtAsset(cToken), currTime, startDate, 0);
         // (borrowMultiplier[cToken] * deltaBorrowIndex / 1e18) * score
         return mul_(div_(mul_(borrowMultiplier[cToken], deltaBorrowIndex), expScale), score);
     }
 
     function getCollScore(address _user, address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         address avatar = registry.avatarOf(_user);
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
-        uint score = getScore(user(avatar), collAsset(cToken), time, start, 0);
+        uint score = getScore(user(avatar), collAsset(cToken), currTime, startDate, 0);
         // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
         return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
 
     function getCollGlobalScore(address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
-        uint score = getScore(GLOBAL_USER, collAsset(cToken), time, start, 0);
+        uint score = getScore(GLOBAL_USER, collAsset(cToken), currTime, startDate, 0);
         // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
         return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
