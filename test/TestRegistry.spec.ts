@@ -193,7 +193,7 @@ contract("Registry", async (accounts) => {
       expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
     });
 
-    it("should delegate comp avatar to voter", async () => {
+    it("should not delegate comp avatar to voter", async () => {
       let avatar1 = await registry.avatarOf(a.user1);
       expect(ZERO_ADDRESS).to.be.equal(avatar1);
 
@@ -205,7 +205,7 @@ contract("Registry", async (accounts) => {
       expect(avatar1).to.be.equal(await registry.avatarOf(a.user1));
 
       const compToken = bProtocol.compound.comp;
-      const delegatee = engine.getCompVoterAddress();
+      const delegatee = "0x0000000000000000000000000000000000000000";
       expect(await compToken.delegates(avatar1)).to.be.equal(delegatee);
     });
 
