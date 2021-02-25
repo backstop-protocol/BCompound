@@ -127,12 +127,9 @@ contract BScore is ScoringMachine, Exponential {
         uint deltaSupplyIndexInUint;
         uint currExchangeRate = snapshot[cToken].exchangeRate;
         uint oldExchangeRate = initialSnapshot[cToken].exchangeRate;
-        if(currExchangeRate > oldExchangeRate) {
-            uint scaledIndex = mul_(deltaSupplyIndexForCToken, expScale);
-            deltaSupplyIndexInUint = div_(scaledIndex, currExchangeRate);
-        } else {
-            deltaSupplyIndexInUint = mul_(deltaSupplyIndexForCToken, currExchangeRate);
-        }
+        
+        uint scaledIndex = mul_(deltaSupplyIndexForCToken, expScale);
+        deltaSupplyIndexInUint = div_(scaledIndex, currExchangeRate);
 
         deltaSupplyIndex = safe224(deltaSupplyIndexInUint, "index-exceeds-224-bits");
     }
