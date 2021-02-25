@@ -634,6 +634,83 @@ contract("BScore", async (accounts) => {
         });
       });
 
+      describe("=> same amount mint and borrow should have same score", async () => {
+        let newScore: b.BScoreInstance;
+
+        beforeEach(async () => {
+          let now = await nowTime();
+          endDate = now.add(SIX_MONTHS);
+
+          // keeping supply and borrow multiplier to 1
+          newScore = await BScore.new(
+            registry.address,
+            now,
+            endDate,
+            cTokens,
+            supplyMultipliers,
+            borrowMultipliers,
+          );
+
+          // set new score contract
+          await registry.setScore(newScore.address);
+          expect(await registry.score()).to.be.equal(newScore.address);
+        });
+        it("mint ZRX", async () => {
+          // mint ZRX
+          // ==========
+          const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+          await ZRX.approve(bZRX_addr, _500USD_ZRX, { from: a.user1 });
+          await bZRX.mint(_500USD_ZRX, { from: a.user1 });
+          const avatar1 = await registry.avatarOf(a.user1);
+
+          await advanceBlockInCompound(200);
+          await setMainnetCompSpeeds();
+
+          // just trigger supply index recalculation
+          await comptroller.mintAllowed(cZRX_addr, avatar1, ONE_ZRX);
+
+          await time.increase(ONE_MONTH);
+
+          expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.equal(
+            cZRX_COMP_SPEEDS_MAINNET,
+          );
+
+          await newScore.updateIndex(cTokens);
+          const now = await nowTime();
+          const collScore = await newScore.getCollScore(a.user1, cZRX_addr, now);
+          expect(collScore).to.be.bignumber.not.equal(ZERO);
+
+          console.log("mint ZRX score: " + collScore.toString());
+        });
+
+        it("borrow ZRX", async () => {
+          // user2 mints ZRX
+          await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
+          await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
+
+          // user1 borrow ZRX
+          const _1200USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(1200));
+          const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+          await bETH.mint({ from: a.user1, value: _1200USD_ETH });
+          await bZRX.borrow(_500USD_ZRX, { from: a.user1 });
+          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          await advanceBlockInCompound(200);
+          await time.increase(ONE_MONTH);
+
+          await setMainnetCompSpeeds();
+
+          // trigger borrow index update
+          await comptroller.borrowAllowed(cZRX_addr, avatar1.address, ONE_ZRX);
+
+          await newScore.updateIndex(cTokens);
+          const now = await nowTime();
+          const debtScore = await newScore.getDebtScore(a.user1, cZRX_addr, now);
+          expect(debtScore).to.be.bignumber.not.equal(ZERO);
+          console.log("borrow ZRX score: " + debtScore.toString());
+        });
+      });
+
       describe("should have score when user mint", async () => {
         it("mint ZRX", async () => {
           let compSupplyState = await comptroller.compSupplyState(cZRX_addr);

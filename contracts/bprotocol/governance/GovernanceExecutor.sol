@@ -16,8 +16,8 @@ contract GovernanceExecutor is Ownable {
     event RequestPoolUpgrade(address indexed pool);
     event PoolUpgraded(address indexed pool);
 
-    event RequestWhitelistUpgrade(address indexed target, bytes4 functionSig, bool list);
-    event WhitelistUpgraded(address indexed target, bytes4 functionSig, bool list);
+    event RequestSetWhitelistCall(address indexed target, bytes4 functionSig, bool list);
+    event WhitelistCallUpdated(address indexed target, bytes4 functionSig, bool list);
 
     constructor(address registry_, uint delay_) public {
         registry = IRegistry(registry_);
@@ -76,32 +76,38 @@ contract GovernanceExecutor is Ownable {
     /**
      * @dev Request whitelist upgrade
      * @param target Address of new whitelisted contract
+     * @param functionSig function signature as bytes4
+     * @param list `true` to whitelist, `false` otherwise
      */
-    function reqUpgradeWhitelist(address target, bytes4 functionSig, bool list) external onlyOwner {
+    function reqSetWhitelistCall(address target, bytes4 functionSig, bool list) external onlyOwner {
         whitelistRequests[target][functionSig][list] = now;
-        emit RequestWhitelistUpgrade(target, functionSig, list);
+        emit RequestSetWhitelistCall(target, functionSig, list);
     }
 
     /**
      * @dev Drop upgrade whitelist request
      * @param target Address of new whitelisted contract
+     * @param functionSig function signature as bytes4
+     * @param list `true` to whitelist, `false` otherwise
      */
-    function dropUpgradeWhitelist(address target, bytes4 functionSig, bool list) external onlyOwner {
+    function dropWhitelistCall(address target, bytes4 functionSig, bool list) external onlyOwner {
         delete whitelistRequests[target][functionSig][list];
     }
 
     /**
      * @dev Execute pool contract upgrade after delay
      * @param target Address of the new whitelisted contract
+     * @param functionSig function signature as bytes4
+     * @param list `true` to whitelist, `false` otherwise
      */
-    function execUpgradeWhitelist(address target, bytes4 functionSig, bool list) external {
+    function execSetWhitelistCall(address target, bytes4 functionSig, bool list) external {
         uint reqTime = whitelistRequests[target][functionSig][list];
         require(reqTime != 0, "request-not-valid");
         require(now >= add(reqTime, delay), "delay-not-over");
 
         delete whitelistRequests[target][functionSig][list];
         registry.setWhitelistAvatarCall(target, functionSig, list);
-        emit WhitelistUpgraded(target, functionSig, list);
+        emit WhitelistCallUpdated(target, functionSig, list);
     }
 
     function add(uint a, uint b) internal pure returns (uint) {
