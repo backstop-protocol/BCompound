@@ -17,7 +17,7 @@ contract Registry is Ownable {
     // BProtocol Contracts
     address public pool;
     address public score;
-    address public compVoter;
+    address public compVoter; // this will not be used
     address public bComptroller;
 
 
