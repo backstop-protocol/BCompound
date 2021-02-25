@@ -22,9 +22,8 @@ contract Avatar is ProxyStorage, AbsComptroller, AbsCToken {
      * @dev Initialize the contract variables
      * @param _registry Registry contract address
      */
-    function initialize(address _registry, address comp, address compVoter) external {
+    function initialize(address _registry, address /*comp*/, address /*compVoter*/) external {
         _initAvatarBase(_registry);
-        IComp(comp).delegate(compVoter);
     }
 
     //override
