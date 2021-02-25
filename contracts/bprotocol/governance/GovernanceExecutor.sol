@@ -76,6 +76,8 @@ contract GovernanceExecutor is Ownable {
     /**
      * @dev Request whitelist upgrade
      * @param target Address of new whitelisted contract
+     * @param functionSig function signature as bytes4
+     * @param list `true` to whitelist, `false` otherwise
      */
     function reqUpgradeWhitelist(address target, bytes4 functionSig, bool list) external onlyOwner {
         whitelistRequests[target][functionSig][list] = now;
@@ -85,6 +87,8 @@ contract GovernanceExecutor is Ownable {
     /**
      * @dev Drop upgrade whitelist request
      * @param target Address of new whitelisted contract
+     * @param functionSig function signature as bytes4
+     * @param list `true` to whitelist, `false` otherwise
      */
     function dropUpgradeWhitelist(address target, bytes4 functionSig, bool list) external onlyOwner {
         delete whitelistRequests[target][functionSig][list];
@@ -93,6 +97,8 @@ contract GovernanceExecutor is Ownable {
     /**
      * @dev Execute pool contract upgrade after delay
      * @param target Address of the new whitelisted contract
+     * @param functionSig function signature as bytes4
+     * @param list `true` to whitelist, `false` otherwise
      */
     function execUpgradeWhitelist(address target, bytes4 functionSig, bool list) external {
         uint reqTime = whitelistRequests[target][functionSig][list];
