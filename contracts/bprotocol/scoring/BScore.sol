@@ -124,12 +124,9 @@ contract BScore is ScoringMachine, Exponential {
 
         // NOTICE: supplyIndex takes cToken.totalSupply() which is in cToken quantity
         // We need the index normalized to underlying token quantity
-        uint deltaSupplyIndexInUint;
         uint currExchangeRate = snapshot[cToken].exchangeRate;
-        uint oldExchangeRate = initialSnapshot[cToken].exchangeRate;
-        
         uint scaledIndex = mul_(deltaSupplyIndexForCToken, expScale);
-        deltaSupplyIndexInUint = div_(scaledIndex, currExchangeRate);
+        uint deltaSupplyIndexInUint = div_(scaledIndex, currExchangeRate);
 
         deltaSupplyIndex = safe224(deltaSupplyIndexInUint, "index-exceeds-224-bits");
     }
