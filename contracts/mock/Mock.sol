@@ -10,6 +10,7 @@ import { Comptroller } from "../../compound-protocol/contracts/Comptroller.sol";
 import { ComptrollerScenario } from "../../compound-protocol/tests/Contracts/ComptrollerHarness.sol";
 import { CEther } from "../../compound-protocol/contracts/CEther.sol";
 import { CErc20 } from "../../compound-protocol/contracts/CErc20.sol";
+import { CompoundJar } from "../../user-rating/contracts/jar/CompoundJar.sol";
 
 // OpenZeppelin
 import { ERC20Detailed } from "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";

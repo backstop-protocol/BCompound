@@ -13,6 +13,7 @@ contract BScore is ScoringMachine, Exponential {
     IRegistry public registry;
     IComptroller public comptroller;
     string private constant parent = "BScore";
+    uint public startDate;
     uint public endDate;
 
     // cToken => uint (supplyMultiplier)
@@ -22,6 +23,8 @@ contract BScore is ScoringMachine, Exponential {
 
     // cToken => Snapshot{exchangeRate, supplyIndex, borrowIndex}
     mapping(address => Snapshot) public snapshot;
+    mapping(address => Snapshot) public initialSnapshot;
+
     struct Snapshot {
         uint exchangeRate;
         uint224 supplyIndex;
@@ -33,15 +36,20 @@ contract BScore is ScoringMachine, Exponential {
         _;
     }
 
-    function init(
+    constructor(
+        address _registry,
+        uint _startDate,
         uint _endDate,
         address[] memory cTokens,
         uint[] memory sMultipliers,
         uint[] memory bMultipliers
     ) public {
-        require(registry != IRegistry(0), "Score: registry-not-set");
-        require(endDate == 0, "Score: already-init");
         require(_endDate > now, "Score: end-date-not-in-future");
+
+        registry = IRegistry(_registry);
+        comptroller = IComptroller(registry.comptroller());
+
+        startDate = _startDate;
         endDate = _endDate;
         for(uint i = 0; i < cTokens.length; i++) {
             require(cTokens[i] != address(0), "Score: cToken-address-is-zero");
@@ -50,14 +58,9 @@ contract BScore is ScoringMachine, Exponential {
 
             supplyMultiplier[cTokens[i]] = sMultipliers[i];
             borrowMultiplier[cTokens[i]] = bMultipliers[i];
-            updateIndex(cTokens[i]);
         }
-    }
 
-    function setRegistry(address _registry) public onlyOwner {
-        require(address(registry) == address(0), "Score: registry-already-set");
-        registry = IRegistry(_registry);
-        comptroller = IComptroller(registry.comptroller());
+        _updateIndex(cTokens, true);        
     }
 
     // Create Asset ID
@@ -88,28 +91,42 @@ contract BScore is ScoringMachine, Exponential {
         return mul_(mul_(score, multiplier), index);
     }
 
-    function updateIndex(address cToken) public {
-        require(endDate > now, "Score: expired");
-        uint224 supplyIndex;
-        uint224 borrowIndex;
-        uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
-        (supplyIndex,) = comptroller.compSupplyState(cToken);
-        (borrowIndex,) = comptroller.compBorrowState(cToken);
-        snapshot[cToken].exchangeRate = currExchangeRate;
-        snapshot[cToken].supplyIndex = supplyIndex;
-        snapshot[cToken].borrowIndex = borrowIndex;
+    function updateIndex(address[] calldata cTokens) external {
+        _updateIndex(cTokens, false);        
     }
 
-    function _getDeltaSupplyIndex(address cToken) internal returns (uint224 deltaSupplyIndex) {
-        uint224 currSupplyIndex;
-        (currSupplyIndex,) = comptroller.compSupplyState(cToken);
-        uint deltaSupplyIndexForCToken = sub_(uint(currSupplyIndex), uint(snapshot[cToken].supplyIndex));
+    function _updateIndex(address[] memory cTokens, bool init) internal {
+        require(endDate > now, "Score: expired");
+        for(uint i = 0 ; i < cTokens.length ; i++) {
+            address cToken = cTokens[i];
+            uint224 supplyIndex;
+            uint224 borrowIndex;
+            uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
+            (supplyIndex,) = comptroller.compSupplyState(cToken);
+            (borrowIndex,) = comptroller.compBorrowState(cToken);
+
+            if(init) {
+                initialSnapshot[cToken].exchangeRate = currExchangeRate;
+                initialSnapshot[cToken].supplyIndex = supplyIndex;
+                initialSnapshot[cToken].borrowIndex = borrowIndex;
+            }
+            else {
+                snapshot[cToken].exchangeRate = currExchangeRate;
+                snapshot[cToken].supplyIndex = supplyIndex;
+                snapshot[cToken].borrowIndex = borrowIndex;
+            }
+        }
+    }
+
+    function _getDeltaSupplyIndex(address cToken) internal view returns (uint224 deltaSupplyIndex) {
+        uint224 currSupplyIndex = snapshot[cToken].supplyIndex;
+        uint deltaSupplyIndexForCToken = sub_(uint(currSupplyIndex), uint(initialSnapshot[cToken].supplyIndex));
 
         // NOTICE: supplyIndex takes cToken.totalSupply() which is in cToken quantity
         // We need the index normalized to underlying token quantity
         uint deltaSupplyIndexInUint;
-        uint currExchangeRate = ICToken(cToken).exchangeRateCurrent();
-        uint oldExchangeRate = snapshot[cToken].exchangeRate;
+        uint currExchangeRate = snapshot[cToken].exchangeRate;
+        uint oldExchangeRate = initialSnapshot[cToken].exchangeRate;
         if(currExchangeRate > oldExchangeRate) {
             uint scaledIndex = mul_(deltaSupplyIndexForCToken, expScale);
             deltaSupplyIndexInUint = div_(scaledIndex, currExchangeRate);
@@ -120,11 +137,10 @@ contract BScore is ScoringMachine, Exponential {
         deltaSupplyIndex = safe224(deltaSupplyIndexInUint, "index-exceeds-224-bits");
     }
 
-    function _getDeltaBorrowIndex(address cToken) internal returns (uint224 deltaBorrowIndex) {
-        uint224 currBorrowIndex;
-        (currBorrowIndex,) = comptroller.compBorrowState(cToken);
+    function _getDeltaBorrowIndex(address cToken) internal view returns (uint224 deltaBorrowIndex) {
+        uint224 currBorrowIndex = snapshot[cToken].borrowIndex;
         deltaBorrowIndex = safe224(
-            sub_(uint(currBorrowIndex), uint(snapshot[cToken].borrowIndex)),
+            sub_(uint(currBorrowIndex), uint(initialSnapshot[cToken].borrowIndex)),
             "unable-to-cast-to-uint224"
         );
         // NOTICE: borrowIndex is already normalized to underlying token quantity
@@ -135,7 +151,7 @@ contract BScore is ScoringMachine, Exponential {
         address _avatar = registry.avatarOf(_user);
         IBToken bToken = IBToken(bComptroller.c2b(cToken));
 
-        uint time = sub(start, 30 days);
+        uint time = sub(start, 1 days);
         if(time < start) time = start;
 
         // Slash debtScore
@@ -157,30 +173,36 @@ contract BScore is ScoringMachine, Exponential {
 
     // Get Score
     // ==========
-    function getDebtScore(address _user, address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+    function getDebtScore(address _user, address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         address avatar = registry.avatarOf(_user);
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
-        uint score = getScore(user(avatar), debtAsset(cToken), time, spinStart, 0);
-        return mul_(score, borrowMultiplier[cToken], deltaBorrowIndex);
+        uint score = getScore(user(avatar), debtAsset(cToken), currTime, startDate, 0);
+        // (borrowMultiplier[cToken] * deltaBorrowIndex / 1e18) * score
+        return mul_(div_(mul_(borrowMultiplier[cToken], deltaBorrowIndex), expScale), score);
     }
 
-    function getDebtGlobalScore(address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+    function getDebtGlobalScore(address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         uint224 deltaBorrowIndex = _getDeltaBorrowIndex(cToken);
-        uint score = getScore(GLOBAL_USER, debtAsset(cToken), time, spinStart, 0);
-        return mul_(score, borrowMultiplier[cToken], deltaBorrowIndex);
+        uint score = getScore(GLOBAL_USER, debtAsset(cToken), currTime, startDate, 0);
+        // (borrowMultiplier[cToken] * deltaBorrowIndex / 1e18) * score
+        return mul_(div_(mul_(borrowMultiplier[cToken], deltaBorrowIndex), expScale), score);
     }
 
-    function getCollScore(address _user, address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+    function getCollScore(address _user, address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         address avatar = registry.avatarOf(_user);
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
-        uint score = getScore(user(avatar), collAsset(cToken), time, spinStart, 0);
+        uint score = getScore(user(avatar), collAsset(cToken), currTime, startDate, 0);
         // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
         return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }
 
-    function getCollGlobalScore(address cToken, uint256 time, uint256 spinStart) public returns (uint) {
+    function getCollGlobalScore(address cToken, uint256 time) public view returns (uint) {
+        uint currTime = time > endDate ? endDate : time;
         uint224 deltaSupplyIndex = _getDeltaSupplyIndex(cToken);
-        uint score = getScore(GLOBAL_USER, collAsset(cToken), time, spinStart, 0);
+        uint score = getScore(GLOBAL_USER, collAsset(cToken), currTime, startDate, 0);
         // (supplyMultiplier[cToken] * deltaSupplyIndex / 1e18) * score
         return mul_(div_(mul_(supplyMultiplier[cToken], deltaSupplyIndex), expScale), score);
     }

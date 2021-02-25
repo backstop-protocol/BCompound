@@ -270,7 +270,7 @@ contract("BEther", async (accounts) => {
         // failed at Compound, as it doesn't allow sending tokens to self
         await expectRevert(
           bETH.transferFrom(owner, owner, ONE_cETH, { from: spender }),
-          "AbsCToken: transferFrom-failed",
+          "transferFrom-fail",
         );
 
         expect(await bETH.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cETH_Bal);
@@ -451,7 +451,7 @@ contract("BEther", async (accounts) => {
           bETH.transferFromOnAvatar(spenderAvatar, owner, owner, ONE_cETH, {
             from: spenderDelegatee,
           }),
-          "AbsCToken: transferFrom-failed",
+          "transferFrom-fail",
         );
 
         expect(await bETH.balanceOf(owner)).to.be.bignumber.equal(owner_expected_cETH_Bal);
