@@ -35,4 +35,7 @@ interface IComptroller {
         address cTokenBorrowed,
         address cTokenCollateral,
         uint actualRepayAmount) external view returns (uint, uint);
+
+    function compBorrowState(address cToken) external returns (uint224, uint32);
+    function compSupplyState(address cToken) external returns (uint224, uint32);
 }

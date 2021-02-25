@@ -28,7 +28,7 @@
     "eslint": "^7.16.0",
     "eslint-config-prettier": "^6.15.0",
     "ethereum-waffle": "^3.2.1",
-    "ethers": "^5.0.24",
+    "ethers": "^5.0.31",
     "ethlint": "^1.2.5",
     "hardhat": "^2.0.6",
     "hardhat-typechain": "^0.3.4",

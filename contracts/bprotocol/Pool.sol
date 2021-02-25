@@ -47,7 +47,7 @@ contract Pool is Exponential, Ownable {
     mapping(address => uint) public minSharingThreshold; // debt above this size will be shared
     uint public minTopupBps = 250; // 2.5%
     uint public holdingTime = 5 hours; // after 5 hours, someone else can topup instead
-    uint public selectionDuration = 60 minutes;  // member selection duration for round robin, default 10 mins
+    uint public selectionDuration = 60 minutes;  // member selection duration for round robin, default 60 mins
 
     struct MemberTopupInfo {
         uint expire;        // after expire time, other member can topup. relevant only if small
