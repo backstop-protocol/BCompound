@@ -30,6 +30,7 @@ contract("GovernanceExecutor", async (accounts) => {
   let pool: b.PoolInstance;
   let priceOracle: b.FakePriceOracleInstance;
   let registry: b.RegistryInstance;
+  let governanceExecutor: b.GovernanceExecutorInstance;
 
   before(async () => {
     await engine.deployCompound();
@@ -41,6 +42,7 @@ contract("GovernanceExecutor", async (accounts) => {
     pool = bProtocol.pool;
     priceOracle = bProtocol.compound.priceOracle;
     registry = bProtocol.registry;
+    governanceExecutor = bProtocol.governanceExecutor;
   });
 
   beforeEach(async () => {
@@ -133,23 +135,94 @@ contract("GovernanceExecutor", async (accounts) => {
   });
 
   describe("GovernanceExecutor.reqUpgradePool()", async () => {
-    it("only owner can request for upgrade pool");
+    it("only owner can request for upgrade pool", async () => {
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
 
-    it("non-owner cannot request for upgrade pool");
+      const tx = await governanceExecutor.reqUpgradePool(a.dummy1, { from: a.deployer });
+      expectEvent(tx, "RequestPoolUpgrade", { pool: a.dummy1 });
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+    });
+
+    it("non-owner cannot request for upgrade pool", async () => {
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
+
+      await expectRevert(
+        governanceExecutor.reqUpgradePool(a.dummy1, { from: a.other }),
+        "caller is not the owner",
+      );
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
+    });
   });
 
   describe("GovernanceExecutor.dropUpgradePool()", async () => {
-    it("only owner can drop pool upgrade request");
+    beforeEach(async () => {
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
+      await governanceExecutor.reqUpgradePool(a.dummy1, { from: a.deployer });
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
 
-    it("non-owner cannot drop pool upgrade request");
+      // Registry owner must be GovernanceExecutor
+      await bProtocol.registry.transferOwnership(governanceExecutor.address, { from: a.deployer });
+    });
+
+    it("only owner can drop pool upgrade request", async () => {
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+
+      await governanceExecutor.dropUpgradePool(a.dummy1, { from: a.deployer });
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
+    });
+
+    it("non-owner cannot drop pool upgrade request", async () => {
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+
+      await expectRevert(
+        governanceExecutor.dropUpgradePool(a.dummy1, { from: a.other }),
+        "caller is not the owner",
+      );
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+    });
   });
 
   describe("GovernanceExecutor.execUpgradePool()", async () => {
-    it("should execute pool upgrade after delay");
+    beforeEach(async () => {
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
+      await governanceExecutor.reqUpgradePool(a.dummy1, { from: a.deployer });
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
 
-    it("should fail when delay not over yet");
+      // Registry owner must be GovernanceExecutor
+      await bProtocol.registry.transferOwnership(governanceExecutor.address, { from: a.deployer });
+    });
 
-    it("should fail when request is invalid");
+    it("should execute pool upgrade after delay", async () => {
+      await time.increase(TWO_DAYS);
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+      expect(await registry.pool()).to.be.equal(pool.address);
+
+      await governanceExecutor.execUpgradePool(a.dummy1);
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.equal(ZERO);
+      expect(await registry.pool()).to.be.equal(a.dummy1);
+    });
+
+    it("should fail when delay not over yet", async () => {
+      await time.increase(ONE_DAY);
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+      expect(await registry.pool()).to.be.equal(pool.address);
+
+      await expectRevert(governanceExecutor.execUpgradePool(a.dummy1), "delay-not-over");
+
+      expect(await governanceExecutor.poolRequests(a.dummy1)).to.be.bignumber.greaterThan(ZERO);
+      expect(await registry.pool()).to.be.equal(pool.address);
+    });
+
+    it("should fail when request is invalid", async () => {
+      await expectRevert(governanceExecutor.execUpgradePool(a.dummy4), "request-not-valid");
+    });
   });
 
   describe("GovernanceExecutor.reqUpgradeWhitelist()", async () => {
