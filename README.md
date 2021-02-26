@@ -25,3 +25,11 @@ The tests automaticallt deploys Compound Contracts on ganache / hardhat-HRE. Bel
 Deploy Contracts on Kovan / Mainnet:
 
     npx hardhat run scripts/deploy.js
+
+Instructions to test with truffle
+
+    npx  ganache-cli  -l 1250000000000 --allowUnlimitedContractSize -a 20 -q -e 100000000000000
+
+    npm run deploy-compound
+
+    npx truffle test
