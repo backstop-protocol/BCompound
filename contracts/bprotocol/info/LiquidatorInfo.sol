@@ -58,14 +58,19 @@ contract LiquidatorInfo {
         return false;
     }
 
-    function getAvatarInfo(Registry registry,
-                           BComptroller bComptroller,
-                           address[] memory ctoken,
-                           uint[] memory priceFeed,
-                           address avatar) public returns(AvatarInfo memory info) {
-        require(ctoken.length == priceFeed.length, "ctoken-priceFeed-missmatch");
+    function getAvatarInfo(
+        Registry registry,
+        BComptroller bComptroller,
+        address[] memory cTokens,
+        uint[] memory priceFeed,
+        address avatar
+    ) 
+        public
+        returns(AvatarInfo memory info) 
+    {
+        require(cTokens.length == priceFeed.length, "cTokens-priceFeed-missmatch");
 
-        uint numTokens = ctoken.length;
+        uint numTokens = cTokens.length;
         address user = registry.ownerOf(avatar);
 
         info.user = user;
@@ -79,17 +84,20 @@ contract LiquidatorInfo {
         address[] memory assetsIn = comptroller.getAssetsIn(avatar);
 
         for(uint i = 0 ; i < numTokens ; i++) {
-            if(registry.cEther() == ctoken[i]) info.debtTokens[i] = ETH;
-            else info.debtTokens[i] = address(CTokenInterface(info.debtTokens[i]).underlying());
+            if(registry.cEther() == cTokens[i]) 
+                info.debtTokens[i] = ETH;
+            else 
+                info.debtTokens[i] = address(CTokenInterface(info.debtTokens[i]).underlying());
 
-            address btoken = bComptroller.c2b(ctoken[i]);
-            info.debtAmounts[i] = IBToken(btoken).borrowBalanceCurrent(user);
+            address bToken = bComptroller.c2b(cTokens[i]);
+            info.debtAmounts[i] = IBToken(bToken).borrowBalanceCurrent(user);
 
-            info.collateralTokens[i] = ctoken[i];
-            info.collateralAmounts[i] = CTokenInterface(btoken).exchangeRateCurrent() * CTokenInterface(btoken).balanceOf(user) / 1e18;
-            if(! isIn(assetsIn, ctoken[i])) info.collateralAmounts[i] = 0; 
+            info.collateralTokens[i] = cTokens[i];
+            info.collateralAmounts[i] = CTokenInterface(bToken).exchangeRateCurrent() * CTokenInterface(bToken).balanceOf(user) / 1e18;
+            if(! isIn(assetsIn, cTokens[i])) info.collateralAmounts[i] = 0; 
             // set as 0 if not in market
-            (,uint CR) = comptroller.markets(ctoken[i]);
+            // CR = collateralRatio = collateralFactorMantissa
+            (,uint CR) = comptroller.markets(cTokens[i]);
             info.weightedCollateralAmounts[i] = info.collateralAmounts[i] * CR / 1e18;
 
             info.totalDebt += info.debtAmounts[i] * priceFeed[i] / 1e18;
@@ -98,20 +106,27 @@ contract LiquidatorInfo {
         }
     }
 
-    function ctokenToUnderlying(Registry registry, address ctoken) internal view returns(address) {
-        if(registry.cEther() == ctoken) return ETH; 
-        else return address(CTokenInterface(ctoken).underlying());
+    function cTokenToUnderlying(Registry registry, address cToken) internal view returns(address) {
+        if(registry.cEther() == cToken) 
+            return ETH; 
+        else 
+            return address(CTokenInterface(cToken).underlying());
     }
 
-    function getCushionInfo(Registry registry,
-                            BComptroller bComptroller,
-                            Pool pool,
-                            address[] memory ctoken,
-                            uint[] memory priceFeed,
-                            uint debtAmount,
-                            uint weightedCollateral,
-                            address avatar,
-                            address me) public returns(CushionInfo memory info) {
+    function getCushionInfo(
+        Registry registry,
+        BComptroller bComptroller,
+        Pool pool,
+        address[] memory cTokens,
+        uint[] memory priceFeed,
+        uint debtAmount,
+        uint weightedCollateral,
+        address avatar,
+        address me
+    ) 
+        public
+        returns(CushionInfo memory info) 
+    {
         address user = registry.ownerOf(avatar);
         info.hasCushion = ICushion(avatar).toppedUpAmount() > 0;
         (, uint amountTopped,) = pool.getMemberTopupInfo(user, me);
@@ -123,22 +138,22 @@ contract LiquidatorInfo {
         info.shouldUntop = (!info.hasCushion && amountTopped > 0);
 
         if(amountTopped > 0) {
-            (,address toppedToken) = pool.topped(avatar);
-            info.cushionCurrentToken = ctokenToUnderlying(registry, toppedToken);
+            (,address toppedCToken) = pool.topped(avatar);
+            info.cushionCurrentToken = cTokenToUnderlying(registry, toppedCToken);
             info.cushionCurrentSize = amountTopped;
         }
 
-        info.cushionPossibleTokens = new address[](ctoken.length);
-        info.cushionMaxSizes = new uint[](ctoken.length);        
-        for(uint i = 0 ; i < ctoken.length ; i++) {
-            uint debt = IBToken(bComptroller.c2b(ctoken[i])).borrowBalanceCurrent(user);
+        info.cushionPossibleTokens = new address[](cTokens.length);
+        info.cushionMaxSizes = new uint[](cTokens.length);        
+        for(uint i = 0 ; i < cTokens.length ; i++) {
+            uint debt = IBToken(bComptroller.c2b(cTokens[i])).borrowBalanceCurrent(user);
             uint debtUsd = debt * priceFeed[i] / 1e18;
             if(amountTopped > 0 && info.hasCushion) {
-                if(info.cushionCurrentToken != ctokenToUnderlying(registry, ctoken[i])) continue;
+                if(info.cushionCurrentToken != cTokenToUnderlying(registry, cTokens[i])) continue;
                 debt -= amountTopped;
             }
 
-            info.cushionPossibleTokens[i] = ctokenToUnderlying(registry, ctoken[i]);
+            info.cushionPossibleTokens[i] = cTokenToUnderlying(registry, cTokens[i]);
             info.cushionMaxSizes[i] = debt;
 
             if(debtAmount > weightedCollateral) {
@@ -152,19 +167,45 @@ contract LiquidatorInfo {
         info.remainingLiquidationSize = ICushion(avatar).remainingLiquidationAmount();
     }
 
-    function getSingleAccountInfo(Pool pool, Registry registry, BComptroller bComptroller, 
-                                  address me, address avatar, address[] memory ctokens, uint[] memory priceFeed)
-        public returns(AccountInfo memory info) {
+    function getSingleAccountInfo(
+        Pool pool,
+        Registry registry,
+        BComptroller bComptroller, 
+        address me,
+        address avatar,
+        address[] memory cTokens,
+        uint[] memory priceFeed
+    )
+        public
+        returns(AccountInfo memory info) 
+    {
 
-        info.avatarInfo = getAvatarInfo(registry, bComptroller, ctokens, priceFeed, avatar);
-        info.cushionInfo = getCushionInfo(registry, bComptroller, pool, ctokens, priceFeed,
-                                          info.avatarInfo.totalDebt, info.avatarInfo.weightedCollateral,
-                                          avatar, me);
+        info.avatarInfo = getAvatarInfo(registry, bComptroller, cTokens, priceFeed, avatar);
+        info.cushionInfo = getCushionInfo(
+            registry,
+            bComptroller,
+            pool,
+            cTokens,
+            priceFeed,
+            info.avatarInfo.totalDebt,
+            info.avatarInfo.weightedCollateral,
+            avatar,
+            me
+        );
         info.liquidationInfo = getLiquidationInfo(avatar);
     }
 
-    function getInfo(uint startAccount, uint endAccount, address me, Pool pool, address[] memory ctokens, uint[] memory priceFeed)
-        public returns(AccountInfo[] memory info) {
+    function getInfo(
+        uint startAccount,
+        uint endAccount,
+        address me,
+        Pool pool,
+        address[] memory cTokens,
+        uint[] memory priceFeed
+    )
+        public
+        returns(AccountInfo[] memory info) 
+    {
 
         info = new AccountInfo[](endAccount + 1 - startAccount);
 
@@ -174,7 +215,7 @@ contract LiquidatorInfo {
         for(uint i = 0 ; i + startAccount <= endAccount ; i++) {
             uint accountNumber = i + startAccount;
             address avatar = registry.avatars(accountNumber);
-            info[i] = getSingleAccountInfo(pool, registry, bComptroller, me, avatar, ctokens, priceFeed);
+            info[i] = getSingleAccountInfo(pool, registry, bComptroller, me, avatar, cTokens, priceFeed);
         }
     }
 
