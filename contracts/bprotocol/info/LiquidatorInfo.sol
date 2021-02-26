@@ -96,6 +96,7 @@ contract LiquidatorInfo {
             info.collateralAmounts[i] = CTokenInterface(bToken).exchangeRateCurrent() * CTokenInterface(bToken).balanceOf(user) / 1e18;
             if(! isIn(assetsIn, cTokens[i])) info.collateralAmounts[i] = 0; 
             // set as 0 if not in market
+            // CR = collateralRatio = collateralFactorMantissa
             (,uint CR) = comptroller.markets(cTokens[i]);
             info.weightedCollateralAmounts[i] = info.collateralAmounts[i] * CR / 1e18;
 
@@ -137,8 +138,8 @@ contract LiquidatorInfo {
         info.shouldUntop = (!info.hasCushion && amountTopped > 0);
 
         if(amountTopped > 0) {
-            (,address toppedToken) = pool.topped(avatar);
-            info.cushionCurrentToken = cTokenToUnderlying(registry, toppedToken);
+            (,address toppedCToken) = pool.topped(avatar);
+            info.cushionCurrentToken = cTokenToUnderlying(registry, toppedCToken);
             info.cushionCurrentSize = amountTopped;
         }
 
