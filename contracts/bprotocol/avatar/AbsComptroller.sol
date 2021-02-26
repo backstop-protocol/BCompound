@@ -34,7 +34,7 @@ contract AbsComptroller is AbsAvatarBase {
         IComptroller comptroller = IComptroller(registry.comptroller());
         uint256[] memory result = comptroller.enterMarkets(cTokens);
         for(uint256 i = 0; i < result.length; i++) {
-            require(result[i] == 0, "AbsComptroller: enter-markets-failed");
+            require(result[i] == 0, "enter-markets-fail");
         }
         return result;
     }
@@ -110,7 +110,7 @@ contract AbsComptroller is AbsAvatarBase {
         if(!isToppedUp()) {
             return (err, liquidity, shortFall);
         }
-        require(err == 0, "Error-in-getting-account-liquidity");
+        require(err == 0, "Err-in-account-liquidity");
 
         uint256 price = IPriceOracle(oracle).getUnderlyingPrice(toppedUpCToken);
         uint256 toppedUpAmtInUSD = mulTrucate(toppedUpAmount, price);

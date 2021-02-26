@@ -263,13 +263,26 @@ contract("BErc20", async (accounts) => {
         expect(await bETH.balanceOf(a.user1)).to.be.bignumber.equal(cETHBalance);
         expect(await bBAT.balanceOf(a.user1)).to.be.bignumber.equal(cBATBalance);
 
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        const assetsIn = await comptroller.getAssetsIn(avatar1);
+
+        expect(assetsIn.includes(cZRX.address)).to.be.equal(true);
+        expect(assetsIn.includes(cETH.address)).to.be.equal(true);
+        expect(assetsIn.includes(cBAT.address)).to.be.equal(true);
+
         if (checkDebtAfter) {
           console.log("checking debt after");
           expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(HUNDRED_BAT);
           expect(await bUSDT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(
             FIVE_HUNDRED_USDT,
           );
-        } else console.log("skipping checking debt after");
+
+          expect(assetsIn.length).to.be.equal(4);
+          expect(assetsIn.includes(cUSDT.address)).to.be.equal(true);
+        } else {
+          expect(assetsIn.length).to.be.equal(3);          
+          console.log("skipping checking debt after");
+        }
 
         console.log("checking delegate was revoked");
         const avatar = await bProtocol.registry.getAvatar.call(a.user1);
@@ -386,6 +399,45 @@ contract("BErc20", async (accounts) => {
 
         checkDebtAfter = false;
       });
+
+      it("user should import without fees and with no debt without flashloan", async () => {
+        // repay the bat and usdt debt
+        await BAT.approve(cBAT.address, HUNDRED_BAT, { from: a.user1 });
+        await cBAT.repayBorrow(HUNDRED_BAT, { from: a.user1 });
+        await USDT.approve(cUSDT.address, HUNDRED_BAT, { from: a.user1 });
+        await cUSDT.repayBorrow(FIVE_HUNDRED_USDT, { from: a.user1 });
+
+        // make sure borrow balance was reset
+        expect(await cBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
+        expect(await cUSDT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
+
+        const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);
+        await cZRX.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cETH.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+        await cBAT.approve(avatar1, new BN(2).pow(new BN(255)), { from: a.user1 });
+
+        // call flash import
+        const data = await bImport.contract.methods
+          .importCollateral(
+            [cZRX.address, cETH.address, cBAT.address]
+          )
+          .encodeABI();
+
+        const tx = await bProtocol.registry.delegateAndExecuteOnce(
+          bImport.address,
+          bImport.address,
+          data,
+          { from: a.user1 },
+        );
+        console.log(tx.receipt.gasUsed);
+
+        // check balance
+        expect(await bETH.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
+        expect(await bBAT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
+        expect(await bUSDT.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.equal(ZERO);
+
+        checkDebtAfter = false;
+      });      
 
       it("user should import with fees", async () => {
         const avatar1 = await bProtocol.registry.getAvatar.call(a.user1);

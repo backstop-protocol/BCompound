@@ -3,7 +3,6 @@ pragma solidity 0.5.16;
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 import { GnosisSafeProxy } from "./proxy/GnosisSafeProxy.sol";
 import { IAvatar } from "./interfaces/IAvatar.sol";
-import { Avatar } from "./avatar/Avatar.sol";
 
 /**
  * @dev Registry contract to maintain Compound, BProtocol and avatar address.
@@ -18,7 +17,7 @@ contract Registry is Ownable {
     // BProtocol Contracts
     address public pool;
     address public score;
-    address public compVoter;
+    address public compVoter; // this will not be used
     address public bComptroller;
 
 
@@ -58,8 +57,8 @@ contract Registry is Ownable {
         address _cEther,
         address _pool,
         address _bComptroller,
-        address _score,
-        address _compVoter
+        address _compVoter,
+        address _avatarImpl
     )
         public
     {
@@ -68,10 +67,9 @@ contract Registry is Ownable {
         cEther = _cEther;
         pool = _pool;
         bComptroller = _bComptroller;
-        score = _score;
         compVoter = _compVoter;
 
-        avatarImpl = address(new Avatar());
+        avatarImpl = _avatarImpl;
         dummyCaller = new DummyCaller();
     }
 

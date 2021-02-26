@@ -220,10 +220,7 @@ contract("BEther", async (accounts) => {
 
         expect(await balance.current(a.other)).to.be.bignumber.equal(ethBalBefore.sub(ONE_ETH));
 
-        await expectRevert(
-          bETH.borrow(ONE_THOUSAND_ZRX, { from: a.other }),
-          "AbsCToken: borrow-failed",
-        );
+        await expectRevert(bETH.borrow(ONE_THOUSAND_ZRX, { from: a.other }), "borrow-fail");
       });
     });
 
@@ -276,7 +273,7 @@ contract("BEther", async (accounts) => {
 
         await expectRevert(
           bETH.borrowOnAvatar(avatar1, ONE_THOUSAND_BAT, { from: delegatee }),
-          "AbsCToken: borrow-failed",
+          "borrow-fail",
         );
 
         expect(await bETH.borrowBalanceCurrent.call(delegator)).to.be.bignumber.equal(ZERO);

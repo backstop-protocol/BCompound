@@ -1,6 +1,7 @@
 import "hardhat-typechain";
 require("ts-node/register");
 require("@nomiclabs/hardhat-truffle5");
+require("@nomiclabs/hardhat-ethers");
 
 // You have to export an object to set up your config
 // This object can have the following optional entries:
