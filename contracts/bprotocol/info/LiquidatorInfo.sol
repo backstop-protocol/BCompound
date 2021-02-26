@@ -58,11 +58,16 @@ contract LiquidatorInfo {
         return false;
     }
 
-    function getAvatarInfo(Registry registry,
-                           BComptroller bComptroller,
-                           address[] memory ctoken,
-                           uint[] memory priceFeed,
-                           address avatar) public returns(AvatarInfo memory info) {
+    function getAvatarInfo(
+        Registry registry,
+        BComptroller bComptroller,
+        address[] memory ctoken,
+        uint[] memory priceFeed,
+        address avatar
+    ) 
+        public
+        returns(AvatarInfo memory info) 
+    {
         require(ctoken.length == priceFeed.length, "ctoken-priceFeed-missmatch");
 
         uint numTokens = ctoken.length;
@@ -103,15 +108,20 @@ contract LiquidatorInfo {
         else return address(CTokenInterface(ctoken).underlying());
     }
 
-    function getCushionInfo(Registry registry,
-                            BComptroller bComptroller,
-                            Pool pool,
-                            address[] memory ctoken,
-                            uint[] memory priceFeed,
-                            uint debtAmount,
-                            uint weightedCollateral,
-                            address avatar,
-                            address me) public returns(CushionInfo memory info) {
+    function getCushionInfo(
+        Registry registry,
+        BComptroller bComptroller,
+        Pool pool,
+        address[] memory ctoken,
+        uint[] memory priceFeed,
+        uint debtAmount,
+        uint weightedCollateral,
+        address avatar,
+        address me
+    ) 
+        public
+        returns(CushionInfo memory info) 
+    {
         address user = registry.ownerOf(avatar);
         info.hasCushion = ICushion(avatar).toppedUpAmount() > 0;
         (, uint amountTopped,) = pool.getMemberTopupInfo(user, me);
@@ -152,19 +162,45 @@ contract LiquidatorInfo {
         info.remainingLiquidationSize = ICushion(avatar).remainingLiquidationAmount();
     }
 
-    function getSingleAccountInfo(Pool pool, Registry registry, BComptroller bComptroller, 
-                                  address me, address avatar, address[] memory ctokens, uint[] memory priceFeed)
-        public returns(AccountInfo memory info) {
+    function getSingleAccountInfo(
+        Pool pool,
+        Registry registry,
+        BComptroller bComptroller, 
+        address me,
+        address avatar,
+        address[] memory ctokens,
+        uint[] memory priceFeed
+    )
+        public
+        returns(AccountInfo memory info) 
+    {
 
         info.avatarInfo = getAvatarInfo(registry, bComptroller, ctokens, priceFeed, avatar);
-        info.cushionInfo = getCushionInfo(registry, bComptroller, pool, ctokens, priceFeed,
-                                          info.avatarInfo.totalDebt, info.avatarInfo.weightedCollateral,
-                                          avatar, me);
+        info.cushionInfo = getCushionInfo(
+            registry,
+            bComptroller,
+            pool,
+            ctokens,
+            priceFeed,
+            info.avatarInfo.totalDebt,
+            info.avatarInfo.weightedCollateral,
+            avatar,
+            me
+        );
         info.liquidationInfo = getLiquidationInfo(avatar);
     }
 
-    function getInfo(uint startAccount, uint endAccount, address me, Pool pool, address[] memory ctokens, uint[] memory priceFeed)
-        public returns(AccountInfo[] memory info) {
+    function getInfo(
+        uint startAccount,
+        uint endAccount,
+        address me,
+        Pool pool,
+        address[] memory ctokens,
+        uint[] memory priceFeed
+    )
+        public
+        returns(AccountInfo[] memory info) 
+    {
 
         info = new AccountInfo[](endAccount + 1 - startAccount);
 
