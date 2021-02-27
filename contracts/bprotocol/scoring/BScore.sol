@@ -6,6 +6,7 @@ import { IComptroller } from "../interfaces/IComptroller.sol";
 import { Exponential } from "../lib/Exponential.sol";
 import { ICToken } from "../interfaces/CTokenInterfaces.sol";
 import { IBToken } from "../interfaces/IBToken.sol";
+import { IAvatar } from "../interfaces/IAvatar.sol";
 import { IBComptroller } from "../interfaces/IBComptroller.sol";
 
 contract BScore is ScoringMachine, Exponential {
@@ -33,6 +34,7 @@ contract BScore is ScoringMachine, Exponential {
 
     modifier onlyAvatar() {
         require(registry.doesAvatarExist(msg.sender), "Score: not-an-avatar");
+        require(! IAvatar(msg.sender).quit(), "Score: avatar-quit");        
         _;
     }
 
@@ -143,13 +145,14 @@ contract BScore is ScoringMachine, Exponential {
     function slashScore(address _user, address cToken) external {
         IBComptroller bComptroller = IBComptroller(registry.bComptroller());
         address _avatar = registry.avatarOf(_user);
+        bool quit = IAvatar(_avatar).quit();
         IBToken bToken = IBToken(bComptroller.c2b(cToken));
 
         uint time = sub(start, 1 days);
         if(time < start) time = start;
 
         // Slash debtScore
-        uint borrowBalB = bToken.borrowBalanceCurrent(_user);
+        uint borrowBalB = quit ? 0 : bToken.borrowBalanceCurrent(_user);
         uint borrowBalScore = getCurrentBalance(user(_avatar), debtAsset(cToken));
         if(borrowBalB < borrowBalScore) {
             int256 debtRating = int256(sub(borrowBalScore, borrowBalB));
@@ -157,7 +160,7 @@ contract BScore is ScoringMachine, Exponential {
         }
 
         // Slash collScore
-        uint collBalB = bToken.balanceOfUnderlying(_user);
+        uint collBalB = quit ? 0 : bToken.balanceOfUnderlying(_user);
         uint collBalScore = getCurrentBalance(user(_avatar), collAsset(cToken));
         if(collBalB < collBalScore) {
             int256 collRating = int256(sub(collBalScore, collBalB));

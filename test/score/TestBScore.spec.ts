@@ -552,6 +552,58 @@ contract("BScore", async (accounts) => {
         userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
         expectInRange(userDebtScoreBalance, _500USD_ZRX.sub(_100USD_ZRX), 1);
       });
+
+      it("slash score when quit()", async () => {
+        // user2 mints ZRX
+        await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
+        await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
+
+        // user1 borrow ZRX
+        const _1200USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(1200));
+        const _500USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(500));
+        await bETH.mint({ from: a.user1, value: _1200USD_ETH });
+        await bZRX.borrow(_500USD_ZRX, { from: a.user1 });
+        const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+        await advanceBlockInCompound(200);
+        await time.increase(ONE_MONTH);
+
+        await setMainnetCompSpeeds();
+
+        // trigger borrow index update
+        await comptroller.borrowAllowed(cZRX_addr, avatar1.address, ONE_ZRX);
+
+        expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.not.equal(ZERO);
+        expect(await comptroller.compSpeeds(cZRX_addr)).to.be.bignumber.equal(
+          cZRX_COMP_SPEEDS_MAINNET,
+        );
+
+        const prevBorrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+        expectInRange(prevBorrowBal, _500USD_ZRX, 1); // 1% in range, as interest on borrow
+        const borrowInterestAccured = prevBorrowBal.sub(_500USD_ZRX);
+
+        let userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        expect(userDebtScoreBalance).to.be.bignumber.equal(_500USD_ZRX);
+
+        await score.updateIndex(cTokens);
+        const now = await nowTime();
+
+        // quit
+        await avatar1.quitB({ from: a.user1 });
+        // no change in score approx $500
+        userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        expect(userDebtScoreBalance).to.be.bignumber.equal(_500USD_ZRX);
+
+        // someone slash score
+        await score.slashScore(a.user1, cZRX_addr, { from: a.dummy1 });
+
+        // score balance should be reduced
+        userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
+        expect(userDebtScoreBalance).to.be.bignumber.equal("0");
+
+        const userCollScoreBalance = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
+        expect(userCollScoreBalance).to.be.bignumber.equal("0");
+      });
     });
 
     describe("Integration Tests", async () => {
@@ -2738,23 +2790,25 @@ contract("BScore", async (accounts) => {
           let globalScoreBal = await getGlobalCollScoreBalance(cZRX_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_ZRX);
 
-          // quit
+          // quit - dest should also quit, otherwise cannot update score
           expect(await avatar1.quit()).to.be.equal(false);
           await avatar1.quitB({ from: a.user1 });
           expect(await avatar1.quit()).to.be.equal(true);
+          await registry.getAvatar(a.user2);
+          const avatar2 = await Avatar.at(await registry.avatarOf(a.user2));
+          await avatar2.quitB({ from: a.user2 });
 
           // TRANSFER
           const _100USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(100));
           const cTokenAmt = await toCTokenAmount(cZRX_addr, _100USD_ZRX);
 
-          await bZRX.transfer(a.dummy1, cTokenAmt, { from: a.user1 });
+          await bZRX.transfer(a.user2, cTokenAmt, { from: a.user1 });
 
           let userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
           expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
 
-          const avatarDummy1 = await registry.avatarOf(a.dummy1);
-          const userScoreBalDummy1 = await getCurrentCollScoreBalance(avatarDummy1, cZRX_addr);
-          expectInRange(userScoreBalDummy1, _100USD_ZRX, 1);
+          const userScoreBalUser2 = await getCurrentCollScoreBalance(avatar2.address, cZRX_addr);
+          expect(userScoreBalUser2).to.be.bignumber.equal(ZERO);
 
           await time.increase(1);
 
@@ -2762,8 +2816,12 @@ contract("BScore", async (accounts) => {
           userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
           expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
 
-          const dummy1CollScore = await score.getCollScore(a.dummy1, cZRX_addr, await nowTime());
-          expect(dummy1CollScore).to.be.bignumber.not.equal(ZERO);
+          const user2CollScore = await score.getCollScore(
+            avatar2.address,
+            cZRX_addr,
+            await nowTime(),
+          );
+          expect(user2CollScore).to.be.bignumber.equal(ZERO);
         });
 
         it("when transferFrom", async () => {
@@ -2849,6 +2907,33 @@ contract("BScore", async (accounts) => {
 
           const dummy1CollScore = await score.getCollScore(a.dummy1, cZRX_addr, await nowTime());
           expect(dummy1CollScore).to.be.bignumber.not.equal(ZERO);
+        });
+
+        it("call update score after quit", async () => {
+          await registry.getAvatar(a.user1);
+          const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          await avatar1.quitB({ from: a.user1 });
+
+          const updateCollScoreData = score.contract.methods
+            .updateCollScore(avatar1.address, cZRX_addr, 1)
+            .encodeABI();
+          const updateDebtScoreData = score.contract.methods
+            .updateDebtScore(avatar1.address, cZRX_addr, 1)
+            .encodeABI();
+
+          await expectRevert(
+            avatar1.emergencyCall(score.address, updateCollScoreData, { from: a.user1 }),
+            "Score: avatar-quit",
+          );
+          await expectRevert(
+            avatar1.emergencyCall(score.address, updateDebtScoreData, { from: a.user1 }),
+            "Score: avatar-quit",
+          );
+          await expectRevert(
+            score.updateCollScore(avatar1.address, cZRX_addr, 1, { from: a.user1 }),
+            "Score: not-an-avatar",
+          );
         });
       });
 
