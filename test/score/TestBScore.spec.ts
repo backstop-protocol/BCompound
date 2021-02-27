@@ -589,7 +589,7 @@ contract("BScore", async (accounts) => {
         const now = await nowTime();
 
         // quit
-        await avatar1.quitB({from: a.user1});
+        await avatar1.quitB({ from: a.user1 });
         // no change in score approx $500
         userDebtScoreBalance = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
         expect(userDebtScoreBalance).to.be.bignumber.equal(_500USD_ZRX);
@@ -605,7 +605,7 @@ contract("BScore", async (accounts) => {
         expect(userCollScoreBalance).to.be.bignumber.equal("0");
       });
     });
-    
+
     describe("Integration Tests", async () => {
       describe("=> Deployment setup pre-conditions check...", async () => {
         it("should have compMarket for all cTokens", async () => {
@@ -2796,7 +2796,7 @@ contract("BScore", async (accounts) => {
           expect(await avatar1.quit()).to.be.equal(true);
           await registry.getAvatar(a.user2);
           const avatar2 = await Avatar.at(await registry.avatarOf(a.user2));
-          await avatar2.quitB({ from: a.user2});
+          await avatar2.quitB({ from: a.user2 });
 
           // TRANSFER
           const _100USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(100));
@@ -2807,9 +2807,8 @@ contract("BScore", async (accounts) => {
           let userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
           expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
 
-          const avatarDummy1 = avatar2.address;
-          const userScoreBalDummy1 = await getCurrentCollScoreBalance(avatarDummy1, cZRX_addr);
-          expect(userScoreBalDummy1).to.be.bignumber.equal(ZERO);
+          const userScoreBalUser2 = await getCurrentCollScoreBalance(avatar2.address, cZRX_addr);
+          expect(userScoreBalUser2).to.be.bignumber.equal(ZERO);
 
           await time.increase(1);
 
@@ -2817,8 +2816,12 @@ contract("BScore", async (accounts) => {
           userScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cZRX_addr);
           expect(userScoreBalUser1).to.be.bignumber.equal(_500USD_ZRX);
 
-          const dummy1CollScore = await score.getCollScore(a.dummy1, cZRX_addr, await nowTime());
-          expect(dummy1CollScore).to.be.bignumber.equal(ZERO);
+          const user2CollScore = await score.getCollScore(
+            avatar2.address,
+            cZRX_addr,
+            await nowTime(),
+          );
+          expect(user2CollScore).to.be.bignumber.equal(ZERO);
         });
 
         it("when transferFrom", async () => {
@@ -2910,22 +2913,26 @@ contract("BScore", async (accounts) => {
           await registry.getAvatar(a.user1);
           const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
 
-          await avatar1.quitB({from :a.user1});
+          await avatar1.quitB({ from: a.user1 });
 
-          const updateCollScoreData = score.contract.methods.updateCollScore(avatar1.address, cZRX_addr, 1).encodeABI();
-          const updateDebtScoreData = score.contract.methods.updateDebtScore(avatar1.address, cZRX_addr, 1).encodeABI();          
+          const updateCollScoreData = score.contract.methods
+            .updateCollScore(avatar1.address, cZRX_addr, 1)
+            .encodeABI();
+          const updateDebtScoreData = score.contract.methods
+            .updateDebtScore(avatar1.address, cZRX_addr, 1)
+            .encodeABI();
 
           await expectRevert(
-            avatar1.emergencyCall(score.address, updateCollScoreData, {from: a.user1}),
-            "Score: avatar-quit"
+            avatar1.emergencyCall(score.address, updateCollScoreData, { from: a.user1 }),
+            "Score: avatar-quit",
           );
           await expectRevert(
-            avatar1.emergencyCall(score.address, updateDebtScoreData, {from: a.user1}),
-            "Score: avatar-quit"
+            avatar1.emergencyCall(score.address, updateDebtScoreData, { from: a.user1 }),
+            "Score: avatar-quit",
           );
           await expectRevert(
-            score.updateCollScore(avatar1.address, cZRX_addr, 1, {from: a.user1}),
-            "Score: not-an-avatar"
+            score.updateCollScore(avatar1.address, cZRX_addr, 1, { from: a.user1 }),
+            "Score: not-an-avatar",
           );
         });
       });
