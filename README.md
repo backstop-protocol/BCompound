@@ -33,3 +33,7 @@ Instructions to test with truffle
     npm run deploy-compound
 
     npx truffle test
+
+Run Coverage
+    
+    npm run coverage
