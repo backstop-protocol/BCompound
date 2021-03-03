@@ -87,10 +87,6 @@ contract BScore is ScoringMachine, Exponential {
         updateScore(user(_avatar), collAsset(cToken), amount, now);
     }
 
-    function mul_(uint score, uint multiplier, uint224 index) internal pure returns (uint) {
-        return mul_(mul_(score, multiplier), index);
-    }
-
     function updateIndex(address[] calldata cTokens) external {
         _updateIndex(cTokens, false);        
     }

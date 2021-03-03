@@ -6,6 +6,7 @@ import { takeSnapshot, revertToSnapShot } from "../test-utils/SnapshotUtils";
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { expectEvent, expectRevert } = require("@openzeppelin/test-helpers");
 import BN from "bn.js";
+import { compCommands } from "compound-protocol/scenario/src/Event/CompEvent";
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -18,7 +19,12 @@ const EmergencyMock: b.EmergencyMockContract = artifacts.require("EmergencyMock"
 contract("Avatar", async (accounts) => {
   let bProtocol: BProtocol;
   let registry: b.RegistryInstance;
+  let comp: b.CompInstance;
   const a: BAccounts = new BAccounts(accounts);
+
+  const ONE_COMP = new BN(10).pow(new BN(18));
+  const ONE_HUNDRED_COMP = ONE_COMP.mul(new BN(100));
+  const TWO_HUNDRED_COMP = ONE_COMP.mul(new BN(200));
 
   const engine = new BProtocolEngine(accounts);
   before(async () => {
@@ -28,6 +34,7 @@ contract("Avatar", async (accounts) => {
     // Deploy BProtocol contracts
     bProtocol = await engine.deployBProtocol();
     registry = bProtocol.registry;
+    comp = bProtocol.compound.comp;
   });
 
   beforeEach(async () => {
@@ -61,13 +68,7 @@ contract("Avatar", async (accounts) => {
     let mockEmergency2: b.EmergencyMockInstance;
     let avatarInstance: b.AvatarInstance;
 
-    before(async () => {
-      // Deploy Compound
-      await engine.deployCompound();
-
-      // Deploy BProtocol contracts
-      bProtocol = await engine.deployBProtocol();
-      registry = bProtocol.registry;
+    beforeEach(async () => {
       mockEmergency1 = await EmergencyMock.new();
       mockEmergency2 = await EmergencyMock.new();
 
@@ -144,9 +145,44 @@ contract("Avatar", async (accounts) => {
       await avatarInstance.emergencyCall(mockEmergency1.address, setXCallData, { from: a.user1 });
       expect(await mockEmergency1.x()).to.be.bignumber.equal(new BN(777));
     });
+  });
 
-    describe("Avatar.quitB()", async () => {
-      it("");
+  describe("Avatar.transferCOMP()", async () => {
+    let avatar1: b.AvatarInstance;
+    let avatar2: b.AvatarInstance;
+
+    beforeEach(async () => {
+      await registry.newAvatar({ from: a.user1 });
+      await registry.newAvatar({ from: a.user2 });
+
+      avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+      avatar2 = await Avatar.at(await registry.avatarOf(a.user2));
+
+      expect(await registry.comp()).to.be.equal(comp.address);
+      expect(await comp.totalSupply()).to.be.bignumber.not.equal(ZERO);
+      expect(await comp.balanceOf(a.deployer)).to.be.bignumber.not.equal(ZERO);
+    });
+
+    it("should transfer COMP to the owner", async () => {
+      // validate users not have COMP
+      expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+      expect(await comp.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+      expect(await comp.balanceOf(avatar1.address)).to.be.bignumber.equal(ZERO);
+      expect(await comp.balanceOf(avatar2.address)).to.be.bignumber.equal(ZERO);
+
+      // transfer some COMP to avatar1
+      await comp.transfer(avatar1.address, ONE_HUNDRED_COMP, { from: a.deployer });
+      expect(await comp.balanceOf(avatar1.address)).to.be.bignumber.equal(ONE_HUNDRED_COMP);
+      await comp.transfer(avatar2.address, TWO_HUNDRED_COMP, { from: a.deployer });
+      expect(await comp.balanceOf(avatar2.address)).to.be.bignumber.equal(TWO_HUNDRED_COMP);
+
+      // user calls transferCOMP()
+      await avatar1.transferCOMP();
+      await avatar2.transferCOMP();
+
+      // validate users have COMP
+      expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ONE_HUNDRED_COMP);
+      expect(await comp.balanceOf(a.user2)).to.be.bignumber.equal(TWO_HUNDRED_COMP);
     });
   });
 });
