@@ -1,0 +1,34 @@
+{
+    "compound": {
+        
+        "PriceOracle": "0xa248d461F825cFBa1bceEda30bcADaDcA9c46153",
+        "ComptrollerScen": "0x3BBa74D1c27db4dff1eBbA856AaB97EdFc206410",
+        "StdInterest": "0xc73a05EeA9Aef6e29CB473dc4711dbe03a501c94",
+        "Unitroller": "0x8A812999c6cD6E9bbCBB23aAEBb887E8AED24B11",
+        "Comptroller": "0x8A812999c6cD6E9bbCBB23aAEBb887E8AED24B11",
+        "Comp": "0xE6aaCCeaf5D22e296F9055760c74bBBa8E01Cfa2",
+        "ComptrollerScenG2": "0x76998254dCc54f4BE85c4ec2C011c8C3151d8514",
+        "cErc20Delegate": "0x9Ab35Ae24ca0F1A922d083b628D4Db1038C61a1b",
+        "cETH": "0x70868b7d58E83AB9AdB810984c3A5C5019F92D98",
+        "ZRX": "0xcfd9a595697942e5F73C727a8687f34b9b2aE992",
+        "cZRX": "0x43452645a3D9bbe0cefc629a1E82Fc2500C1d1AE",
+        "USDT": "0x382E0FA6bF7a6756A64dBBC3607b4B43e69b3742",
+        "cUSDT": "0x8AB770Fa0124d69F0861b2C4cBAb9c940fAD701B",
+        "BAT": "0x0Fd56fc27cf31BfA0Cb571fDE9c8cD75613012ea",
+        "cBAT": "0xBeE731821E8E739fb086024E0A76bDB9ac763DBa",
+        "WBTC": "0x40708f457C6aC114614Edc6b4d7f5CAD3790F2ea",
+        "cWBTC": "0x7fE226CdE59d67F4c99e1137f3D8EcabbB068C9F"
+    },
+
+    "bcompound": {
+        "BComptroller": "0x8bd06B0A5b0AacAc407664aE32Fa09b261a6B97A",
+        "GovernanceExecutor": "0xeC991E2686be779cFaaA8D0C723464435F17bD9f",
+        "CompoundJar": "0x86F99Aa3ff0D9B53eeF319E20bA3a8F5e54990B4",
+        "JarConnector": "0x0a7d9c1e2BDa425B410d0893519c9507cF479f50",
+        "Migrate": "0x0245e07E1915F84160D76A572B602B892F510837",
+        "Pool": "0x7f30b9F5954eDA1e6181e96383257aeE8fEb0363",
+        "Registry": "0x178743c6477774C9e80a5B7644c35f9eC49F3071",
+        "BScore": "0x329C0e9897971b44553Bca609B994342ebB23732"
+    }
+
+}
