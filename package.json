@@ -56,11 +56,13 @@
     "build": "npm run compile && npm run gen-typings",
     "build-all": "npm run clean && npm run build-compound && npm run build",
     "compile-compound": "truffle compile --contracts_directory compound-protocol/tests",
-    "coverage-clean": "rimraf coverage-config/snapshot",
-    "unzip-snapshot": "cd coverage-config && unzip snapshot.zip",    
+    "clean-snapshot": "rimraf snapshot/coverage && rimraf snapshot/bcompound",
+    "unzip-snapshot": "cd snapshot && unzip $FILE.zip",
     "copy-coverage-files": "cp coverage-config/development.json ./compound-protocol/networks/",
     "exec-coverage": "node --max-old-space-size=4096 ./node_modules/.bin/truffle run coverage --network coverage",
-    "coverage": "npm run coverage-clean && npm run unzip-snapshot && npm run copy-coverage-files && npm run exec-coverage"
+    "coverage": "FILE=coverage npm run clean-snapshot && npm run unzip-snapshot && npm run copy-coverage-files && npm run exec-coverage",
+    "load-snapshot": "echo $FILE && npm run clean-snapshot && npm run unzip-snapshot && npm run start-ganache",
+    "start-ganache": "echo $FILE && npx ganache-cli -l 1250000000000 --allowUnlimitedContractSize -a 20  -e 100000000000000  -m 'bonus patient judge normal delay supreme sentence confirm fox desk cool estate' --db './snapshot/'$FILE"
   },
   "repository": {
     "type": "git",
