@@ -12,4 +12,13 @@ There are two snapshots present in the snapshot folder.
 
 To load the `bcompound` snapshot with Ganache, run the following commands:
 
-$ FILE=bcompound npm run load-snapshot
+`$ FILE=bcompound npm run load-snapshot`
+
+Above command will loan start an instance of Ganache and loads `snapshot/bcompound.zip` snapshot into it. You don't need to start Ganache explicitly.
+
+Run the PlayGroup test: After loading the snapshot in Ganache. Run the below command from another CLI window:
+
+`$ npx hardhat test test/playground/PlayGround.ts`
+
+The above command will load the already deployed Compound and BProtocol contracts present in the snapshot and execute the tests present in `test/playground/PlayGround.ts` file.
+You can write the new tests in this file and run above command to execute these tests.

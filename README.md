@@ -37,3 +37,7 @@ Instructions to test with truffle
 Run Coverage
     
     npm run coverage
+
+## PlayGround for Liquidators
+
+Liquidators can use the [PLAYGROUND.md](PLAYGROUND.md) file to learn how to use PlayGround to write and run specific tests against BProtocol.
