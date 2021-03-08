@@ -77,6 +77,7 @@ let cWBTC: b.CErc20Instance;
 let bWBTC: b.BErc20Instance;
 
 // VALUES
+const SCALE = new BN(10).pow(new BN(18));
 const ONE_ETH = new BN(10).pow(new BN(18));
 const ONE_ZRX = new BN(10).pow(new BN(18));
 const ONE_BAT = new BN(10).pow(new BN(18));
@@ -160,6 +161,78 @@ contract("PlayGround", async (accounts) => {
       const ONE_HUNDRED_ZRX = ONE_ZRX.mul(new BN(100)); // $1.6 * 100 = $160 borrow
       await bZRX.borrow(ONE_HUNDRED_ZRX, { from: a.user1 });
       expect(await bZRX.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.greaterThan(ZERO);
+    });
+
+    it("Test liquidateBorrow by member", async () => {
+      const ONE_USD = SCALE;
+      const _50Percent = SCALE.div(new BN(2)); // 50%
+      // validate values
+      const closeFactor = await comptroller.closeFactorMantissa();
+      expect(closeFactor).to.be.bignumber.equal(_50Percent);
+      const market = await comptroller.markets(cETH.address);
+      expect(market["collateralFactorMantissa"]).to.be.bignumber.equal(_50Percent);
+
+      // deployer sends ZRX to user2
+      const ONE_THOUSAND_ZRX = ONE_ZRX.mul(new BN(1000));
+      await ZRX.transfer(a.user2, ONE_THOUSAND_ZRX, { from: a.deployer });
+
+      // user2 mints ZRX to provide liquidity to market
+      await ZRX.approve(bZRX.address, ONE_THOUSAND_ZRX, { from: a.user2 });
+      await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user2 });
+      expect(await bZRX.balanceOf(a.user2)).to.be.bignumber.greaterThan(ZERO);
+
+      // user1 mint ETH
+      await bETH.mint({ from: a.user1, value: ONE_ETH }); // $1617.45 collateral
+      expect(await bETH.balanceOf(a.user1)).to.be.bignumber.greaterThan(ZERO);
+
+      // $1617.45 * 50% = $808.725
+      // Borrow $808 worth of ZRX
+      // user1 borrow ZRX
+      const ONE_USD_WORTH_OF_ZRX = ONE_ZRX.mul(SCALE).div(ONE_ZRX_IN_USD_MAINNET);
+      const _808USD_WO_ZRX = ONE_USD_WORTH_OF_ZRX.mul(new BN(808));
+      await bZRX.borrow(_808USD_WO_ZRX, { from: a.user1 });
+      expect(await bZRX.borrowBalanceCurrent.call(a.user1)).to.be.bignumber.greaterThan(ZERO);
+
+      const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+      // validate account liquidity
+      let accLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+      expect(accLiquidity["err"]).to.be.bignumber.equal(ZERO);
+      expect(accLiquidity["liquidity"]).to.be.bignumber.lessThan(ONE_USD);
+      expect(accLiquidity["shortFall"]).to.be.bignumber.equal(ZERO);
+
+      // increase ZRX price by 5%
+      const new_ONE_ZRX_IN_USD_MAINNET = ONE_ZRX_IN_USD_MAINNET.mul(new BN(105)).div(new BN(100));
+      await oracle.setPrice(cZRX.address, new_ONE_ZRX_IN_USD_MAINNET);
+
+      // validate account liquidity
+      accLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+      expect(accLiquidity["err"]).to.be.bignumber.equal(ZERO);
+      expect(accLiquidity["liquidity"]).to.be.bignumber.equal(ZERO);
+      expect(accLiquidity["shortFall"]).to.be.bignumber.greaterThan(ZERO); // shortFall increased
+
+      // member deposit
+      const debtInfo = await pool.getDebtTopupInfo.call(a.user1, bZRX.address);
+      const minTopup = debtInfo["minTopup"];
+      await ZRX.approve(pool.address, minTopup, { from: a.member1 });
+      await pool.methods["deposit(address,uint256)"](ZRX.address, minTopup, {
+        from: a.member1,
+      });
+
+      // member topup
+      await pool.topup(a.user1, bZRX.address, minTopup, false, { from: a.member1 });
+
+      // deposit & Liquidate
+      const maxLiquidationAmt = await avatar1.getMaxLiquidationAmount.call(cZRX.address);
+      const remainingBalToDeposit = maxLiquidationAmt.sub(minTopup);
+      await ZRX.approve(pool.address, remainingBalToDeposit, { from: a.member1 });
+      await pool.methods["deposit(address,uint256)"](ZRX.address, remainingBalToDeposit, {
+        from: a.member1,
+      });
+
+      await pool.liquidateBorrow(a.user1, bETH.address, bZRX.address, maxLiquidationAmt, {
+        from: a.member1,
+      });
     });
 
     it("PLAYGROUND", async () => {
