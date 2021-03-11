@@ -2,7 +2,7 @@ module.exports = {
   skipFiles: ["mock/", "bprotocol/info/", "bprotocol/lib/", "bprotocol/proxy/"],
 
   providerOptions: {
-    db_path: "./coverage-config/snapshot",
+    db_path: "./snapshot/coverage",
     gasLimit: 0xfffffffffff,
     gasPrice: 0x01,
     allowUnlimitedContractSize: true,
