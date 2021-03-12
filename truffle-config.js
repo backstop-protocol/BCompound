@@ -13,7 +13,7 @@ module.exports = {
     development: {
       host: "127.0.0.1",
       port: 8545,
-      gas: 1250000000000,
+      gas: 0xfffffffffff,
       gasPrice: 1,
       network_id: "*",
       disableConfirmationListener: true,

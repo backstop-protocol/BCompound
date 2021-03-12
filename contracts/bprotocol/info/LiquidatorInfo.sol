@@ -87,7 +87,7 @@ contract LiquidatorInfo {
             if(registry.cEther() == cTokens[i]) 
                 info.debtTokens[i] = ETH;
             else 
-                info.debtTokens[i] = address(CTokenInterface(info.debtTokens[i]).underlying());
+                info.debtTokens[i] = address(CTokenInterface(cTokens[i]).underlying());
 
             address bToken = bComptroller.c2b(cTokens[i]);
             info.debtAmounts[i] = IBToken(bToken).borrowBalanceCurrent(user);

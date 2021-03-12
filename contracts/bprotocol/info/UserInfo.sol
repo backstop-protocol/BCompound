@@ -122,6 +122,7 @@ contract UserInfo {
         string memory name = ERC20Like(ctoken).name();
         if(keccak256(abi.encodePacked(name)) == keccak256(abi.encodePacked("Compound ETH"))) return true;
         if(keccak256(abi.encodePacked(name)) == keccak256(abi.encodePacked("Compound Ether"))) return true;
+        if(keccak256(abi.encodePacked(name)) == keccak256(abi.encodePacked("cETH"))) return true; // for testenv
         
         return false;
     }
@@ -139,6 +140,7 @@ contract UserInfo {
     }
     
     function getTokenInfo(address comptroller, address bComptroller) public returns(TokenInfo memory info) {
+        
         address[] memory markets = ComptrollerLike(comptroller).getAllMarkets();
         uint numMarkets = markets.length;
         info.btoken = new address[](numMarkets);        
