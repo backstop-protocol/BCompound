@@ -33,6 +33,7 @@ contract("BScore", async (accounts) => {
   let compoundUtil: CompoundUtils;
   let priceOracle: b.FakePriceOracleInstance;
   let jar: b.CompoundJarInstance;
+  let comp: b.CompInstance;
   let jarConnector: b.JarConnectorInstance;
   const a: BAccounts = new BAccounts(accounts);
   const engine = new BProtocolEngine(accounts);
@@ -58,6 +59,7 @@ contract("BScore", async (accounts) => {
     comptroller = bProtocol.compound.comptroller;
     compoundUtil = bProtocol.compound.compoundUtil;
     priceOracle = bProtocol.compound.priceOracle;
+    comp = bProtocol.compound.comp;
   });
 
   beforeEach(async () => {
@@ -733,6 +735,9 @@ contract("BScore", async (accounts) => {
           expect(collScore).to.be.bignumber.not.equal(ZERO);
 
           console.log("mint ZRX score: " + collScore.toString());
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address)"](a.user1);
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("borrow ZRX", async () => {
@@ -760,6 +765,10 @@ contract("BScore", async (accounts) => {
           const debtScore = await newScore.getDebtScore(a.user1, cZRX_addr, now);
           expect(debtScore).to.be.bignumber.not.equal(ZERO);
           console.log("borrow ZRX score: " + debtScore.toString());
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address)"](a.user1);
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         });
       });
 
@@ -851,6 +860,10 @@ contract("BScore", async (accounts) => {
 
           const globalScoreBal = await getGlobalCollScoreBalance(cZRX_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_ZRX);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address)"](a.user1);
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("mint ETH", async () => {
@@ -925,6 +938,10 @@ contract("BScore", async (accounts) => {
 
           const globalScoreBal = await getGlobalCollScoreBalance(cETH_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_ETH);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address,address[])"](a.user1, [bETH.address]);
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("mint USDT", async () => {
@@ -990,6 +1007,10 @@ contract("BScore", async (accounts) => {
 
           const globalScoreBal = await getGlobalCollScoreBalance(cUSDT_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_USDT);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address,address[])"](a.user1, [bUSDT.address]);
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("mint WBTC", async () => {
@@ -1057,6 +1078,10 @@ contract("BScore", async (accounts) => {
 
           const globalScoreBal = await getGlobalCollScoreBalance(cWBTC_addr);
           expect(globalScoreBal).to.be.bignumber.equal(_500USD_WBTC);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address,address[])"](a.user1, [bWBTC.address]);
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
         });
       });
 
@@ -1130,6 +1155,17 @@ contract("BScore", async (accounts) => {
 
           const userScoreBal = await getCurrentDebtScoreBalance(avatar1.address, cZRX_addr);
           expect(userScoreBal).to.be.bignumber.equal(_500USD_ZRX);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address[],address[],bool,bool)"](
+            [a.user1, a.user2],
+            [bZRX_addr, bETH_addr],
+            true,
+            true,
+          );
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("borrow ETH", async () => {
@@ -1199,6 +1235,17 @@ contract("BScore", async (accounts) => {
 
           const userScoreBal = await getCurrentDebtScoreBalance(avatar1.address, cETH_addr);
           expect(userScoreBal).to.be.bignumber.equal(_500USD_ETH);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address[],address[],bool,bool)"](
+            [a.user1, a.user2],
+            [bZRX_addr, bETH_addr],
+            true,
+            true,
+          );
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("borrow USDT", async () => {
@@ -1265,6 +1312,17 @@ contract("BScore", async (accounts) => {
 
           const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cUSDT_addr);
           expect(globalDebtScoreBalance).to.be.bignumber.equal(_500USD_USDT);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address[],address[],bool,bool)"](
+            [a.user1, a.user2],
+            [bUSDT_addr, bETH_addr],
+            true,
+            true,
+          );
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.not.equal(ZERO);
         });
 
         it("borrow WBTC", async () => {
@@ -1331,6 +1389,17 @@ contract("BScore", async (accounts) => {
 
           const globalDebtScoreBalance = await getGlobalDebtScoreBalance(cWBTC_addr);
           expect(globalDebtScoreBalance).to.be.bignumber.equal(_500USD_WBTC);
+
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.equal(ZERO);
+          await bComptroller.methods["claimComp(address[],address[],bool,bool)"](
+            [a.user1, a.user2],
+            [bWBTC_addr, bETH_addr],
+            true,
+            true,
+          );
+          expect(await comp.balanceOf(a.user1)).to.be.bignumber.not.equal(ZERO);
+          expect(await comp.balanceOf(a.user2)).to.be.bignumber.not.equal(ZERO);
         });
       });
 

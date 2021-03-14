@@ -11,8 +11,9 @@ export default {
   defaultNetwork: "localhost",
   networks: {
     hardhat: {
-      blockGasLimit: 12500000,
+      blockGasLimit: 0xfffffffffff,
       allowUnlimitedContractSize: true,
+      chainId: 1337,
       accounts: [
         // 20 accounts with 10^14 ETH each
         // Addresses:
