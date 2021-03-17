@@ -13,6 +13,7 @@ const chai = require("chai");
 const expect = chai.expect;
 let snapshotId: string;
 const ZERO = new BN(0);
+const ETH_ADDR = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 const BScore: b.BScoreContract = artifacts.require("BScore");
 const Avatar: b.AvatarContract = artifacts.require("Avatar");
@@ -35,6 +36,7 @@ contract("BScore", async (accounts) => {
   let jar: b.CompoundJarInstance;
   let comp: b.CompInstance;
   let jarConnector: b.JarConnectorInstance;
+  let liquidatorInfo: b.LiquidatorInfoInstance;
   const a: BAccounts = new BAccounts(accounts);
   const engine = new BProtocolEngine(accounts);
 
@@ -60,6 +62,7 @@ contract("BScore", async (accounts) => {
     compoundUtil = bProtocol.compound.compoundUtil;
     priceOracle = bProtocol.compound.priceOracle;
     comp = bProtocol.compound.comp;
+    liquidatorInfo = bProtocol.liquidatorInfo;
   });
 
   beforeEach(async () => {
@@ -790,9 +793,78 @@ contract("BScore", async (accounts) => {
           //   console.log("cZRX totalSupply: " + (await cZRX.totalSupply()).toString());
           const avatar1 = await registry.avatarOf(a.user1);
 
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cZRX_addr];
+          let priceFeed = [ONE_ZRX_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bZRX.balanceOfUnderlying.call(a.user1);
+          let collateralValue = underlyingBal.mul(ONE_ZRX_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([ZRX_addr]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cZRX_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [_500USD_ZRX]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            _500USD_ZRX.div(new BN(2)),
+          ]);
+          // =========================
+
           // user2 borrow ZRX so that index changes
           await bETH.mint({ from: a.user2, value: TEN_ETH });
           await bZRX.borrow(ONE_HUNDRED_ZRX, { from: a.user2 });
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cZRX_addr, cETH_addr];
+          priceFeed = [ONE_ZRX_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar2,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+
+          // debt
+          const debtValue = ONE_HUNDRED_ZRX.mul(ONE_ZRX_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [ONE_HUNDRED_ZRX, ZERO]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user2);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cZRX_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ZERO, TEN_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ZERO,
+            TEN_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
           await setMainnetCompSpeeds();
@@ -876,10 +948,80 @@ contract("BScore", async (accounts) => {
           await bETH.mint({ from: a.user1, value: _500USD_ETH });
           const avatar1 = await registry.avatarOf(a.user1);
 
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cETH_addr];
+          let priceFeed = [ONE_ETH_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          let collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [_500USD_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            _500USD_ETH.div(new BN(2)),
+          ]);
+          // =========================
+
           // user2 borrow ETH so that index changes
           await ZRX.approve(bZRX_addr, ONE_THOUSAND_ZRX, { from: a.user2 });
           await bZRX.mint(ONE_THOUSAND_ZRX, { from: a.user2 });
-          await bETH.borrow(ONE_ETH.div(new BN(4)), { from: a.user2 });
+          const ethBorrow = ONE_ETH.div(new BN(4));
+          await bETH.borrow(ethBorrow, { from: a.user2 });
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cZRX_addr, cETH_addr];
+          priceFeed = [ONE_ZRX_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar2,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+
+          // debt
+          const debtValue = ethBorrow.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO, ethBorrow]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bZRX.balanceOfUnderlying.call(a.user2);
+          collateralValue = underlyingBal.mul(ONE_ZRX_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cZRX_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ONE_THOUSAND_ZRX, ZERO]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ONE_THOUSAND_ZRX.div(new BN(2)),
+            ZERO,
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
 
@@ -953,9 +1095,78 @@ contract("BScore", async (accounts) => {
           await bUSDT.mint(_500USD_USDT, { from: a.user1 });
           const avatar1 = await registry.avatarOf(a.user1);
 
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cUSDT_addr];
+          let priceFeed = [ONE_USDT_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bUSDT.balanceOfUnderlying.call(a.user1);
+          let collateralValue = underlyingBal.mul(ONE_USDT_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([USDT_addr]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cUSDT_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [_500USD_USDT]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            _500USD_USDT.div(new BN(2)),
+          ]);
+          // =========================
+
           // user2 borrow USDT so that index changes
           await bETH.mint({ from: a.user2, value: TEN_ETH });
           await bUSDT.borrow(ONE_HUNDRED_USDT, { from: a.user2 });
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cUSDT_addr, cETH_addr];
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar2,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+
+          // debt
+          const debtValue = ONE_HUNDRED_USDT.mul(ONE_USDT_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([USDT_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [ONE_HUNDRED_USDT, ZERO]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user2);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cUSDT_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ZERO, TEN_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ZERO,
+            TEN_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
           await setMainnetCompSpeeds();
@@ -1022,10 +1233,79 @@ contract("BScore", async (accounts) => {
           await bWBTC.mint(_500USD_WBTC, { from: a.user1 });
           const avatar1 = await registry.avatarOf(a.user1);
 
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cWBTC_addr];
+          let priceFeed = [ONE_WBTC_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bWBTC.balanceOfUnderlying.call(a.user1);
+          let collateralValue = underlyingBal.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([WBTC_addr]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cWBTC_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [_500USD_WBTC]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            _500USD_WBTC.div(new BN(2)),
+          ]);
+          // =========================
+
           // user2 borrow WBTC so that index changes
           const POINT_ZERO_ONE = POINT_ONE_WBTC.div(new BN(10)); // $100
           await bETH.mint({ from: a.user2, value: TEN_ETH });
           await bWBTC.borrow(POINT_ZERO_ONE, { from: a.user2 });
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cWBTC_addr, cETH_addr];
+          priceFeed = [ONE_WBTC_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar2,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai.avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+
+          // debt
+          const debtValue = POINT_ZERO_ONE.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([WBTC_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [POINT_ZERO_ONE, ZERO]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user2);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cWBTC_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ZERO, TEN_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ZERO,
+            TEN_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
           await setMainnetCompSpeeds();
@@ -1094,6 +1374,37 @@ contract("BScore", async (accounts) => {
           // user2 mints ZRX
           await ZRX.approve(bZRX_addr, FIVE_HUNDRED_ZRX, { from: a.user2 });
           await bZRX.mint(FIVE_HUNDRED_ZRX, { from: a.user2 });
+          const avatar2 = await registry.avatarOf(a.user2);
+
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cZRX_addr];
+          let priceFeed = [ONE_ZRX_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bZRX.balanceOfUnderlying.call(a.user2);
+          let collateralValue = underlyingBal.mul(ONE_ZRX_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([ZRX_addr]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cZRX_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [FIVE_HUNDRED_ZRX]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            FIVE_HUNDRED_ZRX.div(new BN(2)),
+          ]);
+          // =========================
 
           // user1 borrow ZRX
           const _1200USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(1200));
@@ -1101,6 +1412,42 @@ contract("BScore", async (accounts) => {
           await bETH.mint({ from: a.user1, value: _1200USD_ETH });
           await bZRX.borrow(_500USD_ZRX, { from: a.user1 });
           const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cZRX_addr, cETH_addr];
+          priceFeed = [ONE_ZRX_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(1),
+            new BN(1),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+
+          // debt
+          const debtValue = _500USD_ZRX.mul(ONE_ZRX_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [_500USD_ZRX, ZERO]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cZRX_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ZERO, _1200USD_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ZERO,
+            _1200USD_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
           await time.increase(ONE_MONTH);
@@ -1176,6 +1523,34 @@ contract("BScore", async (accounts) => {
           // user2 mints ETH
           await bETH.mint({ from: a.user2, value: FIVE_ETH });
 
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cETH_addr];
+          let priceFeed = [ONE_ETH_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bETH.balanceOfUnderlying.call(a.user2);
+          let collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [FIVE_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [FIVE_ETH.div(new BN(2))]);
+          // =========================
+
           // user1 borrow ETH
           const _500USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(500));
           const _1200USD_ZRX = ONE_USD_WO_ZRX_MAINNET.mul(new BN(1200));
@@ -1184,6 +1559,42 @@ contract("BScore", async (accounts) => {
           await bZRX.mint(_1200USD_ZRX, { from: a.user1 });
           await bETH.borrow(_500USD_ETH, { from: a.user1 });
           const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cZRX_addr, cETH_addr];
+          priceFeed = [ONE_ZRX_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(1),
+            new BN(1),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+
+          // debt
+          const debtValue = _500USD_ETH.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO, _500USD_ETH]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bZRX.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ZRX_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cZRX_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [_1200USD_ZRX, ZERO]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            _1200USD_ZRX.div(new BN(2)),
+            ZERO,
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
 
@@ -1257,6 +1668,36 @@ contract("BScore", async (accounts) => {
           await USDT.approve(bUSDT_addr, FIVE_HUNDRED_USDT, { from: a.user2 });
           await bUSDT.mint(FIVE_HUNDRED_USDT, { from: a.user2 });
 
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cUSDT_addr];
+          let priceFeed = [ONE_USDT_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bUSDT.balanceOfUnderlying.call(a.user2);
+          let collateralValue = underlyingBal.mul(ONE_USDT_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([USDT_addr]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cUSDT_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [FIVE_HUNDRED_USDT]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            FIVE_HUNDRED_USDT.div(new BN(2)),
+          ]);
+          // =========================
+
           // user1 borrow USDT
           const _1200USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(1200));
           const _500USD_USDT = ONE_USD_WO_USDT_MAINNET.mul(new BN(500));
@@ -1264,6 +1705,42 @@ contract("BScore", async (accounts) => {
           await bETH.mint({ from: a.user1, value: _1200USD_ETH });
           await bUSDT.borrow(_500USD_USDT, { from: a.user1 });
           const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cUSDT_addr, cETH_addr];
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(1),
+            new BN(1),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+
+          // debt
+          const debtValue = _500USD_USDT.mul(ONE_USDT_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([USDT_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [_500USD_USDT, ZERO]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cUSDT_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ZERO, _1200USD_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ZERO,
+            _1200USD_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
 
@@ -1334,6 +1811,34 @@ contract("BScore", async (accounts) => {
           await WBTC.approve(bWBTC_addr, ONE_WBTC, { from: a.user2 });
           await bWBTC.mint(ONE_WBTC, { from: a.user2 });
 
+          // LiquidatorInfo user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(1));
+          let cTokens = [cWBTC_addr];
+          let priceFeed = [ONE_WBTC_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user2);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bWBTC.balanceOfUnderlying.call(a.user2);
+          let collateralValue = underlyingBal.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.debtTokens).to.deep.equal([WBTC_addr]);
+          await expectArray(avatarInfo.debtAmounts, [ZERO]);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cWBTC_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ONE_WBTC]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [ONE_WBTC.div(new BN(2))]);
+          // =========================
+
           // user1 borrow USDT
           const _1200USD_ETH = ONE_USD_WO_ETH_MAINNET.mul(new BN(1200));
           const _500USD_WBTC = ONE_USD_WO_WBTC_MAINNET.mul(new BN(500));
@@ -1341,6 +1846,42 @@ contract("BScore", async (accounts) => {
           await bETH.mint({ from: a.user1, value: _1200USD_ETH });
           await bWBTC.borrow(_500USD_WBTC, { from: a.user1 });
           const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
+
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cWBTC_addr, cETH_addr];
+          priceFeed = [ONE_WBTC_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(1),
+            new BN(1),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo = ai[0].avatarInfo;
+          expect(avatarInfo.user).to.be.equal(a.user1);
+
+          // debt
+          const debtValue = _500USD_WBTC.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.debtTokens).to.deep.equal([WBTC_addr, ETH_ADDR]);
+          await expectArray(avatarInfo.debtAmounts, [_500USD_WBTC, ZERO]);
+          expect(avatarInfo.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo.weightedCollateral);
+          expect(avatarInfo.collateralTokens).to.deep.equal([cWBTC_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo.collateralAmounts, [ZERO, _1200USD_ETH]);
+          await expectApproxArray(avatarInfo.weightedCollateralAmounts, [
+            ZERO,
+            _1200USD_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           await advanceBlockInCompound(200);
 
@@ -1416,6 +1957,53 @@ contract("BScore", async (accounts) => {
           await bWBTC.mint(ONE_WBTC, { from: a.user2 });
           const avatar2 = await registry.avatarOf(a.user2);
 
+          // LiquidatorInfo user1 & user2
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          let cTokens = [cETH_addr, cWBTC_addr];
+          let priceFeed = [ONE_ETH_IN_USD_MAINNET, ONE_WBTC_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(1),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          let avatarInfo1 = ai[0].avatarInfo;
+          expect(avatarInfo1.user).to.be.equal(a.user1);
+          expect(avatarInfo1.totalDebt).to.be.bignumber.equal(ZERO);
+          let underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          let collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo1.weightedCollateral);
+          expect(avatarInfo1.debtTokens).to.deep.equal([ETH_ADDR, WBTC_addr]);
+          await expectArray(avatarInfo1.debtAmounts, [ZERO, ZERO]);
+          expect(avatarInfo1.collateralTokens).to.deep.equal([cETH_addr, cWBTC_addr]);
+          await expectApproxArray(avatarInfo1.collateralAmounts, [_5000USD_ETH, ZERO]);
+          await expectApproxArray(avatarInfo1.weightedCollateralAmounts, [
+            _5000USD_ETH.div(new BN(2)),
+            ZERO,
+          ]);
+
+          let avatarInfo2 = ai[1].avatarInfo;
+          expect(avatarInfo2.user).to.be.equal(a.user2);
+          expect(avatarInfo2.totalDebt).to.be.bignumber.equal(ZERO);
+          underlyingBal = await bWBTC.balanceOfUnderlying.call(a.user2);
+          collateralValue = underlyingBal.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo2.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo2.weightedCollateral);
+          expect(avatarInfo2.debtTokens).to.deep.equal([ETH_ADDR, WBTC_addr]);
+          await expectArray(avatarInfo2.debtAmounts, [ZERO, ZERO]);
+          expect(avatarInfo2.collateralTokens).to.deep.equal([cETH_addr, cWBTC_addr]);
+          await expectApproxArray(avatarInfo2.collateralAmounts, [ZERO, ONE_WBTC]);
+          await expectApproxArray(avatarInfo2.weightedCollateralAmounts, [
+            ZERO,
+            ONE_WBTC.div(new BN(2)),
+          ]);
+          // =========================
+
           await advanceBlockInCompound(200);
           await setMainnetCompSpeeds();
 
@@ -1452,6 +2040,42 @@ contract("BScore", async (accounts) => {
           let globalWBTCDebtScoreBal = await getGlobalDebtScoreBalance(cWBTC_addr);
           expect(globalWBTCDebtScoreBal).to.be.bignumber.equal(_1000USD_WBTC);
 
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cWBTC_addr, cETH_addr];
+          priceFeed = [ONE_WBTC_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo1 = ai[0].avatarInfo;
+          expect(avatarInfo1.user).to.be.equal(a.user1);
+
+          // debt
+          let debtValue = _1000USD_WBTC.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.debtTokens).to.deep.equal([WBTC_addr, ETH_ADDR]);
+          await expectArray(avatarInfo1.debtAmounts, [_1000USD_WBTC, ZERO]);
+          expect(avatarInfo1.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo1.weightedCollateral);
+          expect(avatarInfo1.collateralTokens).to.deep.equal([cWBTC_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo1.collateralAmounts, [ZERO, _5000USD_ETH]);
+          await expectApproxArray(avatarInfo1.weightedCollateralAmounts, [
+            ZERO,
+            _5000USD_ETH.div(new BN(2)),
+          ]);
+          // =========================
+
           // 3 ======
           // user1 repay WBTC
           const _500USD_WBTC = _1000USD_WBTC.div(new BN(2));
@@ -1463,6 +2087,43 @@ contract("BScore", async (accounts) => {
 
           globalWBTCDebtScoreBal = await getGlobalDebtScoreBalance(cWBTC_addr);
           expect(globalWBTCDebtScoreBal).to.be.bignumber.equal(_1000USD_WBTC.sub(_500USD_WBTC));
+
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cWBTC_addr, cETH_addr];
+          priceFeed = [ONE_WBTC_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo1 = ai[0].avatarInfo;
+          expect(avatarInfo1.user).to.be.equal(a.user1);
+
+          // debt
+          let newDebtAfterRepay = _1000USD_WBTC.sub(_500USD_WBTC);
+          debtValue = newDebtAfterRepay.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.debtTokens).to.deep.equal([WBTC_addr, ETH_ADDR]);
+          await expectArray(avatarInfo1.debtAmounts, [newDebtAfterRepay, ZERO]);
+          expect(avatarInfo1.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo1.weightedCollateral);
+          expect(avatarInfo1.collateralTokens).to.deep.equal([cWBTC_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo1.collateralAmounts, [ZERO, _5000USD_ETH]);
+          await expectApproxArray(avatarInfo1.weightedCollateralAmounts, [
+            ZERO,
+            _5000USD_ETH.div(new BN(2)),
+          ]);
+          // =========================
 
           // 4 =======
           // user1 redeem ETH
@@ -1480,6 +2141,44 @@ contract("BScore", async (accounts) => {
 
           globalETHScoreBal = await getGlobalCollScoreBalance(cETH_addr);
           expect(globalETHScoreBal).to.be.bignumber.equal(_5000USD_ETH.sub(_1000USD_ETH));
+
+          // LiquidatorInfo user1
+          // =========================
+          expect(await liquidatorInfo.getNumAvatars(pool.address)).to.be.bignumber.equal(new BN(2));
+          cTokens = [cWBTC_addr, cETH_addr];
+          priceFeed = [ONE_WBTC_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getInfo.call(
+            new BN(0),
+            new BN(0),
+            a.member1,
+            pool.address,
+            cTokens,
+            priceFeed,
+          );
+
+          avatarInfo1 = ai[0].avatarInfo;
+          expect(avatarInfo1.user).to.be.equal(a.user1);
+
+          // debt
+          newDebtAfterRepay = _1000USD_WBTC.sub(_500USD_WBTC);
+          debtValue = newDebtAfterRepay.mul(ONE_WBTC_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.debtTokens).to.deep.equal([WBTC_addr, ETH_ADDR]);
+          await expectArray(avatarInfo1.debtAmounts, [newDebtAfterRepay, ZERO]);
+          expect(avatarInfo1.totalDebt).to.be.bignumber.equal(debtValue);
+
+          // coll
+          const newCollAfterRedeem = _5000USD_ETH.sub(_1000USD_ETH);
+          underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
+          collateralValue = underlyingBal.mul(ONE_ETH_IN_USD_MAINNET).div(SCALE);
+          expect(avatarInfo1.totalCollateral).to.be.bignumber.equal(collateralValue);
+          await expectApprox(collateralValue.div(new BN(2)), avatarInfo1.weightedCollateral);
+          expect(avatarInfo1.collateralTokens).to.deep.equal([cWBTC_addr, cETH_addr]);
+          await expectApproxArray(avatarInfo1.collateralAmounts, [ZERO, newCollAfterRedeem]);
+          await expectApproxArray(avatarInfo1.weightedCollateralAmounts, [
+            ZERO,
+            newCollAfterRedeem.div(new BN(2)),
+          ]);
+          // =========================
         });
       });
 
@@ -2248,6 +2947,56 @@ contract("BScore", async (accounts) => {
           expect(zrxScoreBalGlobal).to.be.bignumber.not.equal(ZERO);
           console.log("zrxScoreBalGlobal: " + zrxScoreBalGlobal.toString());
 
+          // LiquidatorInfo user1
+          // ==========================
+          // mint: _10050USD_ETH
+          // borrow: _5000USD_ZRX
+
+          // before price change
+          const cTokens_ = [cZRX_addr, cETH_addr];
+          let priceFeed = [ONE_ZRX_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          let ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(false);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO.toString());
+          expect(ci.cushionPossibleTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          let borrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [borrowBal, ZERO]);
+
+          // feeding expected price change
+          const newZRXPrice_ = ONE_ZRX_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
+          priceFeed = [newZRXPrice_, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(true);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO.toString());
+          expect(ci.cushionPossibleTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          borrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [borrowBal, ZERO]);
+          // ==========================
+
           // Change ZRX rate 110%
           const newZRXPrice = ONE_ZRX_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
           await priceOracle.setPrice(cZRX_addr, newZRXPrice);
@@ -2268,6 +3017,29 @@ contract("BScore", async (accounts) => {
           expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
           expect(await avatar1.canLiquidate.call()).to.be.equal(true);
 
+          // LiquidatorInfo
+          // ===============
+          priceFeed = [newZRXPrice, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(true);
+          expect(ci.shouldTopup).to.be.equal(true);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZRX_addr);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(minTopup);
+          expect(ci.cushionPossibleTokens).to.deep.equal([ZRX_addr, ZERO_ADDRESS]); // only include cushionToken
+          borrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [borrowBal.sub(minTopup), ZERO]);
+          // ================
+
           // member liquidate
           const remainingBalToDeposit = maxLiquidationAmount.sub(minTopup);
           await ZRX.approve(pool.address, remainingBalToDeposit, { from: a.member1 });
@@ -2277,6 +3049,30 @@ contract("BScore", async (accounts) => {
           await pool.liquidateBorrow(a.user1, bETH_addr, bZRX_addr, maxLiquidationAmount, {
             from: a.member1,
           });
+
+          // LiquidatorInfo
+          // ===============
+          priceFeed = [newZRXPrice, ONE_ETH_IN_USD_MAINNET];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(false);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO);
+          expect(ci.cushionPossibleTokens).to.deep.equal([ZRX_addr, ETH_ADDR]);
+          borrowBal = await bZRX.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [borrowBal, ZERO]);
+          // ================
+
           expect(await avatar1.canLiquidate.call()).to.be.equal(false);
 
           const currEthScoreBalUser1 = await getCurrentCollScoreBalance(avatar1.address, cETH_addr);
@@ -2401,6 +3197,56 @@ contract("BScore", async (accounts) => {
           expect(ethScoreBalGlobal).to.be.bignumber.not.equal(ZERO);
           console.log("ethScoreBalGlobal: " + ethScoreBalGlobal.toString());
 
+          // LiquidatorInfo user1
+          // ==========================
+          // mint: _8000USD_USDT
+          // borrow: _3950USD_ETH
+
+          // before price change
+          const cTokens_ = [cUSDT_addr, cETH_addr];
+          let priceFeed = [ONE_USDT_IN_USD_MAINNET, ONE_ETH_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          let ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(false);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO.toString());
+          expect(ci.cushionPossibleTokens).to.deep.equal([USDT_addr, ETH_ADDR]);
+          let borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal]);
+
+          // feeding expected price change
+          const newETHPrice_ = ONE_ETH_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, newETHPrice_];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(true);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO.toString());
+          expect(ci.cushionPossibleTokens).to.deep.equal([USDT_addr, ETH_ADDR]);
+          borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal]);
+          // ==========================
+
           // Change ETH rate 110%
           const newETHPrice = ONE_ETH_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
           await priceOracle.setPrice(cETH_addr, newETHPrice);
@@ -2420,6 +3266,29 @@ contract("BScore", async (accounts) => {
           expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
           expect(await avatar1.canLiquidate.call()).to.be.equal(true);
 
+          // LiquidatorInfo
+          // ===============
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, newETHPrice];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(true);
+          expect(ci.shouldTopup).to.be.equal(true);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ETH_ADDR);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(minTopup);
+          expect(ci.cushionPossibleTokens).to.deep.equal([ZERO_ADDRESS, ETH_ADDR]); // only include cushionToken
+          borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal.sub(minTopup)]);
+          // ================
+
           // member liquidate
           const remainingBalToDeposit = maxLiquidationAmount.sub(minTopup);
           await pool.methods["deposit()"]({
@@ -2429,6 +3298,30 @@ contract("BScore", async (accounts) => {
           await pool.liquidateBorrow(a.user1, bUSDT_addr, bETH_addr, maxLiquidationAmount, {
             from: a.member1,
           });
+
+          // LiquidatorInfo
+          // ===============
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, newETHPrice];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(false);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO);
+          expect(ci.cushionPossibleTokens).to.deep.equal([USDT_addr, ETH_ADDR]);
+          borrowBal = await bETH.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal]);
+          // ================
+
           expect(await avatar1.canLiquidate.call()).to.be.equal(false);
 
           const currUsdtScoreBalUser1 = await getCurrentCollScoreBalance(
@@ -2559,6 +3452,59 @@ contract("BScore", async (accounts) => {
           expect(wbtcScoreBalGlobal).to.be.bignumber.not.equal(ZERO);
           console.log("wbtcScoreBalGlobal: " + wbtcScoreBalGlobal.toString());
 
+          // LiquidatorInfo user1
+          // ==========================
+          // mint: _8000USD_USDT
+          // borrow: _3950USD_WBTC
+
+          // before price change
+          const cTokens_ = [cUSDT_addr, cWBTC_addr];
+          let priceFeed = [ONE_USDT_IN_USD_MAINNET, ONE_WBTC_IN_USD_MAINNET];
+          let ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          let ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(false);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO.toString());
+          expect(ci.cushionPossibleTokens).to.deep.equal([USDT_addr, WBTC_addr]);
+          let borrowBal = await bWBTC.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal]);
+
+          // feeding expected price change
+          const newWBTCPrice_ = ONE_WBTC_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, newWBTCPrice_];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(true);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO.toString());
+          expect(ci.cushionPossibleTokens).to.deep.equal([USDT_addr, WBTC_addr]);
+          borrowBal = await bWBTC.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal]);
+
+          let li = ai.liquidationInfo;
+          expect(li.remainingLiquidationSize).to.be.bignumber.equal(ZERO);
+          // ==========================
+
           // Change WBTC rate 110%
           const newWBTCPrice = ONE_WBTC_IN_USD_MAINNET.mul(new BN(110)).div(new BN(100));
           await priceOracle.setPrice(cWBTC_addr, newWBTCPrice);
@@ -2579,6 +3525,32 @@ contract("BScore", async (accounts) => {
           expect(maxLiquidationAmount).to.be.bignumber.not.equal(ZERO);
           expect(await avatar1.canLiquidate.call()).to.be.equal(true);
 
+          // LiquidatorInfo
+          // ===============
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, newWBTCPrice];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(true);
+          expect(ci.shouldTopup).to.be.equal(true);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(WBTC_addr);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(minTopup);
+          expect(ci.cushionPossibleTokens).to.deep.equal([ZERO_ADDRESS, WBTC_addr]); // only include cushionToken
+          borrowBal = await bWBTC.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal.sub(minTopup)]);
+
+          li = ai.liquidationInfo;
+          expect(li.remainingLiquidationSize).to.be.bignumber.equal(ZERO);
+          // ================
+
           // member liquidate
           const remainingBalToDeposit = maxLiquidationAmount.sub(minTopup);
           await WBTC.approve(pool.address, remainingBalToDeposit, { from: a.member1 });
@@ -2586,9 +3558,45 @@ contract("BScore", async (accounts) => {
             from: a.member1,
           });
 
-          await pool.liquidateBorrow(a.user1, bUSDT_addr, bWBTC_addr, maxLiquidationAmount, {
+          const halfOfMaxLiqAmt = maxLiquidationAmount.div(new BN(2));
+          const remainingLiqAmt = maxLiquidationAmount.sub(halfOfMaxLiqAmt);
+          await pool.liquidateBorrow(a.user1, bUSDT_addr, bWBTC_addr, halfOfMaxLiqAmt, {
             from: a.member1,
           });
+
+          li = await liquidatorInfo.getLiquidationInfo.call(avatar1.address);
+          expect(li.remainingLiquidationSize).to.be.bignumber.equal(remainingLiqAmt);
+
+          await pool.liquidateBorrow(a.user1, bUSDT_addr, bWBTC_addr, remainingLiqAmt, {
+            from: a.member1,
+          });
+
+          // LiquidatorInfo
+          // ===============
+          priceFeed = [ONE_USDT_IN_USD_MAINNET, newWBTCPrice];
+          ai = await liquidatorInfo.getSingleAccountInfo.call(
+            pool.address,
+            registry.address,
+            bComptroller.address,
+            a.member1,
+            avatar1.address,
+            cTokens_,
+            priceFeed,
+          );
+          ci = ai.cushionInfo;
+          expect(ci.hasCushion).to.be.equal(false);
+          expect(ci.shouldTopup).to.be.equal(false);
+          expect(ci.shouldUntop).to.be.equal(false);
+          expect(ci.cushionCurrentToken).to.be.equal(ZERO_ADDRESS);
+          expect(ci.cushionCurrentSize).to.be.bignumber.equal(ZERO);
+          expect(ci.cushionPossibleTokens).to.deep.equal([USDT_addr, WBTC_addr]);
+          borrowBal = await bWBTC.borrowBalanceCurrent.call(a.user1);
+          await expectArray(ci.cushionMaxSizes, [ZERO, borrowBal]);
+
+          li = ai.liquidationInfo;
+          expect(li.remainingLiquidationSize).to.be.bignumber.equal(ZERO);
+          // ================
+
           expect(await avatar1.canLiquidate.call()).to.be.equal(false);
 
           const currUsdtScoreBalUser1 = await getCurrentCollScoreBalance(
@@ -3242,3 +4250,33 @@ contract("BScore", async (accounts) => {
     });
   });
 });
+
+async function expectApprox(expected: BN, actual: BN) {
+  if (expected.eq(ZERO)) {
+    expect(expected).to.be.bignumber.equal(actual);
+    return;
+  }
+
+  const diff = expected.add(new BN(2));
+  const expectedMax = expected.add(diff);
+  const expectedMin = expected.sub(diff);
+
+  expect(actual).to.be.bignumber.greaterThan(expectedMin);
+  expect(actual).to.be.bignumber.lessThan(expectedMax);
+}
+
+async function expectApproxArray(expected: any[], actual: BN[]) {
+  expect(expected.length).to.equal(actual.length);
+  for (let i = 0; i < expected.length; i++) {
+    const expectedItem = new BN(expected[i]);
+    await expectApprox(expectedItem, actual[i]);
+  }
+}
+
+async function expectArray(expected: any[], actual: BN[]) {
+  expect(expected.length).to.equal(actual.length);
+  for (let i = 0; i < expected.length; i++) {
+    const expectedItem = new BN(expected[i]);
+    await expect(expectedItem).to.be.bignumber.equal(actual[i]);
+  }
+}

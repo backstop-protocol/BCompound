@@ -87,13 +87,13 @@ contract LiquidatorInfo {
             if(registry.cEther() == cTokens[i]) 
                 info.debtTokens[i] = ETH;
             else 
-                info.debtTokens[i] = address(CTokenInterface(info.debtTokens[i]).underlying());
+                info.debtTokens[i] = address(CTokenInterface(cTokens[i]).underlying());
 
             address bToken = bComptroller.c2b(cTokens[i]);
             info.debtAmounts[i] = IBToken(bToken).borrowBalanceCurrent(user);
 
             info.collateralTokens[i] = cTokens[i];
-            info.collateralAmounts[i] = CTokenInterface(bToken).exchangeRateCurrent() * CTokenInterface(bToken).balanceOf(user) / 1e18;
+            info.collateralAmounts[i] = IBToken(bToken).balanceOfUnderlying(user);
             if(! isIn(assetsIn, cTokens[i])) info.collateralAmounts[i] = 0; 
             // set as 0 if not in market
             // CR = collateralRatio = collateralFactorMantissa

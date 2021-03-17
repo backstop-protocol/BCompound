@@ -30,6 +30,8 @@ const Avatar: b.AvatarContract = artifacts.require("Avatar");
 const BScore: b.BScoreContract = artifacts.require("BScore");
 const CompoundJar: b.CompoundJarContract = artifacts.require("CompoundJar");
 const JarConnector: b.JarConnectorContract = artifacts.require("JarConnector");
+const LiquidatorInfo: b.LiquidatorInfoContract = artifacts.require("LiquidatorInfo");
+const UserInfo: b.UserInfoContract = artifacts.require("UserInfo");
 
 // Compound class to store all Compound deployed contracts
 export class Compound {
@@ -51,6 +53,8 @@ export class BProtocol {
   public score!: b.BScoreInstance;
   public migrate!: b.MigrateInstance;
   public governanceExecutor!: b.GovernanceExecutorInstance;
+  public liquidatorInfo!: b.LiquidatorInfoInstance;
+  public userInfo!: b.UserInfoInstance;
 
   // variable to hold all Compound contracts
   public compound!: Compound;
@@ -102,6 +106,8 @@ export class BProtocolEngine {
     this.bProtocol = new BProtocol();
     const _bProtocol = this.bProtocol;
 
+    _bProtocol.liquidatorInfo = await LiquidatorInfo.new();
+    _bProtocol.userInfo = await UserInfo.new();
     _bProtocol.jar = await this.deployCompoundJar();
     _bProtocol.pool = await this.deployPool();
     _bProtocol.bComptroller = await this.deployBComptroller();

@@ -1,5 +1,5 @@
 module.exports = {
-  skipFiles: ["mock/", "bprotocol/info/", "bprotocol/lib/", "bprotocol/proxy/"],
+  skipFiles: ["mock/", "bprotocol/lib/", "bprotocol/proxy/"],
 
   providerOptions: {
     db_path: "./snapshot/coverage",
