@@ -258,7 +258,7 @@ contract("Pool", async (accounts) => {
       avatar4 = await engine.deployNewAvatar(a.user4);
       expect(avatar4.address).to.be.not.equal(ZERO_ADDRESS);
     });
-    /*
+
     describe("Pool.getDebtTopupInfo()", async () => {
       beforeEach(async () => {
         // user has debt position
@@ -1789,7 +1789,6 @@ contract("Pool", async (accounts) => {
         expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
       });
     });
-    */
 
     describe("Integration tests", async () => {
       it("should return member liquidation incentive", async () => {
