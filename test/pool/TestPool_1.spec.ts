@@ -59,6 +59,7 @@ contract("Pool", async (accounts) => {
   let pool: b.PoolInstance;
   let priceOracle: b.FakePriceOracleInstance;
   let registry: b.RegistryInstance;
+  let liquidationInfo: b.LiquidatorInfoInstance;
 
   let liquidationIncentive: BN;
   let closeFactor: BN;
@@ -76,6 +77,7 @@ contract("Pool", async (accounts) => {
     pool = bProtocol.pool;
     priceOracle = bProtocol.compound.priceOracle;
     registry = bProtocol.registry;
+    liquidationInfo = bProtocol.liquidatorInfo;
   });
 
   beforeEach(async () => {
@@ -256,7 +258,7 @@ contract("Pool", async (accounts) => {
       avatar4 = await engine.deployNewAvatar(a.user4);
       expect(avatar4.address).to.be.not.equal(ZERO_ADDRESS);
     });
-
+    /*
     describe("Pool.getDebtTopupInfo()", async () => {
       beforeEach(async () => {
         // user has debt position
@@ -1785,6 +1787,39 @@ contract("Pool", async (accounts) => {
         );
 
         expect(await pool.selectionDuration()).to.be.bignumber.equal(defaultSelectionDuration);
+      });
+    });
+    */
+
+    describe("Integration tests", async () => {
+      it("should return member liquidation incentive", async () => {
+        const avatar1 = await registry.avatarOf(a.user1);
+
+        const shareNumerator = await pool.shareNumerator();
+        const shareDenominator = await pool.shareDenominator();
+
+        expect(shareNumerator).to.be.bignumber.not.equal(ZERO);
+        expect(shareDenominator).to.be.bignumber.not.equal(ZERO);
+
+        expect(shareNumerator).to.be.bignumber.equal(new BN(105));
+        expect(shareDenominator).to.be.bignumber.equal(new BN(110));
+
+        const expectedLiquidationIncetive = SCALE.add(SCALE.div(new BN(10)));
+        expect(expectedLiquidationIncetive).to.be.bignumber.equal(
+          await comptroller.liquidationIncentiveMantissa(),
+        );
+
+        const li = await liquidationInfo.getLiquidationInfo.call(pool.address, avatar1);
+        const expectedMemberLiquidationIncentive = expectedLiquidationIncetive
+          .mul(shareNumerator)
+          .div(shareDenominator);
+        expect(li.memberLiquidationIncentive).to.be.bignumber.equal(
+          expectedMemberLiquidationIncentive,
+        );
+
+        expect(expectedMemberLiquidationIncentive).to.be.bignumber.equal(
+          SCALE.add(SCALE.div(new BN(20))),
+        );
       });
     });
   });

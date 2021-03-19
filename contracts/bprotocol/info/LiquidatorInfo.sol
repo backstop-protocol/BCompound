@@ -42,12 +42,26 @@ contract LiquidatorInfo {
     struct LiquidationInfo {
         // only relevant if there is a cushion. we assume only one liquidator
         uint remainingLiquidationSize;
+        uint memberLiquidationIncentive;
     }
 
     struct AccountInfo {
         AvatarInfo avatarInfo;
         CushionInfo cushionInfo;
         LiquidationInfo liquidationInfo;
+    }
+
+    function getCTokenToBTokenList(BComptroller bComptroller) 
+        external
+        view
+        returns (address[] memory cTokens, address[] memory bTokens)
+    {
+        cTokens = bComptroller.getAllMarkets();
+        bTokens = new address[](cTokens.length);
+
+        for(uint i = 0; i < cTokens.length; i++) {
+            bTokens[i] = bComptroller.c2b(cTokens[i]);
+        }
     }
 
     function isIn(address[] memory array, address elm) internal pure returns(bool) {
@@ -163,8 +177,12 @@ contract LiquidatorInfo {
         }
     }
 
-    function getLiquidationInfo(address  avatar) public returns(LiquidationInfo memory info) {
+    function getLiquidationInfo(Pool pool, address avatar) public returns(LiquidationInfo memory info) {
         info.remainingLiquidationSize = ICushion(avatar).remainingLiquidationAmount();
+        Registry registry = Registry(address(pool.registry()));
+        IComptroller comptroller = IComptroller(registry.comptroller());
+        info.memberLiquidationIncentive = 
+            comptroller.liquidationIncentiveMantissa() * pool.shareNumerator() / pool.shareDenominator();
     }
 
     function getSingleAccountInfo(
@@ -192,7 +210,7 @@ contract LiquidatorInfo {
             avatar,
             me
         );
-        info.liquidationInfo = getLiquidationInfo(avatar);
+        info.liquidationInfo = getLiquidationInfo(pool, avatar);
     }
 
     function getInfo(
