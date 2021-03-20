@@ -12,6 +12,7 @@ const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { balance, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
 
 const Erc20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
+const UniswapAnchoredView: b.UniswapAnchoredViewContract = artifacts.require("UniswapAnchoredView");
 
 const CToken: b.CTokenContract = artifacts.require("CToken");
 const CErc20: b.CErc20Contract = artifacts.require("CErc20");
@@ -631,6 +632,25 @@ contract("Pool", async (accounts) => {
           from: a.member1,
         });
 
+        const uniswapAnchoredView = await UniswapAnchoredView.new();
+        const expectedData = await uniswapAnchoredView.postPrices.call(["0x1234"], ["0x5678"], ["ETH"]);
+
+        expect(await uniswapAnchoredView.lastMsgData()).not.to.be.equal(expectedData);
+
+        await pool.feedPricesAndLiquidate(
+          uniswapAnchoredView.address,
+          ["0x1234"],
+          ["0x5678"],
+          ["ETH"],
+          a.user1,
+          bETH_addr,
+          bZRX_addr,
+          maxLiquidationAmtZRX,
+          { from : a.member1 }
+        );
+
+        expect(await uniswapAnchoredView.lastMsgData()).to.be.equal(expectedData);
+        /*
         await pool.liquidateBorrow(
           a.user1,
           bETH_addr,
@@ -638,7 +658,7 @@ contract("Pool", async (accounts) => {
           maxLiquidationAmtZRX,
           //amtToRepayOnCompoundZRX,
           { from: a.member1 },
-        );
+        );*/
 
         // 10. Validate balances
         expect(await avatar1.remainingLiquidationAmount()).to.be.bignumber.equal(ZERO);

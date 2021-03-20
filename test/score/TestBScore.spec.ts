@@ -3564,7 +3564,7 @@ contract("BScore", async (accounts) => {
             from: a.member1,
           });
 
-          li = await liquidatorInfo.getLiquidationInfo.call(avatar1.address);
+          li = await liquidatorInfo.getLiquidationInfo.call(pool.address, avatar1.address);
           expect(li.remainingLiquidationSize).to.be.bignumber.equal(remainingLiqAmt);
 
           await pool.liquidateBorrow(a.user1, bUSDT_addr, bWBTC_addr, remainingLiqAmt, {
