@@ -18,7 +18,6 @@ const CEther: b.CEtherContract = artifacts.require("CEther");
 
 const BErc20: b.BErc20Contract = artifacts.require("BErc20");
 const FakePriceOracle: b.FakePriceOracleContract = artifacts.require("FakePriceOracle");
-const UniswapAnchoredView: b.UniswapAnchoredViewContract = artifacts.require("UniswapAnchoredView");
 
 const chai = require("chai");
 const expect = chai.expect;
@@ -849,7 +848,7 @@ contract("Pool", async (accounts) => {
           "Pool: not-member",
         );
 
-        const mockPriceOracleStub = await UniswapAnchoredView.new();
+        const mockPriceOracleStub = await FakePriceOracle.new();
         await expectRevert(
           pool.feedPricesAndLiquidate(mockPriceOracleStub.address, [], [], [], user, bETH_addr, bZRX_addr, maxLiquidationAmt, { from: a.other }),
           "Pool: not-member",

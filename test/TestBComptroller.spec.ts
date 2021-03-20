@@ -680,8 +680,8 @@ contract("BComptroller", async (accounts) => {
       await bComptroller.newBToken(cWBTC_addr);
 
       const result = await liquidatorInfo.getCTokenToBTokenList(bComptroller.address);
-      const cTokens = result[0];
-      const bTokens = result[1];
+      const cTokens = result.cTokens;
+      const bTokens = result.bTokens;
 
       expect(cTokens.length).to.be.equal(bTokens.length);
       for (let i = 0; i < cTokens.length; i++) {

@@ -12,7 +12,7 @@ const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const { balance, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
 
 const Erc20Detailed: b.Erc20DetailedContract = artifacts.require("ERC20Detailed");
-const UniswapAnchoredView: b.UniswapAnchoredViewContract = artifacts.require("UniswapAnchoredView");
+const FakePriceOracle: b.FakePriceOracleContract = artifacts.require("FakePriceOracle");
 
 const CToken: b.CTokenContract = artifacts.require("CToken");
 const CErc20: b.CErc20Contract = artifacts.require("CErc20");
@@ -632,7 +632,7 @@ contract("Pool", async (accounts) => {
           from: a.member1,
         });
 
-        const uniswapAnchoredView = await UniswapAnchoredView.new();
+        const uniswapAnchoredView = await FakePriceOracle.new();
         const expectedData = await uniswapAnchoredView.postPrices.call(["0x1234"], ["0x5678"], ["ETH"]);
 
         expect(await uniswapAnchoredView.lastMsgData()).not.to.be.equal(expectedData);
