@@ -1696,7 +1696,7 @@ contract("BScore", async (accounts) => {
             SYMBOLS
           );
 
-          let avatarInfo = ai[0].avatarInfo;
+          let avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user2);
           expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
           let underlyingBal = await bUSDT.balanceOfUnderlying.call(a.user2);
@@ -2005,7 +2005,7 @@ contract("BScore", async (accounts) => {
             ZERO,
           ]);
 
-          let avatarInfo2 = ai[1].avatarInfo;
+          let avatarInfo2 = ai.accountInfo[1].avatarInfo;
           expect(avatarInfo2.user).to.be.equal(a.user2);
           expect(avatarInfo2.totalDebt).to.be.bignumber.equal(ZERO);
           underlyingBal = await bWBTC.balanceOfUnderlying.call(a.user2);
