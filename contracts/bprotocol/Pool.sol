@@ -1,3 +1,4 @@
+pragma experimental ABIEncoderV2;
 pragma solidity 0.5.16;
 
 import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
@@ -17,6 +18,7 @@ import {
 } from "./interfaces/IAvatar.sol";
 import { IComptroller } from "./interfaces/IComptroller.sol";
 import { IBComptroller } from "./interfaces/IBComptroller.sol";
+import { IUniswapAnchoredView } from "./interfaces/IUniswapAnchoredView.sol";
 
 import { Exponential } from "./lib/Exponential.sol";
 
@@ -322,7 +324,7 @@ contract Pool is Exponential, Ownable {
         address bTokenDebt,
         uint underlyingAmtToLiquidate
     )
-        external onlyMember
+        public onlyMember
     {
         address cTokenCollateral = bComptroller.b2c(bTokenCollateral);
         address cTokenDebt = bComptroller.b2c(bTokenDebt);
@@ -385,6 +387,22 @@ contract Pool is Exponential, Ownable {
             delete topped[avatar]; // this will reset debtToLiquidatePerMember
         }
         emit MemberBite(msg.sender, avatar, cTokenDebt, cTokenCollateral, underlyingAmtToLiquidate);
+    }
+
+    function feedPricesAndLiquidate(
+        IUniswapAnchoredView priceOracle,
+        bytes[] calldata messages,
+        bytes[] calldata signatures,
+        string[] calldata symbols,
+        address borrower,
+        address bTokenCollateral,
+        address bTokenDebt,
+        uint underlyingAmtToLiquidate
+    )
+        external
+    {
+        priceOracle.postPrices(messages, signatures, symbols);
+        liquidateBorrow(borrower, bTokenCollateral, bTokenDebt, underlyingAmtToLiquidate);
     }
 
     function _shareLiquidationProceeds(address cTokenCollateral, address member) internal {

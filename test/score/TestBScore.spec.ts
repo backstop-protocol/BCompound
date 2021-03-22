@@ -280,6 +280,8 @@ contract("BScore", async (accounts) => {
     const cBAT_COMP_SPEEDS_MAINNET = new BN("1950000000000000");
     const cWBTC_COMP_SPEEDS_MAINNET = new BN("10750000000000000");
 
+    const SYMBOLS = ["ETH", "ZRX", "USDT", "BAT", "WBTC"];
+
     async function setMainnetTokenPrice() {
       // mainnet snapshot prices
       await priceOracle.setPrice(cETH_addr, ONE_ETH_IN_USD_MAINNET);
@@ -287,6 +289,13 @@ contract("BScore", async (accounts) => {
       await priceOracle.setPrice(cUSDT_addr, ONE_USDT_IN_USD_MAINNET);
       await priceOracle.setPrice(cBAT_addr, ONE_BAT_IN_USD_MAINNET);
       await priceOracle.setPrice(cWBTC_addr, ONE_WBTC_IN_USD_MAINNET);
+
+      await priceOracle.setSymbol("ETH", cETH_addr);
+      await priceOracle.setSymbol("ZRX", cZRX_addr);
+      await priceOracle.setSymbol("USDT", cUSDT_addr);
+      await priceOracle.setSymbol("BAT", cBAT_addr);
+      await priceOracle.setSymbol("WBTC", cWBTC_addr);      
+      
 
       //   console.log("$1 ETH = " + ONE_USD_WO_ETH_MAINNET.toString());
       //   console.log("$1 ZRX = " + ONE_USD_WO_ZRX_MAINNET.toString());
@@ -1388,9 +1397,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          let avatarInfo = ai[0].avatarInfo;
+          let avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user2);
           expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
           let underlyingBal = await bZRX.balanceOfUnderlying.call(a.user2);
@@ -1425,9 +1435,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo = ai[0].avatarInfo;
+          avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user1);
 
           // debt
@@ -1535,9 +1546,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          let avatarInfo = ai[0].avatarInfo;
+          let avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user2);
           expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
           let underlyingBal = await bETH.balanceOfUnderlying.call(a.user2);
@@ -1572,9 +1584,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo = ai[0].avatarInfo;
+          avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user1);
 
           // debt
@@ -1680,9 +1693,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          let avatarInfo = ai[0].avatarInfo;
+          let avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user2);
           expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
           let underlyingBal = await bUSDT.balanceOfUnderlying.call(a.user2);
@@ -1718,9 +1732,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo = ai[0].avatarInfo;
+          avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user1);
 
           // debt
@@ -1823,9 +1838,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          let avatarInfo = ai[0].avatarInfo;
+          let avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user2);
           expect(avatarInfo.totalDebt).to.be.bignumber.equal(ZERO);
           let underlyingBal = await bWBTC.balanceOfUnderlying.call(a.user2);
@@ -1859,9 +1875,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo = ai[0].avatarInfo;
+          avatarInfo = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo.user).to.be.equal(a.user1);
 
           // debt
@@ -1969,9 +1986,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          let avatarInfo1 = ai[0].avatarInfo;
+          let avatarInfo1 = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo1.user).to.be.equal(a.user1);
           expect(avatarInfo1.totalDebt).to.be.bignumber.equal(ZERO);
           let underlyingBal = await bETH.balanceOfUnderlying.call(a.user1);
@@ -1987,7 +2005,7 @@ contract("BScore", async (accounts) => {
             ZERO,
           ]);
 
-          let avatarInfo2 = ai[1].avatarInfo;
+          let avatarInfo2 = ai.accountInfo[1].avatarInfo;
           expect(avatarInfo2.user).to.be.equal(a.user2);
           expect(avatarInfo2.totalDebt).to.be.bignumber.equal(ZERO);
           underlyingBal = await bWBTC.balanceOfUnderlying.call(a.user2);
@@ -2052,9 +2070,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo1 = ai[0].avatarInfo;
+          avatarInfo1 = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo1.user).to.be.equal(a.user1);
 
           // debt
@@ -2100,9 +2119,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo1 = ai[0].avatarInfo;
+          avatarInfo1 = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo1.user).to.be.equal(a.user1);
 
           // debt
@@ -2154,9 +2174,10 @@ contract("BScore", async (accounts) => {
             pool.address,
             cTokens,
             priceFeed,
+            SYMBOLS
           );
 
-          avatarInfo1 = ai[0].avatarInfo;
+          avatarInfo1 = ai.accountInfo[0].avatarInfo;
           expect(avatarInfo1.user).to.be.equal(a.user1);
 
           // debt
@@ -3564,7 +3585,7 @@ contract("BScore", async (accounts) => {
             from: a.member1,
           });
 
-          li = await liquidatorInfo.getLiquidationInfo.call(avatar1.address);
+          li = await liquidatorInfo.getLiquidationInfo.call(pool.address, avatar1.address);
           expect(li.remainingLiquidationSize).to.be.bignumber.equal(remainingLiqAmt);
 
           await pool.liquidateBorrow(a.user1, bUSDT_addr, bWBTC_addr, remainingLiqAmt, {
