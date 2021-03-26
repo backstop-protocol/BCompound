@@ -25,7 +25,9 @@ Open third CLI session and run the bot using the below command:
 You need to set the coinbase API keys to fetch the mainnet prices. You can configure these as environment variables.
 
 `$ export COINBASE_SECRET="<coinbase_secret>"`
+
 `$ export COINBASE_APIKEY="<coinbase_apikey>"`
+
 `$ export COINBASE_PHRASE="<coinbase_phrase>"`
 
 Command to start the bot:
