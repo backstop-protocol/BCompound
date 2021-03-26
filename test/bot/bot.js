@@ -1,4 +1,7 @@
 "use strict";
+const express = require("express");
+const crypto = require("crypto");
+const axios = require("axios");
 const json = require("../../playground/bcompound.json");
 
 const { BN } = require("@openzeppelin/test-helpers");
@@ -16,6 +19,7 @@ const CErc20 = artifacts.require("CErc20");
 const CEther = artifacts.require("CEther");
 const ERC20Detailed = artifacts.require("ERC20Detailed");
 const FakePriceOracle = artifacts.require("FakePriceOracle");
+const MockUniswapAnchoredView = artifacts.require("MockUniswapAnchoredView");
 
 // BCompound
 const BComptroller = artifacts.require("BComptroller");
@@ -106,6 +110,36 @@ let ZRX;
 let cZRX;
 let bZRX;
 
+let USDT;
+let cUSDT;
+let bUSDT;
+
+let BAT;
+let cBAT;
+let bBAT;
+
+let WBTC;
+let cWBTC;
+let bWBTC;
+
+// Constant MAINNET token prices
+const ONE_ETH_IN_USD_MAINNET = new BN("1617455000000000000000"); // 18 decimals, ($1617.45)
+const ONE_ZRX_IN_USD_MAINNET = new BN("1605584000000000000"); // 18 decimal, ($1.6)
+const ONE_USDT_IN_USD_MAINNET = new BN("1000000000000000000000000000000"); //30 decimals, ($1)
+const ONE_BAT_IN_USD_MAINNET = new BN("409988000000000000"); // 18 decimals, ($0.4)
+const ONE_WBTC_IN_USD_MAINNET = new BN("392028400000000000000000000000000"); // 28 decimals, ($39202.8)
+
+// For ORACLE
+const symbols = ["ETH", "ZRX", "USDT", "BAT", "WBTC"];
+const cTokens = [
+  json.compound.cETH,
+  json.compound.cZRX,
+  json.compound.cUSDT,
+  json.compound.cBAT,
+  json.compound.cWBTC,
+];
+const decimals = [18, 18, 6, 18, 8];
+
 module.exports = async function (callback) {
   console.log("starting bot...");
 
@@ -115,6 +149,7 @@ module.exports = async function (callback) {
     await validateCompoundDeployment();
 
     await loadTokens();
+    await setupOracle();
 
     console.log("listening for blocks...");
     web3.eth.subscribe("newBlockHeaders", async (error, event) => {
@@ -130,6 +165,30 @@ module.exports = async function (callback) {
     console.log(error);
   }
 };
+
+async function setupOracle() {
+  oracle = await deployUniswapAnchoredView();
+  // set new oracle
+  await comptroller._setPriceOracle(oracle.address);
+  console.log(oracle.address);
+  console.log(await comptroller.oracle());
+  //set prices in new oracle
+  await setMainnetTokenPrice();
+}
+
+async function deployUniswapAnchoredView() {
+  const mock = await MockUniswapAnchoredView.new(symbols, cTokens, decimals);
+  return mock;
+}
+
+async function setMainnetTokenPrice() {
+  // mainnet snapshot prices
+  await oracle.setPrice(cETH.address, ONE_ETH_IN_USD_MAINNET);
+  await oracle.setPrice(cZRX.address, ONE_ZRX_IN_USD_MAINNET);
+  await oracle.setPrice(cUSDT.address, ONE_USDT_IN_USD_MAINNET);
+  await oracle.setPrice(cBAT.address, ONE_BAT_IN_USD_MAINNET);
+  await oracle.setPrice(cWBTC.address, ONE_WBTC_IN_USD_MAINNET);
+}
 
 async function loadTokens() {
   console.log("Loading cTokens and bTokens...");
@@ -152,6 +211,9 @@ async function init() {
     // Deploy UserInfo
     userInfo = await UserInfo.new();
     console.log("UserInfo: " + userInfo.address);
+
+    // Deploy UniswapAnchoredView Contract
+    // Set this as Oracle
   } catch (error) {
     console.log(error);
   }
@@ -166,24 +228,42 @@ async function validateCompoundDeployment() {
     comp = await Comptroller.at(json.compound.Comp);
     console.log("Comp: " + comp.address);
 
-    oracle = await FakePriceOracle.at(json.compound.PriceOracle);
-    console.log("Oracle: " + oracle.address);
+    //oracle = await FakePriceOracle.at(json.compound.PriceOracle);
+    //console.log("Oracle: " + oracle.address);
 
     // Tokens
     cETH = await CEther.at(json.compound.cETH);
     console.log("cETH: " + cETH.address);
-
     bETH = await BEther.at(await bComptroller.c2b(cETH.address));
     console.log("bETH: " + bETH.address);
 
     ZRX = await ERC20Detailed.at(json.compound.ZRX);
     console.log("ZRX: " + ZRX.address);
-
     cZRX = await CErc20.at(json.compound.cZRX);
     console.log("cZRX: " + cZRX.address);
-
     bZRX = await BErc20.at(await bComptroller.c2b(cZRX.address));
     console.log("bZRX: " + bZRX.address);
+
+    USDT = await ERC20Detailed.at(json.compound.USDT);
+    console.log("USDT: " + USDT.address);
+    cUSDT = await CErc20.at(json.compound.cUSDT);
+    console.log("cUSDT: " + cUSDT.address);
+    bUSDT = await BErc20.at(await bComptroller.c2b(cUSDT.address));
+    console.log("bUSDT: " + bUSDT.address);
+
+    BAT = await ERC20Detailed.at(json.compound.BAT);
+    console.log("BAT: " + BAT.address);
+    cBAT = await CErc20.at(json.compound.cBAT);
+    console.log("cBAT: " + cBAT.address);
+    bBAT = await BErc20.at(await bComptroller.c2b(cBAT.address));
+    console.log("bBAT: " + bBAT.address);
+
+    WBTC = await ERC20Detailed.at(json.compound.WBTC);
+    console.log("WBTC: " + WBTC.address);
+    cWBTC = await CErc20.at(json.compound.cWBTC);
+    console.log("cWBTC: " + cWBTC.address);
+    bWBTC = await BErc20.at(await bComptroller.c2b(cWBTC.address));
+    console.log("bWBTC: " + bWBTC.address);
   } catch (error) {
     console.log(error);
   }
@@ -279,13 +359,25 @@ async function processAccountInfo(accInfo) {
     [liquidity, shortFall] = await getAccountLiquidity(user);
 
     console.log("liquidity: " + liquidity.toString());
+    console.log("shortFall: " + shortFall.toString());
+
     // If an avatar has low liquidity allow a member to topup
     if (liquidity.gt(ZERO) && liquidity.lt(MIN_LIQUIDITY)) {
+      let zrxPrice = await oracle.getUnderlyingPrice(cZRX.address);
+      console.log("## before zrxPrice: " + zrxPrice.toString());
+      console.log("## before liquidity: " + liquidity.toString());
+      console.log("## before shortFall: " + shortFall.toString());
+
       await updatePrice();
       // get liquidity again
       [liquidity, shortFall] = await getAccountLiquidity(user);
       // get accInfo again
       accInfo = await getSingleAccountInfo(avatar);
+
+      zrxPrice = await oracle.getUnderlyingPrice(cZRX.address);
+      console.log("## after zrxPrice: " + zrxPrice.toString());
+      console.log("## after liquidity: " + liquidity.toString());
+      console.log("## after shortFall: " + shortFall.toString());
     }
 
     // If avatar can be liquidated after price update. Then member performs liquidation.
@@ -328,9 +420,9 @@ async function getAccountLiquidity(user) {
 }
 
 async function updatePrice() {
-  const ONE_ZRX_IN_USD_MAINNET = new BN("1605584000000000000"); // 18 decimal, ($1.6)
-  const new_ONE_ZRX_IN_USD_MAINNET = ONE_ZRX_IN_USD_MAINNET.mul(new BN(105)).div(new BN(100));
-  await oracle.setPrice(cZRX.address, new_ONE_ZRX_IN_USD_MAINNET);
+  await postPrices();
+  console.log(await comptroller.oracle());
+  console.log(oracle.address);
   // load latest prices again
   await loadTokens();
 }
@@ -389,4 +481,44 @@ async function getAvatarInfo(
     priceFeed,
     avatar,
   );
+}
+
+async function postPrices() {
+  console.log("in postPrices");
+
+  console.log("get signed prices from open-oracle-reporter ...");
+  console.log(process.env.COINBASE_SECRET);
+  console.log(process.env.COINBASE_APIKEY);
+  console.log(process.env.COINBASE_PHRASE);
+  const path = "/prices.json";
+
+  let timestamp = Date.now() / 1000;
+  let method = "GET";
+  // create the prehash string by concatenating required parts
+  let what = timestamp + method + path;
+  // decode the base64 secret
+  let key = Buffer.from(process.env.COINBASE_SECRET, "base64");
+  // create a sha256 hmac with the secret
+  let hmac = crypto.createHmac("sha256", key);
+  // sign the require message with the hmac
+  // and finally base64 encode the result
+  let signature = hmac.update(what).digest("base64");
+  let headers = {
+    "CB-ACCESS-KEY": process.env.COINBASE_APIKEY,
+    "CB-ACCESS-SIGN": signature,
+    "CB-ACCESS-TIMESTAMP": timestamp,
+    "CB-ACCESS-PASSPHRASE": process.env.COINBASE_PHRASE,
+    "Content-Type": "application/json",
+  };
+
+  const res = await axios.get("http://localhost:3000" + path, {
+    headers,
+  });
+
+  //console.log(res.data);
+  const messages = res.data.messages;
+  const signatures = res.data.signatures;
+
+  await oracle.postPrices(messages, signatures, symbols);
+  console.log("total " + messages.length + " prices posted.");
 }

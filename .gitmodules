@@ -6,3 +6,6 @@
 [submodule "user-rating"]
 	path = user-rating
 	url = https://github.com/backstop-protocol/user-rating.git
+[submodule "open-oracle"]
+	path = open-oracle
+	url = https://github.com/compound-finance/open-oracle.git

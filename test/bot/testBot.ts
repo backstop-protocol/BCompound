@@ -40,7 +40,7 @@ let a: BAccounts;
 // Compound
 let comptroller: b.ComptrollerInstance;
 let comp: b.CompInstance;
-let oracle: b.FakePriceOracleInstance;
+//let oracle: b.FakePriceOracleInstance;
 
 // BProtocol
 let registry: b.RegistryInstance;
@@ -115,13 +115,17 @@ contract("PlayGround", async (accounts) => {
 
     await validateBTokens();
 
-    await setMainnetTokenPrice();
+    //await setMainnetTokenPrice();
 
     await printDetails();
   });
 
   describe("PlayGround", async () => {
     it("Test liquidateBorrow by member", async () => {
+      const oracle_addr = await comptroller.oracle();
+      const oracle = await FakePriceOracle.at(oracle_addr);
+      console.log((await oracle.getUnderlyingPrice(cZRX.address)).toString());
+
       const ONE_USD = SCALE;
       const _50Percent = SCALE.div(new BN(2)); // 50%
       // validate values
@@ -153,16 +157,39 @@ contract("PlayGround", async (accounts) => {
 
       const avatar1 = await Avatar.at(await registry.avatarOf(a.user1));
 
+      let accLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+      const prevLiquidity = accLiquidity["liquidity"];
       //   // validate account liquidity
       //   let accLiquidity = await bComptroller.getAccountLiquidity(a.user1);
       //   expect(accLiquidity["err"]).to.be.bignumber.equal(ZERO);
       //   expect(accLiquidity["liquidity"]).to.be.bignumber.lessThan(ONE_USD);
       //   expect(accLiquidity["shortFall"]).to.be.bignumber.equal(ZERO);
 
+      console.log((await oracle.getUnderlyingPrice(cZRX.address)).toString());
+
       console.log("Bot should topup, change-price, liquidate");
       await sleep(10000);
+
+      console.log((await oracle.getUnderlyingPrice(cZRX.address)).toString());
       // BOT will update the ZRX Price
       // validate that Bot updated price
+
+      await time.advanceBlock();
+
+      console.log((await oracle.getUnderlyingPrice(cZRX.address)).toString());
+
+      console.log("Bot should topup, change-price, liquidate");
+      await sleep(10000);
+
+      console.log((await oracle.getUnderlyingPrice(cZRX.address)).toString());
+
+      accLiquidity = await bComptroller.getAccountLiquidity(a.user1);
+      const newLiquidity = accLiquidity["liquidity"];
+      expect(prevLiquidity).to.be.bignumber.not.equal(newLiquidity);
+      console.log("prevLiquidity: " + prevLiquidity.toString());
+      console.log("newLiquidity: " + newLiquidity.toString());
+
+      console.log((await oracle.getUnderlyingPrice(cZRX.address)).toString());
 
       /*
       // increase ZRX price by 5%
@@ -284,8 +311,8 @@ async function validateCompoundDeployed() {
   comp = await Comp.at(json.compound.Comp);
   expect(comp.address).to.be.not.equal(ZERO_ADDRESS);
 
-  oracle = await FakePriceOracle.at(json.compound.PriceOracle);
-  expect(oracle.address).to.be.not.equal(ZERO_ADDRESS);
+  //   oracle = await FakePriceOracle.at(json.compound.PriceOracle);
+  //   expect(oracle.address).to.be.not.equal(ZERO_ADDRESS);
 
   // cTokens and Underlying
   cETH = await CEther.at(json.compound.cETH);
@@ -339,14 +366,14 @@ async function validateBCompoundDeployed() {
   expect(bScore.address).to.be.not.equal(ZERO_ADDRESS);
 }
 
-async function setMainnetTokenPrice() {
-  // mainnet snapshot prices
-  await oracle.setPrice(cETH.address, ONE_ETH_IN_USD_MAINNET);
-  await oracle.setPrice(cZRX.address, ONE_ZRX_IN_USD_MAINNET);
-  await oracle.setPrice(cUSDT.address, ONE_USDT_IN_USD_MAINNET);
-  await oracle.setPrice(cBAT.address, ONE_BAT_IN_USD_MAINNET);
-  await oracle.setPrice(cWBTC.address, ONE_WBTC_IN_USD_MAINNET);
-}
+// async function setMainnetTokenPrice() {
+//   // mainnet snapshot prices
+//   await oracle.setPrice(cETH.address, ONE_ETH_IN_USD_MAINNET);
+//   await oracle.setPrice(cZRX.address, ONE_ZRX_IN_USD_MAINNET);
+//   await oracle.setPrice(cUSDT.address, ONE_USDT_IN_USD_MAINNET);
+//   await oracle.setPrice(cBAT.address, ONE_BAT_IN_USD_MAINNET);
+//   await oracle.setPrice(cWBTC.address, ONE_WBTC_IN_USD_MAINNET);
+// }
 
 function sleep(ms: any) {
   return new Promise((resolve) => setTimeout(resolve, ms));
