@@ -133,8 +133,7 @@ export class BProtocolEngine {
   }
 
   private async deployGovernanceExecutor(): Promise<b.GovernanceExecutorInstance> {
-    const TWO_DAYS = ONE_DAY.mul(new BN(2));
-    return await GovernanceExecutor.new(this.bProtocol.registry.address, TWO_DAYS);
+    return await GovernanceExecutor.new(this.bProtocol.registry.address);
   }
 
   private async deployMigrate(): Promise<b.MigrateInstance> {
