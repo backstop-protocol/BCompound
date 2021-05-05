@@ -117,7 +117,6 @@ export class BProtocolEngine {
     _bProtocol.governanceExecutor = await this.deployGovernanceExecutor();
     _bProtocol.migrate = await this.deployMigrate();
     await _bProtocol.governanceExecutor.setGovernance(_bProtocol.migrate.address);
-    await _bProtocol.score.transferOwnership(_bProtocol.jarConnector.address);
 
     _bProtocol.compound = new Compound();
     _bProtocol.compound.comptroller = await Comptroller.at(this.compoundUtil.getComptroller());
@@ -133,8 +132,7 @@ export class BProtocolEngine {
   }
 
   private async deployGovernanceExecutor(): Promise<b.GovernanceExecutorInstance> {
-    const TWO_DAYS = ONE_DAY.mul(new BN(2));
-    return await GovernanceExecutor.new(this.bProtocol.registry.address, TWO_DAYS);
+    return await GovernanceExecutor.new(this.bProtocol.registry.address);
   }
 
   private async deployMigrate(): Promise<b.MigrateInstance> {
@@ -210,16 +208,8 @@ export class BProtocolEngine {
     supplyMultipliers[4] = new BN(5); // 5x
     borrowMultipliers[4] = new BN(10); // 10x
 
-    const score = await BScore.new(
-      this.bProtocol.registry.address,
-      now,
-      endDate,
-      cTokens,
-      supplyMultipliers,
-      borrowMultipliers,
-    );
-    await score.spin();
-    await score.updateIndex(cTokens);
+    const score = await BScore.new();
+
     return score;
   }
 

@@ -6,22 +6,14 @@ import { Ownable } from "@openzeppelin/contracts/ownership/Ownable.sol";
 contract GovernanceExecutor is Ownable {
 
     IRegistry public registry;
-    uint public delay;
-    // newPoolAddr => requestTime
-    mapping(address => uint) public poolRequests;
-    // target => function => list => requestTime
-    mapping(address => mapping(bytes4 => mapping(bool => uint))) whitelistRequests;
     address public governance;
 
-    event RequestPoolUpgrade(address indexed pool);
     event PoolUpgraded(address indexed pool);
-
-    event RequestSetWhitelistCall(address indexed target, bytes4 functionSig, bool list);
+    event ScoreUpgraded(address indexed score);
     event WhitelistCallUpdated(address indexed target, bytes4 functionSig, bool list);
 
-    constructor(address registry_, uint delay_) public {
+    constructor(address registry_) public {
         registry = IRegistry(registry_);
-        delay = delay_;
     }
 
     /**
@@ -42,77 +34,18 @@ contract GovernanceExecutor is Ownable {
         registry.transferOwnership(owner);
     }
 
-    /**
-     * @dev Request pool contract upgrade
-     * @param pool Address of new pool contract
-     */
-    function reqUpgradePool(address pool) external onlyOwner {
-        poolRequests[pool] = now;
-        emit RequestPoolUpgrade(pool);
-    }
-
-    /**
-     * @dev Drop upgrade pool request
-     * @param pool Address of pool contract
-     */
-    function dropUpgradePool(address pool) external onlyOwner {
-        delete poolRequests[pool];
-    }
-
-    /**
-     * @dev Execute pool contract upgrade after delay
-     * @param pool Address of the new pool contract
-     */
-    function execUpgradePool(address pool) external {
-        uint reqTime = poolRequests[pool];
-        require(reqTime != 0, "request-not-valid");
-        require(now >= add(reqTime, delay), "delay-not-over");
-
-        delete poolRequests[pool];
+    function setPool(address pool) external onlyOwner {
         registry.setPool(pool);
         emit PoolUpgraded(pool);
     }
 
-    /**
-     * @dev Request whitelist upgrade
-     * @param target Address of new whitelisted contract
-     * @param functionSig function signature as bytes4
-     * @param list `true` to whitelist, `false` otherwise
-     */
-    function reqSetWhitelistCall(address target, bytes4 functionSig, bool list) external onlyOwner {
-        whitelistRequests[target][functionSig][list] = now;
-        emit RequestSetWhitelistCall(target, functionSig, list);
+    function setScore(address score) external onlyOwner {
+        registry.setScore(score);
+        emit ScoreUpgraded(score);
     }
 
-    /**
-     * @dev Drop upgrade whitelist request
-     * @param target Address of new whitelisted contract
-     * @param functionSig function signature as bytes4
-     * @param list `true` to whitelist, `false` otherwise
-     */
-    function dropWhitelistCall(address target, bytes4 functionSig, bool list) external onlyOwner {
-        delete whitelistRequests[target][functionSig][list];
-    }
-
-    /**
-     * @dev Execute pool contract upgrade after delay
-     * @param target Address of the new whitelisted contract
-     * @param functionSig function signature as bytes4
-     * @param list `true` to whitelist, `false` otherwise
-     */
-    function execSetWhitelistCall(address target, bytes4 functionSig, bool list) external {
-        uint reqTime = whitelistRequests[target][functionSig][list];
-        require(reqTime != 0, "request-not-valid");
-        require(now >= add(reqTime, delay), "delay-not-over");
-
-        delete whitelistRequests[target][functionSig][list];
+    function setWhitelistCall(address target, bytes4 functionSig, bool list) external onlyOwner {
         registry.setWhitelistAvatarCall(target, functionSig, list);
-        emit WhitelistCallUpdated(target, functionSig, list);
-    }
-
-    function add(uint a, uint b) internal pure returns (uint) {
-        uint c = a + b;
-        require(c >= a, "overflow");
-        return c;
+        emit WhitelistCallUpdated(target, functionSig, list);        
     }
 }
