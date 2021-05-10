@@ -27,6 +27,7 @@ contract("BComptroller", async (accounts) => {
   let bComptroller: b.BComptrollerInstance;
   let comptroller: b.ComptrollerInstance;
   let compoundUtil: CompoundUtils;
+  let liquidatorInfo: b.LiquidatorInfoInstance;
 
   before(async () => {
     await engine.deployCompound();
@@ -36,6 +37,7 @@ contract("BComptroller", async (accounts) => {
     compoundUtil = bProtocol.compound.compoundUtil;
     comptroller = bProtocol.compound.comptroller;
     compoundUtil = bProtocol.compound.compoundUtil;
+    liquidatorInfo = bProtocol.liquidatorInfo;
   });
 
   beforeEach(async () => {
@@ -660,6 +662,37 @@ contract("BComptroller", async (accounts) => {
     it("should get all markets", async () => {
       const markets = await bComptroller.getAllMarkets();
       expect(markets.length > 0).to.be.equal(true);
+    });
+  });
+
+  describe("Integration Tests", async () => {
+    it("should get cToken <=> bTokens mapping", async () => {
+      const cETH_addr = compoundUtil.getContracts("cETH");
+      const cZRX_addr = compoundUtil.getContracts("cZRX");
+      const cBAT_addr = compoundUtil.getContracts("cBAT");
+      const cUSDT_addr = compoundUtil.getContracts("cUSDT");
+      const cWBTC_addr = compoundUtil.getContracts("cWBTC");
+
+      await bComptroller.newBToken(cETH_addr);
+      await bComptroller.newBToken(cZRX_addr);
+      await bComptroller.newBToken(cBAT_addr);
+      await bComptroller.newBToken(cUSDT_addr);
+      await bComptroller.newBToken(cWBTC_addr);
+
+      const result = await liquidatorInfo.getCTokenToBTokenList(bComptroller.address);
+      const cTokens = result.cTokens;
+      const bTokens = result.bTokens;
+
+      expect(cTokens.length).to.be.equal(bTokens.length);
+      for (let i = 0; i < cTokens.length; i++) {
+        const cToken = cTokens[i];
+        expect(cToken).to.be.not.equal(ZERO_ADDRESS);
+
+        const bToken = await bComptroller.c2b(cToken);
+        expect(bToken).to.be.not.equal(ZERO_ADDRESS);
+        expect(bTokens[i]).to.be.not.equal(ZERO_ADDRESS);
+        expect(bToken).to.be.equal(bTokens[i]);
+      }
     });
   });
 });

@@ -847,6 +847,12 @@ contract("Pool", async (accounts) => {
           pool.liquidateBorrow(user, bETH_addr, bZRX_addr, maxLiquidationAmt, { from: a.other }),
           "Pool: not-member",
         );
+
+        const mockPriceOracleStub = await FakePriceOracle.new();
+        await expectRevert(
+          pool.feedPricesAndLiquidate(mockPriceOracleStub.address, [], [], [], user, bETH_addr, bZRX_addr, maxLiquidationAmt, { from: a.other }),
+          "Pool: not-member",
+        );        
       });
 
       it("should fail when a member didn't toppedUp", async () => {
