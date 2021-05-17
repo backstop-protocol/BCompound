@@ -50,6 +50,7 @@ contract LiquidatorInfo {
         AvatarInfo avatarInfo;
         CushionInfo cushionInfo;
         LiquidationInfo liquidationInfo;
+        uint blockNumber;
     }
 
     struct CToken2BToken {
@@ -242,6 +243,7 @@ contract LiquidatorInfo {
             me
         );
         info.liquidationInfo = getLiquidationInfo(pool, avatar);
+        info.blockNumber = block.number;
     }
 
     function getInfo(
