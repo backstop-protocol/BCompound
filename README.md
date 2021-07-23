@@ -18,7 +18,7 @@ Run Hardhat EVM (in separate shell window):
 
     npx hardhat node
 
-The tests automaticallt deploys Compound Contracts on ganache / hardhat-HRE. Below command requires `solc` command installed, if not installed, run `sudo snap install solc` (only for ubuntu). The `solc` version should be `0.5.16`. You can use `solc-select` (https://github.com/crytic/solc-select):
+The tests automatically deploy Compound Contracts on ganache / hardhat-HRE. Below command requires `solc` command installed, if not installed, run `sudo snap install solc` (only for ubuntu). The `solc` version should be `0.5.16`. You can use `solc-select` (https://github.com/crytic/solc-select):
 
     npx hardhat test
 
