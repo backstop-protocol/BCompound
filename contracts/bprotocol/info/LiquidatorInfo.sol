@@ -35,6 +35,7 @@ contract LiquidatorInfo {
 
         address cushionCurrentToken;
         uint cushionCurrentSize;
+        uint cushionTokenTotalDebt;
 
         address[] cushionPossibleTokens; // which tokens could be used for cushion
         uint[] cushionMaxSizes;
@@ -196,6 +197,7 @@ contract LiquidatorInfo {
             uint debtUsd = debt * priceFeed[i] / 1e18;
             if(amountTopped > 0 && info.hasCushion) {
                 if(info.cushionCurrentToken != cTokenToUnderlying(registry, cTokens[i])) continue;
+                info.cushionTokenTotalDebt = debt;
                 debt -= amountTopped;
             }
 
@@ -244,6 +246,12 @@ contract LiquidatorInfo {
         );
         info.liquidationInfo = getLiquidationInfo(pool, avatar);
         info.blockNumber = block.number;
+
+        if(info.avatarInfo.totalDebt > info.avatarInfo.weightedCollateral) {
+            if(info.liquidationInfo.remainingLiquidationSize == 0) {
+                info.liquidationInfo.remainingLiquidationSize = info.cushionInfo.cushionTokenTotalDebt / 2;
+            }
+        }
     }
 
     function getInfo(
