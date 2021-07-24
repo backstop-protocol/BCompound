@@ -61,7 +61,7 @@ contract LiquidatorInfo {
 
     struct CurrentPrices {
         uint[] currPrices;
-        string[] symbols;
+        address[] ctokens;
     }
 
     struct Info {
@@ -84,16 +84,16 @@ contract LiquidatorInfo {
         }
     }
 
-    function getCurrentPrices(IUniswapAnchoredView oracle, string[] memory symbols)
+    function getCurrentPrices(IUniswapAnchoredView oracle, address[] memory ctokens)
         public
         view
         returns (CurrentPrices memory info)
     {
-        info.currPrices = new uint[](symbols.length);
-        info.symbols = symbols;
+        info.currPrices = new uint[](ctokens.length);
+        info.ctokens = ctokens;
 
-        for(uint i = 0 ; i < symbols.length ; i++) {
-            info.currPrices[i] = oracle.price(symbols[i]);
+        for(uint i = 0 ; i < ctokens.length ; i++) {
+            info.currPrices[i] = oracle.getUnderlyingPrice(ctokens[i]);
         }
     }
 
@@ -226,7 +226,8 @@ contract LiquidatorInfo {
         address me,
         address avatar,
         address[] memory cTokens,
-        uint[] memory priceFeed
+        uint[] memory priceFeed,
+        IUniswapAnchoredView oracle
     )
         public
         returns(AccountInfo memory info) 
@@ -247,7 +248,10 @@ contract LiquidatorInfo {
         info.liquidationInfo = getLiquidationInfo(pool, avatar);
         info.blockNumber = block.number;
 
-        if(info.avatarInfo.totalDebt > info.avatarInfo.weightedCollateral) {
+        CurrentPrices memory realPrices = getCurrentPrices(oracle, cTokens);
+        AvatarInfo memory realAvatarInfo = getAvatarInfo(registry, bComptroller, cTokens, realPrices.currPrices, avatar);
+
+        if(realAvatarInfo.totalDebt > realAvatarInfo.weightedCollateral) {
             if(info.liquidationInfo.remainingLiquidationSize == 0) {
                 info.liquidationInfo.remainingLiquidationSize = info.cushionInfo.cushionTokenTotalDebt / 2;
             }
@@ -261,7 +265,7 @@ contract LiquidatorInfo {
         Pool pool,
         address[] memory cTokens,
         uint[] memory priceFeed,
-        string[] memory symbols
+        string[] memory /* symbols */ // this is obselete now
     )
         public
         returns(Info memory info) 
@@ -271,17 +275,16 @@ contract LiquidatorInfo {
         Registry registry = Registry(address(pool.registry()));
         BComptroller bComptroller = BComptroller(address(pool.bComptroller()));
 
+        IUniswapAnchoredView oracle = IUniswapAnchoredView(IComptroller(BComptroller(bComptroller).comptroller()).oracle());
+
         for(uint i = 0 ; i + startAccount <= endAccount ; i++) {
             uint accountNumber = i + startAccount;
             address avatar = registry.avatars(accountNumber);
-            info.accountInfo[i] = getSingleAccountInfo(pool, registry, bComptroller, me, avatar, cTokens, priceFeed);
+            info.accountInfo[i] = getSingleAccountInfo(pool, registry, bComptroller, me, avatar, cTokens, priceFeed, oracle);
         }
 
-        IComptroller comptroller = IComptroller(BComptroller(bComptroller).comptroller());
-        IUniswapAnchoredView oracle = IUniswapAnchoredView(comptroller.oracle());
-
         info.c2bMapping = getCTokenToBTokenList(bComptroller);
-        info.currPrices = getCurrentPrices(oracle, symbols);
+        info.currPrices = getCurrentPrices(oracle, cTokens);
         info.numAvatars = registry.avatarLength();
     }
 
