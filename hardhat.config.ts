@@ -38,7 +38,7 @@ export default {
         //   0x68dfc526037e9030c8f813d014919cc89e7d4d74
         //   0x26c43a1d431a4e5ee86cd55ed7ef9edf3641e901
         {
-          privateKey: "0xc5e8f61d1ab959b397eecc0a37a6517b8e67a0e7cf1f4bce5591f3ed80199122",
+          privateKey: "0xc5e8f61d1ab959b397eecc0a37a6517b8e67a0e7cf1f4bce5591f3ed80194444",
           balance: "100000000000000000000000000000000",
         },
         {

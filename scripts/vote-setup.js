@@ -1,3 +1,5 @@
+const JarMakerConnector = artifacts.require("JarMakerConnector")
+const JarMaker = artifacts.require("JarMaker")
 const Comptroller = artifacts.require("Comptroller");
 const Registry = artifacts.require("Registry");
 const Pool = artifacts.require("Pool");
@@ -14,9 +16,66 @@ const Jar = artifacts.require("CompoundJar");
 const UserInfo = artifacts.require("UserInfo");
 const Migrate = artifacts.require("Migrate");
 const Governance = artifacts.require("GovernanceExecutor");
+const GovAlpha = artifacts.require("GovernorAlpha");
 //const FakeBComptroller = artifacts.require("FakeBComptroller");
 
 const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+
+async function pumpNonce(num) {
+  await hre.network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: ["0x750a86c18D612a20190a5dBbF487902998526921"]}
+  );  
+  const cETH =  await BEther.at("0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5")
+  for(let i = 0 ; i < num ; i++) {
+    try {
+      console.log("miniting cETH");
+      await cETH.mint({value: 1000, gasLimit : 7000000, gasPrice:1e9, from: "0x692D9971eD41057045DB41c8434D88cda9759516"});
+    } catch(error) {
+
+    }
+  }
+}
+
+async function listWBTC2() {
+  const govAlpha = await GovAlpha.at("0xc0dA01a04C3f3E0be433606045bB7017A7323E38");
+  console.log(await govAlpha.proposals(0x29))
+  let prop = await govAlpha.proposals(0x29)
+  console.log(prop.eta)
+  if(prop.eta.toString(10) === "0") {
+    console.log("advancing blocks, and que")
+    const currBlock = Number(await web3.eth.getBlockNumber())
+    const endBlock = Number(prop.endBlock.toString(10))
+    for(let i = 0 ; i < (10 + endBlock - currBlock) ; i++) {
+      await ethers.provider.send("evm_mine")
+      //console.log(await web3.eth.getBlockNumber())
+    }
+  
+    console.log("queue")
+    await govAlpha.queue(0x29)  
+  }
+  console.log(await govAlpha.proposals(0x29))
+
+  if(! prop.executed) {
+    await ethers.provider.send("evm_increaseTime", [48*60*60 + 100])
+
+    console.log("execute")
+    await govAlpha.execute(0x29)
+    console.log(await govAlpha.proposals(0x29))
+  }
+  
+
+  const comptroller = await Comptroller.at("0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b");
+  console.log(await comptroller.getAllMarkets())
+
+  const wbtc2Address = "0xccF4429DB6322D5C611ee964527D42E5d685DD6a";
+
+  const bComptroller = await BComptroller.at("0x9db10b9429989cc13408d7368644d4a1cb704ea3")
+  if(await bComptroller.c2b(wbtc2Address) === "0x0000000000000000000000000000000000000000") {
+    console.log("listing new btoken")
+    //await bComptroller.newBToken(wbtc2Address)
+  }
+}
 
 
 async function realMainnet() {
@@ -24,6 +83,7 @@ async function realMainnet() {
   const deployer2 = "0x23cBF6d1b738423365c6930F075Ed6feEF7d14f3"; // registry owner
   const owner = "0xf7D44D5a28d5AF27a7F9c8fc6eFe0129e554d7c4"; // registry owner
 
+  await debugUserInfo();
   await hre.network.provider.request({
     method: "hardhat_impersonateAccount",
     params: [deployer1]}
@@ -208,10 +268,10 @@ async function realMainnet() {
                             cZRX.address, cComp.address], {from : me2, gasLimit: 10e6, gasPrice:100e9});
   
   console.log("prinitng user info");
-  console.log(await userInfo.getUserInfo.call(me2, comptroller.address, bComptroller.address, registry.address, sugarDaddy, jarConnector.address, jar.address, false));
+  console.log(await userInfo.getUserInfo.call(me, comptroller.address, bComptroller.address, registry.address, sugarDaddy, jarConnector.address, jar.address, true));
 }
 
-async function debugUserInfo() {
+async function debugUserInfo() {  
   const accounts = await ethers.getSigners();
   const me = accounts[0].address;
   //const me2 = accounts[2].address;
@@ -238,16 +298,13 @@ async function debugUserInfo() {
     "0xf650c3d88d12db855b8bf7d11be6c55a4e07dcc9", // usdt
     "0xc11b1268c1a384e55c48c2391d8d480264a3a7f4", // wbtc
     "0xb3319f5d18bc0d84dd1b4825dcde5d5f7266d407", // zrx
-    "0x12392F67bdf24faE0AF363c24aC620a2f67DAd86",
-    "0xFAce851a4921ce59e912d19329929CE6da6EB0c7"
-
+    "0xccF4429DB6322D5C611ee964527D42E5d685DD6a" // wbtc2
   ]
 
   const bTokens = []
   const underlying = []
   
   for(const ct of cTokens) {
-
     const token = await BErc20.at(ct);
     console.log(await token.symbol());
     console.log(await token.decimals());
@@ -261,8 +318,8 @@ async function debugUserInfo() {
     }
     else underlying.push(ETH);
     console.log(await token.exchangeRateCurrent.call());
-    // console.log(await token.borrowRatePerBlock.call());
-    // console.log(await token.supplyRatePerBlock.call());
+    console.log(await token.borrowRatePerBlock.call());
+    console.log(await token.supplyRatePerBlock.call());
     console.log(await token.balanceOf.call(me));
     console.log(await token.borrowBalanceCurrent.call(me));
     console.log(await comptroller.markets(ct));        
@@ -270,15 +327,17 @@ async function debugUserInfo() {
     bTokens.push(bT.address);
     console.log(await bT.totalSupply())
 
-    console.log("getting score");
-    console.log("debt");
-    await bScore.getDebtScore(me, ct, 1614505062);
-    console.log("coll");
-    await bScore.getCollScore(me, ct, 1614505062);
-    console.log("global debt");
-    //await bScore.getDebtGlobalScore(ct, 1614505062);
-    console.log("global coll");   
-    //await bScore.getCollGlobalScore(ct, 1614505062);    
+    if(ct !== "0xccF4429DB6322D5C611ee964527D42E5d685DD6a") {
+      console.log("getting score");
+      console.log("debt");
+      await bScore.getDebtScore(me, ct, 1614505062);
+      console.log("coll");
+      await bScore.getCollScore(me, ct, 1614505062);
+      console.log("global debt");
+      await bScore.getDebtGlobalScore(ct, 1614505062);
+      console.log("global coll");   
+      await bScore.getCollGlobalScore(ct, 1614505062);
+    }
   }
   console.log("getting avatar");
   await registry.getAvatar(me, {from: me,gasLimit: 10e6, gasPrice:100e9 });
@@ -302,15 +361,81 @@ async function debugUserInfo() {
   console.log("trying jar info");  
   console.log(await userInfo.getJarInfo.call(jar.address,cTokens));
   console.log("trying tvl info");  
-  console.log(await userInfo.getTvlInfo.call(cTokens, registry.address));        
+  //console.log(await userInfo.getTvlInfo.call(cTokens, registry.address));        
   console.log("trying all user info");
   console.log(await userInfo.getUserInfo.call(me, comptroller.address, bComptroller.address, registry.address, sugarDaddy, jarConnector.address, jar.address, false));  
-  console.log("======================mini me: ", me)
   return;
   const newUserInfo = await UserInfo.new({from : me, gasLimit: 10e6, gasPrice:100e9});
   console.log("ttt", newUserInfo.address);
   console.log(await newUserInfo.getUserInfo.call(me, comptroller.address, bComptroller.address, registry.address, sugarDaddy, jarConnector.address, jar.address, false));
 }
+
+async function gainScoreAndMoveTime() {
+  await debugUserInfo()
+  console.log("finished calling debug info")
+
+  const accounts = await ethers.getSigners();
+  const me = accounts[0].address;
+
+  const bETHAddress = "0x2acf65206bA29E0245B57a5D556Af7340B62eeb5"
+  console.log("minting ETH on b.compound");
+  const bETH = await BEther.at(bETHAddress);
+  const ethBalance = await web3.eth.getBalance(me);
+  const balanceToDepsoit = web3.utils.toBN(ethBalance).div(web3.utils.toBN("2"))
+  const balanceToWithdraw = balanceToDepsoit.div(web3.utils.toBN("2"))
+
+  await bETH.mint({value: balanceToDepsoit, from : me, gasLimit:1000000, gasPrice:100e9});
+  const bETHBalance = await bETH.balanceOf.call(me);
+  console.log({bETHBalance});
+
+  await bETH.borrow(balanceToWithdraw);
+  console.log("finished borrowing");
+
+  const jarConnector = await JarConnector.at("0xd24e557762589124d7cfef90d870df17c25bff8a");
+
+  console.log("getting my score")
+  let myScore = await jarConnector.getUserScore(me)
+
+  console.log("getting total score")
+  let totalScore = await jarConnector.getGlobalScore()
+  console.log({myScore}, {totalScore})
+
+  console.log("advance time")
+  //console.log(await web3.eth.getBlock("latest"))
+  await ethers.provider.send("evm_increaseTime", [14*24*60*60])
+  await ethers.provider.send("evm_mine")  
+  //console.log(await web3.eth.getBlock("latest"))
+
+  console.log("getting my score")
+  myScore = await jarConnector.getUserScore(me)
+
+  console.log("getting total score")
+  totalScore = await jarConnector.getGlobalScore()
+  console.log({myScore}, {totalScore})
+}
+
+async function raiseProposal() {
+  const accounts = await ethers.getSigners();
+  const me = accounts[0].address;
+
+  const migrate = await Migrate.at("0x762084f835aD6e3Ce98E7E0b744C5781FB4fB884");
+  
+  await migrate.propose(me)
+  console.log("proposal was raised")
+  /*
+  console.log(await migrate.proposals(0))
+  await migrate.vote(0, {from:me})
+  console.log(await migrate.proposals(0))
+  //await migrate.queueProposal(0)
+  //console.log(await migrate.proposals(0))
+
+  await ethers.provider.send("evm_increaseTime", [3*24*60*60])
+  const registry = await Registry.at("0xbf698df5591caf546a7e087f5806e216afed666a");
+  console.log(await registry.owner())
+  await migrate.executeProposal(0)
+  console.log(await registry.owner())*/
+}
+
 async function mainnetReadShort() {
   const accounts = await ethers.getSigners();
   const me = accounts[0].address;
@@ -642,191 +767,55 @@ async function main() {
   await bUSDC.borrow(10000);*/
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}   
+
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
-debugUserInfo()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+async function run() {
+  // await pumpNonce(12)
+  // return 
+  //while(true) {
+    //await sleep(10000)    
+    //console.log("running again")
+    // await gainScoreAndMoveTime() //pumpNonce(80)
+    // await raiseProposal()
+    await setupMaker()
+    //return
+    // debugUserInfo()
+    // .then(() => process.exit(0))
+    // .catch((error) => {
+    //   console.error(error);
+    //   process.exit(1);
+    // });
+  //}  
+}
 
-//createAcountToExport().then(() => process.exit(0)).catch((error) => process.exit(1))
+run()
 
-  async function createAcountToExport() {
-    const deployer1 = "0xD76997685d14121f410443f894D5dBe9Ce5f59eC";
-    const deployer2 = "0x23cBF6d1b738423365c6930F075Ed6feEF7d14f3"; // registry owner
-    const owner = "0xf7D44D5a28d5AF27a7F9c8fc6eFe0129e554d7c4"; // registry owner
-  
-    //await debugUserInfo();
-    await hre.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [deployer1]}
-    );
-  
-    await hre.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [deployer2]}
-    );  
-  
-    await hre.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [owner]}
-    );  
-  
-    const accounts = await ethers.getSigners();
-    const me = accounts[0].address;
-    const me2 = accounts[2].address;
-    console.log({me})
-    console.log({me2})
-  
-    const comptroller = await Comptroller.at("0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b");
-    const bComptroller = await BComptroller.at("0x9db10b9429989cc13408d7368644d4a1cb704ea3");  
-    const registry = await Registry.at("0xbf698df5591caf546a7e087f5806e216afed666a");
-    const bScore = await BScore.at("0x42575dc0c55a476a966dd8358416e82853b67070");
-    const jarConnector = await JarConnector.at("0xd24e557762589124d7cfef90d870df17c25bff8a");
-    const userInfo = await UserInfo.at("0x907403da04eb05efd47eb0ba0c7a7d00d4f233ea");
-    const jar = await Jar.at("0xb493d1b6048b801747d72f755b6efbfa1b4c6103");
-    const sugarDaddy = "0x35fFd6E268610E764fF6944d07760D0EFe5E40E5";
-    const importContract = await Import.at("0x035cccb015a826b754529b4d04587182b8210344");
-    const flashImport = await FlashLoanImport.at("0xa5c48ef0301437bb2f5afdda8aedbe817f5e11d6");
-  
-    console.log("getting bETH address");
-    const cETH =  await BEther.at("0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5")
-    const cBAT =  await BErc20.at("0x6c8c6b02e7b2be14d4fa6022dfd6d75921d90e4e");
-    const cDAI =  await BErc20.at("0x5d3a536e4d6dbd6114cc1ead35777bab948e3643");
-    const cUNI =  await BErc20.at("0x35a18000230da775cac24873d00ff85bccded550");
-  
-    await cETH.mint({from: me, value: web3.utils.toWei("1000"), gasLimit : 7000000, gasPrice:10e9});
-    console.log("entering market");
-    await comptroller.enterMarkets([cETH.address, cBAT.address, cDAI.address], {from: me, gasLimit : 7000000, gasPrice:100e9})
-    console.log(await cETH.balanceOf.call(me2));
-  
-    
-    console.log("borrowing bBAT");
-    await cBAT.borrow(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    const batUnderlying = await cBAT.underlying();
-    const BAT = await BErc20.at(batUnderlying);
-    console.log("giving BAT allowance");
-    await BAT.approve(cBAT.address, web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bBAT");
-    await cBAT.mint(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await cBAT.balanceOf.call(me));
-  
-    return
-    console.log("borrowing cBAT");
-    await cBAT.borrow(web3.utils.toWei("1"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log("giving BAT allowance");
-    await BAT.approve(cBAT.address, web3.utils.toWei("1"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting cBAT");
-    await cBAT.mint(web3.utils.toWei("1"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await cBAT.balanceOf.call(me2));  
-    /*
-    console.log("borrowing bCOMP");
-    await bComp.borrow(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});  */
-  
-    console.log("borrowing bDAI");
-    await bDAI.borrow(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    const daiUnderlying = await bDAI.underlying();
-    const DAI = await BErc20.at(daiUnderlying);
-    console.log("giving DAI allowance");
-    await DAI.approve(bDAI.address, web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bDAI");
-    await bDAI.mint(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await bDAI.balanceOf.call(me));
-  
-    console.log("borrowing cDAI");
-    await cDAI.borrow(web3.utils.toWei("1"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log("giving DAI allowance");
-    await DAI.approve(cDAI.address, web3.utils.toWei("1"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting cDAI");
-    await cDAI.mint(web3.utils.toWei("1"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await cDAI.balanceOf.call(me2));  
-    
-    console.log("borrowing bUNI");
-    await bUNI.borrow(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    const uniUnderlying = await bUNI.underlying();
-    const UNI = await BErc20.at(uniUnderlying);
-    console.log("giving UNI allowance");
-    await UNI.approve(bUNI.address, web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bUNI");
-    await bUNI.mint(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await bUNI.balanceOf.call(me));  
-  
-    console.log("borrowing bUSDC");
-    await bUSDC.borrow("10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});  
-    const usdcUnderlying = await bUSDC.underlying();
-    const USDC = await BErc20.at(usdcUnderlying);
-    console.log("giving USDC allowance");
-    await USDC.approve(bUSDC.address, "10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bUSDC");
-    await bUSDC.mint("10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await bUSDC.balanceOf.call(me));  
-  
-    console.log("borrowing bUSDT");
-    await bUSDT.borrow("10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    const usdtUnderlying = await bUSDT.underlying();
-    const USDT = await BErc20.at(usdtUnderlying);
-    console.log("giving USDT allowance");
-    await USDT.approve(bUSDT.address, "10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bUSDT");
-    await bUSDT.mint("10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await bUSDT.balanceOf.call(me));
-  
-    console.log("borrowing bWBTC");
-    await bWBTC.borrow("10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    const wbtcUnderlying = await bWBTC.underlying();
-    const WBTC = await BErc20.at(wbtcUnderlying);
-    console.log("giving WBTC allowance");
-    await WBTC.approve(bWBTC.address, "10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bWBTC");
-    await bWBTC.mint("10000000", {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await bWBTC.balanceOf.call(me));
-  
-    console.log("borrowing bZRX");
-    await bZRX.borrow(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    const zrxUnderlying = await bZRX.underlying();
-    const ZRX = await BErc20.at(zrxUnderlying);
-    console.log("giving ZRX allowance");
-    await ZRX.approve(bZRX.address, web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log("minting bZRX");
-    await bZRX.mint(web3.utils.toWei("1"), {from: me, gasLimit : 7000000, gasPrice:100e9});
-    console.log(await bZRX.balanceOf.call(me));
-  
-  
-    console.log("importing me2");
-    const avatar2Address = await registry.getAvatar.call(me2);
-    console.log("give cETH allowance");
-    await cETH.approve(avatar2Address, web3.utils.toWei("1000"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log("give cDAI allowance");
-    await cDAI.approve(avatar2Address, web3.utils.toWei("1000"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-    console.log("give cBAT allowance");
-    await cBAT.approve(avatar2Address, web3.utils.toWei("1000"), {from: me2, gasLimit : 7000000, gasPrice:100e9});
-  
-    console.log("encoding flash loan data")
-    const flashImportData = flashImport.contract.methods.flashImport([cETH.address, cBAT.address, cDAI.address],
-                                                                     [ETH, BAT.address, DAI.address],
-                                                                     [cBAT.address, cDAI.address],
-                                                                     [BAT.address, DAI.address],
-                                                                     importContract.address,
-                                                                     web3.utils.toWei("10000"),
-                                                                     sugarDaddy).encodeABI();
-  
-    //console.log({flashImportData});
-    console.log("doing import")                                                                   
-    await registry.delegateAndExecuteOnce(importContract.address, flashImport.address, flashImportData, {from : me2, gasLimit: 10e6, gasPrice:100e9})
-    console.log("bETH balance", await bETH.balanceOf.call(me2));
-    console.log("bBAT balance", await bBAT.balanceOf.call(me2));
-    console.log("bDAI balance", await bDAI.balanceOf.call(me2));
-  
-    console.log("bETH debt", await bETH.borrowBalanceCurrent.call(me2));
-    console.log("bBAT debt", await bBAT.borrowBalanceCurrent.call(me2));
-    console.log("bDAI debt", await bDAI.borrowBalanceCurrent.call(me2));  
-  
-    console.log("updating score index");
-    await bScore.updateIndex([cETH.address, cBAT.address, cUNI.address, cDAI.address, cUSDC.address, cUSDT.address, cWBTC.address,
-                              cZRX.address, cComp.address], {from : me2, gasLimit: 10e6, gasPrice:100e9});
-    
-    console.log("prinitng user info");
-    console.log(await userInfo.getUserInfo.call(me, comptroller.address, bComptroller.address, registry.address, sugarDaddy, jarConnector.address, jar.address, true));
-  }
+async function setupMaker() {
+  const jarConnector = await JarMakerConnector.at("0xf10Bb2Ca172249C715E4F9eE7776b2C8C31aaA69")
+  const jar = await JarMaker.at("0x3C36cCf03dAB88c1b1AC1eb9C3Fb5dB0b6763cFF")
+  const migrate = await Migrate.at("0xA30b9677A14ED10ecEb6BA87af73A27F51A17C89");
+
+  console.log("spin")
+  await ethers.provider.send("evm_increaseTime", [14*24*60*60])
+  await ethers.provider.send("evm_mine")
+
+  await jarConnector.spin()
+  await jar.gemExit()  
+
+  console.log("proposing")
+  await migrate.propose(jar.address)
+
+
+  console.log("done")
+}
+
+process.on('unhandledRejection', function(err, promise) {
+  console.error('Unhandled rejection (promise: ', promise, ', reason: ', err, ').');
+  process.exit(1);
+});
