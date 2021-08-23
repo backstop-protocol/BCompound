@@ -62,7 +62,9 @@
     "exec-coverage": "node --max-old-space-size=4096 ./node_modules/.bin/truffle run coverage --network coverage",
     "coverage": "FILE=coverage npm run clean-snapshot && FILE=coverage npm run unzip-snapshot && npm run copy-coverage-files && npm run exec-coverage",
     "load-snapshot": "echo $FILE && npm run clean-snapshot && npm run unzip-snapshot && npm run start-ganache",
-    "start-ganache": "echo $FILE && npx ganache-cli -l 1250000000000 --allowUnlimitedContractSize -a 20  -e 100000000000000  -m 'bonus patient judge normal delay supreme sentence confirm fox desk cool estate' --db './snapshot/'$FILE"
+    "start-ganache": "echo $FILE && npx ganache-cli -l 1250000000000 --allowUnlimitedContractSize -a 20  -e 100000000000000  -m 'bonus patient judge normal delay supreme sentence confirm fox desk cool estate' --db './snapshot/'$FILE",
+    "send:eth": "hardhat run --network remote scripts/send-eth-to-test-account.js",
+    "remote-cache": "hardhat run --network remote scripts/deploy.js"
   },
   "repository": {
     "type": "git",
