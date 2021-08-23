@@ -56,7 +56,9 @@
     "clean": "rimraf build && rimraf types && rimraf cache && rimraf artifacts",
     "build": "npm run compile && npm run gen-typings",
     "build-all": "npm run clean && npm run build-compound && npm run build",
-    "compile-compound": "truffle compile --contracts_directory compound-protocol/tests"
+    "compile-compound": "truffle compile --contracts_directory compound-protocol/tests",
+    "send:eth": "hardhat run --network remote scripts/send-eth-to-test-account.js",
+    "remote-cache": "hardhat run --network remote scripts/deploy.js"
   },
   "repository": {
     "type": "git",
