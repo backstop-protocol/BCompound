@@ -21,6 +21,7 @@
     "@types/mocha": "^8.2.0",
     "@types/node": "^14.14.14",
     "@types/web3": "^1.2.2",
+    "axios": "^0.21.1",
     "chai": "^4.2.0",
     "chai-bn": "^0.2.1",
     "eslint": "^7.16.0",
@@ -48,7 +49,7 @@
   },
   "scripts": {
     "deploy-compound": "cd compound-protocol && PROVIDER='http://localhost:8545/' yarn run repl -s script/scen/scriptFlywheel.scen",
-    "postinstall": "git submodule update --init --recursive && cd compound-protocol && yarn && cd scenario && yarn",
+    "postinstall": "git submodule update --init --recursive && cd compound-protocol && yarn && cd scenario && yarn && cd ../../open-oracle/sdk/javascript && yarn",
     "compile": "hardhat compile",
     "ganache": "ganache-cli --gasLimit 20000000 --gasPrice 20000 --defaultBalanceEther 1000000000 --allowUnlimitedContractSize true",
     "test": "hardhat test",
@@ -62,7 +63,8 @@
     "exec-coverage": "node --max-old-space-size=4096 ./node_modules/.bin/truffle run coverage --network coverage",
     "coverage": "FILE=coverage npm run clean-snapshot && FILE=coverage npm run unzip-snapshot && npm run copy-coverage-files && npm run exec-coverage",
     "load-snapshot": "echo $FILE && npm run clean-snapshot && npm run unzip-snapshot && npm run start-ganache",
-    "start-ganache": "echo $FILE && npx ganache-cli -l 1250000000000 --allowUnlimitedContractSize -a 20  -e 100000000000000  -m 'bonus patient judge normal delay supreme sentence confirm fox desk cool estate' --db './snapshot/'$FILE"
+    "start-ganache": "echo $FILE && npx ganache-cli -l 0xfffffffffff --allowUnlimitedContractSize -a 20  -e 100000000000000  -m 'bonus patient judge normal delay supreme sentence confirm fox desk cool estate' --db './snapshot/'$FILE",
+    "start-price-reporter": "cd open-oracle/sdk/javascript && yarn run start --private_key 0x177ee777e72b8c042e05ef41d1db0f17f1fcb0e8150b37cfad6993e4373bdf10 --script ../../../scripts/FakeOraclePrice.js"
   },
   "repository": {
     "type": "git",
