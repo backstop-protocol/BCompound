@@ -57,8 +57,10 @@
     "build": "npm run compile && npm run gen-typings",
     "build-all": "npm run clean && npm run build-compound && npm run build",
     "compile-compound": "truffle compile --contracts_directory compound-protocol/tests",
-    "send:eth": "hardhat run --network remote scripts/send-eth-to-test-account.js",
-    "remote-cache": "hardhat run --network remote scripts/deploy.js"
+    "send:eth": "hardhat run --network remoteChainId1 scripts/send-eth-to-test-account.js",
+    "remote-cache": "hardhat run --network remoteChainId1 scripts/deploy.js",
+    "send:eth:remote-testing": "hardhat run --network remoteTesting scripts/send-eth-to-test-account.js",
+    "remote-cache:remote-testing": "hardhat run --network remoteTesting scripts/deploy.js"
   },
   "repository": {
     "type": "git",
